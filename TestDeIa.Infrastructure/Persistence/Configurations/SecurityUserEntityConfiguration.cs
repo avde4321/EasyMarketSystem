@@ -42,6 +42,9 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
         builder.HasIndex(user => user.NormalizedEmail)
             .IsUnique();
 
+        builder.HasIndex(user => user.PersonaId)
+            .IsUnique();
+
         builder.HasData(new SecurityUserEntity
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -57,8 +60,8 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
         });
 
         builder.HasOne(user => user.Persona)
-            .WithMany(persona => persona.SecurityUsers)
-            .HasForeignKey(user => user.PersonaId)
+            .WithOne(persona => persona.SecurityUser)
+            .HasForeignKey<SecurityUserEntity>(user => user.PersonaId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

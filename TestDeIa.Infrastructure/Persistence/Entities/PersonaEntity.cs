@@ -12,6 +12,8 @@ public sealed class PersonaEntity
 
     public string Apellidos { get; set; } = string.Empty;
 
+    public string? EstadoCivil { get; set; }
+
     public DateOnly? FechaNacimiento { get; set; }
 
     public string? Email { get; set; }
@@ -28,7 +30,9 @@ public sealed class PersonaEntity
 
     public DateTimeOffset? UpdatedAt { get; set; }
 
-    public ICollection<ClienteEntity> Clientes { get; set; } = [];
+    public ClienteEntity? Cliente { get; set; }
 
-    public ICollection<SecurityUserEntity> SecurityUsers { get; set; } = [];
+    public EmpleadoEntity? Empleado { get; set; }
+
+    public SecurityUserEntity? SecurityUser { get; set; }
 }

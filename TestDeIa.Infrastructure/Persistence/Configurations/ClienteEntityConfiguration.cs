@@ -16,8 +16,8 @@ public sealed class ClienteEntityConfiguration : IEntityTypeConfiguration<Client
             .IsUnique();
 
         builder.HasOne(cliente => cliente.Persona)
-            .WithMany(persona => persona.Clientes)
-            .HasForeignKey(cliente => cliente.PersonaId)
+            .WithOne(persona => persona.Cliente)
+            .HasForeignKey<ClienteEntity>(cliente => cliente.PersonaId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

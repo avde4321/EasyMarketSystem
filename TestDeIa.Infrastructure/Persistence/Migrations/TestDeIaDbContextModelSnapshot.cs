@@ -22,6 +22,415 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("Catalogos", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "TIPO_IDENTIFICACION",
+                            Descripcion = "Tipos base de identificacion para personas y clientes.",
+                            IsActive = true,
+                            Nombre = "Tipo de identificacion"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "ESTADO_CIVIL",
+                            Descripcion = "Estado civil de personas.",
+                            IsActive = true,
+                            Nombre = "Estado civil"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000003"),
+                            Codigo = "ESTADO_REGISTRO",
+                            Descripcion = "Estados funcionales de registros activos e inactivos.",
+                            IsActive = true,
+                            Nombre = "Estado de registro"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "ESTADO_DOCUMENTO_ELECTRONICO",
+                            Descripcion = "Estados de comprobantes electronicos.",
+                            IsActive = true,
+                            Nombre = "Estado documento electronico"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000005"),
+                            Codigo = "AMBIENTE_SRI",
+                            Descripcion = "Ambiente de emision para comprobantes electronicos.",
+                            IsActive = true,
+                            Nombre = "Ambiente SRI"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000006"),
+                            Codigo = "TIPO_EMISION",
+                            Descripcion = "Tipo de emision de documentos electronicos.",
+                            IsActive = true,
+                            Nombre = "Tipo de emision"
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "FORMA_PAGO_SRI",
+                            Descripcion = "Formas de pago segun catalogo del SRI.",
+                            IsActive = true,
+                            Nombre = "Forma de pago SRI"
+                        });
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoItemEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CatalogoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogoId", "Codigo")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoItems", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000001"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "RUC",
+                            IsActive = true,
+                            Nombre = "RUC",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000002"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "Cedula",
+                            IsActive = true,
+                            Nombre = "Cedula",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000003"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "Pasaporte",
+                            IsActive = true,
+                            Nombre = "Pasaporte",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000004"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "Consumidor Final",
+                            IsActive = true,
+                            Nombre = "Consumidor final",
+                            Orden = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000005"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "Identificacion del Exterior",
+                            IsActive = true,
+                            Nombre = "Identificacion del exterior",
+                            Orden = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000006"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
+                            Codigo = "Placa",
+                            IsActive = true,
+                            Nombre = "Placa",
+                            Orden = 6
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000011"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "SOLTERO",
+                            IsActive = true,
+                            Nombre = "Soltero",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000012"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "CASADO",
+                            IsActive = true,
+                            Nombre = "Casado",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000013"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "DIVORCIADO",
+                            IsActive = true,
+                            Nombre = "Divorciado",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000014"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "VIUDO",
+                            IsActive = true,
+                            Nombre = "Viudo",
+                            Orden = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000015"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000002"),
+                            Codigo = "UNION_LIBRE",
+                            IsActive = true,
+                            Nombre = "Union libre",
+                            Orden = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000021"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000003"),
+                            Codigo = "ACTIVO",
+                            IsActive = true,
+                            Nombre = "Activo",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000022"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000003"),
+                            Codigo = "INACTIVO",
+                            IsActive = true,
+                            Nombre = "Inactivo",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000031"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "Pendiente",
+                            IsActive = true,
+                            Nombre = "Pendiente",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000032"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "EnProceso",
+                            IsActive = true,
+                            Nombre = "En proceso",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000033"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "Recibido",
+                            IsActive = true,
+                            Nombre = "Recibido",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000034"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "Autorizado",
+                            IsActive = true,
+                            Nombre = "Autorizado",
+                            Orden = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000035"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "Rechazado",
+                            IsActive = true,
+                            Nombre = "Rechazado",
+                            Orden = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000036"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000004"),
+                            Codigo = "Error",
+                            IsActive = true,
+                            Nombre = "Error",
+                            Orden = 6
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000041"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000005"),
+                            Codigo = "Pruebas",
+                            Descripcion = "Codigo SRI 1",
+                            IsActive = true,
+                            Nombre = "Pruebas",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000042"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000005"),
+                            Codigo = "Produccion",
+                            Descripcion = "Codigo SRI 2",
+                            IsActive = true,
+                            Nombre = "Produccion",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000051"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000006"),
+                            Codigo = "Normal",
+                            Descripcion = "Codigo SRI 1",
+                            IsActive = true,
+                            Nombre = "Normal",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000061"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Efectivo",
+                            Descripcion = "Codigo SRI 01",
+                            IsActive = true,
+                            Nombre = "Efectivo",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000062"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Compensacion",
+                            Descripcion = "Codigo SRI 15",
+                            IsActive = true,
+                            Nombre = "Compensacion",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000063"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Tarjeta de debito",
+                            Descripcion = "Codigo SRI 16",
+                            IsActive = true,
+                            Nombre = "Tarjeta de debito",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000064"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Dinero electronico",
+                            Descripcion = "Codigo SRI 17",
+                            IsActive = true,
+                            Nombre = "Dinero electronico",
+                            Orden = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000065"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Tarjeta prepago",
+                            Descripcion = "Codigo SRI 18",
+                            IsActive = true,
+                            Nombre = "Tarjeta prepago",
+                            Orden = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000066"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Tarjeta de credito",
+                            Descripcion = "Codigo SRI 19",
+                            IsActive = true,
+                            Nombre = "Tarjeta de credito",
+                            Orden = 6
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000067"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Transferencia",
+                            Descripcion = "Codigo SRI 20",
+                            IsActive = true,
+                            Nombre = "Transferencia",
+                            Orden = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000068"),
+                            CatalogoId = new Guid("70000000-0000-0000-0000-000000000007"),
+                            Codigo = "Endoso de titulos",
+                            Descripcion = "Codigo SRI 21",
+                            IsActive = true,
+                            Nombre = "Endoso de titulos",
+                            Orden = 8
+                        });
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ClienteEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -46,6 +455,32 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Clientes", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpleadoEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonaId")
+                        .IsUnique();
+
+                    b.ToTable("Empleados", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", b =>
@@ -519,6 +954,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(180)
                         .HasColumnType("nvarchar(180)");
 
+                    b.Property<string>("EstadoCivil")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateOnly?>("FechaNacimiento")
                         .HasColumnType("date");
 
@@ -709,7 +1148,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<Guid?>("PersonaId")
+                    b.Property<Guid>("PersonaId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("UserName")
@@ -725,7 +1164,8 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique();
 
-                    b.HasIndex("PersonaId");
+                    b.HasIndex("PersonaId")
+                        .IsUnique();
 
                     b.ToTable("SecurityUsers", (string)null);
 
@@ -767,11 +1207,33 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoItemEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CatalogoEntity", "Catalogo")
+                        .WithMany("Items")
+                        .HasForeignKey("CatalogoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Catalogo");
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ClienteEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", "Persona")
-                        .WithMany("Clientes")
-                        .HasForeignKey("PersonaId")
+                        .WithOne("Cliente")
+                        .HasForeignKey("TestDeIa.Infrastructure.Persistence.Entities.ClienteEntity", "PersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Persona");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpleadoEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", "Persona")
+                        .WithOne("Empleado")
+                        .HasForeignKey("TestDeIa.Infrastructure.Persistence.Entities.EmpleadoEntity", "PersonaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -814,9 +1276,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SecurityUserEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", "Persona")
-                        .WithMany("SecurityUsers")
-                        .HasForeignKey("PersonaId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .WithOne("SecurityUser")
+                        .HasForeignKey("TestDeIa.Infrastructure.Persistence.Entities.SecurityUserEntity", "PersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Persona");
                 });
@@ -840,6 +1303,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoEntity", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaEntity", b =>
                 {
                     b.Navigation("Detalles");
@@ -849,9 +1317,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", b =>
                 {
-                    b.Navigation("Clientes");
+                    b.Navigation("Cliente");
 
-                    b.Navigation("SecurityUsers");
+                    b.Navigation("Empleado");
+
+                    b.Navigation("SecurityUser");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ProductoEntity", b =>

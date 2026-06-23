@@ -1,0 +1,167 @@
+@page "/usuarios"
+@attribute [Authorize(Roles = "Administrador")]
+
+<PageTitle>Usuarios</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Usuarios</h1>
+            <p>Mantenimiento del modulo de seguridad y accesos vinculados a persona.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear usuario</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando usuarios...</em></p>
+        }
+        else if (users.Count == 0)
+        {
+            <div class="empty-state">No hay usuarios registrados.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Persona</th>
+                        <th>Correo</th>
+                        <th>Rol sistema</th>
+                        <th>Roles persona</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in users)
+                    {
+                        <tr>
+                            <td>@user.UserName</td>
+                            <td>
+                                <strong>@user.PersonaNombre</strong>
+                                <small>@user.PersonaIdentificacion</small>
+                            </td>
+                            <td>@user.Email</td>
+                            <td>@string.Join(", ", user.Roles)</td>
+                            <td>@string.Join(", ", user.RolesPersona)</td>
+                            <td><span class="status-pill">@((user.IsActive ? "Activo" : "Inactivo"))</span></td>
+                            <td class="row-actions">
+                                <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingUserId.HasValue ? "Actualizar usuario" : "Crear usuario")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="userRequest" OnValidSubmit="SaveUserAsync">
+                <DataAnnotationsValidator />
+
+                <div class="status-banner">
+                    Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de usuario sin duplicar sus datos base.
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Tipo identificacion</label>
+                        <InputSelect class="form-control" @bind-Value="userRequest.TipoIdentificacion">
+                            @foreach (var item in tiposIdentificacion)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Identificacion</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
+                        <ValidationMessage For="@(() => userRequest.Identificacion)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Nombres</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Nombres" />
+                        <ValidationMessage For="@(() => userRequest.Nombres)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Apellidos</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Apellidos" />
+                        <ValidationMessage For="@(() => userRequest.Apellidos)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Correo</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Email" />
+                        <ValidationMessage For="@(() => userRequest.Email)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Celular</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Telefono" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label>Direccion</label>
+                        <InputTextArea class="form-control" @bind-Value="userRequest.Direccion" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Usuario</label>
+                        <InputText class="form-control" @bind-Value="userRequest.UserName" />
+                        <ValidationMessage For="@(() => userRequest.UserName)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Clave @(editingUserId.HasValue ? "(opcional)" : string.Empty)</label>
+                        <InputText class="form-control" type="password" @bind-Value="userRequest.Password" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label>Roles del sistema</label>
+                        <div class="checkbox-grid">
+                            @foreach (var role in roles)
+                            {
+                                <label class="form-check soft-check">
+                                    <input class="form-check-input" type="checkbox" checked="@selectedRoles.Contains(role.Name)" @onchange="args => ToggleRole(role.Name, args.Value)" />
+                                    <span class="form-check-label">@role.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="userRequest.IsActive" />
+                    <span class="form-check-label">Usuario activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

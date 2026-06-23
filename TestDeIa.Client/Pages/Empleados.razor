@@ -1,0 +1,137 @@
+@page "/empleados"
+@attribute [Authorize]
+
+<PageTitle>Empleados</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Empleados</h1>
+            <p>Mantenimiento de empleados sobre la persona centralizada.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear empleado</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando empleados...</em></p>
+        }
+        else if (empleados.Count == 0)
+        {
+            <div class="empty-state">No hay empleados registrados.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Identificacion</th>
+                        <th>Nombre</th>
+                        <th>Correo</th>
+                        <th>Telefono</th>
+                        <th>Roles</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var empleado in empleados)
+                    {
+                        <tr>
+                            <td>@empleado.TipoIdentificacion</td>
+                            <td>@empleado.Identificacion</td>
+                            <td>@empleado.NombreCompleto</td>
+                            <td>@empleado.Email</td>
+                            <td>@empleado.Telefono</td>
+                            <td>@string.Join(", ", empleado.RolesPersona)</td>
+                            <td><span class="status-pill">@((empleado.IsActive ? "Activo" : "Inactivo"))</span></td>
+                            <td class="row-actions">
+                                <button class="ghost-button" @onclick="() => OpenEditModal(empleado)">Editar</button>
+                                <button class="danger-button" @onclick="() => DeleteEmpleadoAsync(empleado.Id)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingEmpleadoId.HasValue ? "Actualizar empleado" : "Crear empleado")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="empleadoRequest" OnValidSubmit="SaveEmpleadoAsync">
+                <DataAnnotationsValidator />
+
+                <div class="status-banner">
+                    Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de empleado sin duplicar sus datos base.
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Tipo identificacion</label>
+                        <InputSelect class="form-control" @bind-Value="empleadoRequest.TipoIdentificacion">
+                            @foreach (var item in tiposIdentificacion)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Identificacion</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.Identificacion" />
+                        <ValidationMessage For="@(() => empleadoRequest.Identificacion)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Nombres</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.Nombres" />
+                        <ValidationMessage For="@(() => empleadoRequest.Nombres)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Apellidos</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.Apellidos" />
+                        <ValidationMessage For="@(() => empleadoRequest.Apellidos)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Correo</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.Email" />
+                        <ValidationMessage For="@(() => empleadoRequest.Email)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Celular</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.Telefono" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Direccion</label>
+                        <InputTextArea class="form-control" @bind-Value="empleadoRequest.Direccion" />
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="empleadoRequest.IsActive" />
+                    <span class="form-check-label">Empleado activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

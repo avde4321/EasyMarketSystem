@@ -155,14 +155,10 @@
                         <div class="form-field">
                             <label>Forma de pago</label>
                             <InputSelect class="form-control" @bind-Value="formaPago">
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta de credito">Tarjeta de credito</option>
-                                <option value="Tarjeta de debito">Tarjeta de debito</option>
-                                <option value="Transferencia">Transferencia</option>
-                                <option value="Dinero electronico">Dinero electronico</option>
-                                <option value="Tarjeta prepago">Tarjeta prepago</option>
-                                <option value="Compensacion">Compensacion</option>
-                                <option value="Endoso de titulos">Endoso de titulos</option>
+                                @foreach (var item in formasPago)
+                                {
+                                    <option value="@item.Codigo">@item.Nombre</option>
+                                }
                             </InputSelect>
                         </div>
                         <div class="form-field full">

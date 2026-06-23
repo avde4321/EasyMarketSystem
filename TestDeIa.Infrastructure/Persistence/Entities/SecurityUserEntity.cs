@@ -4,9 +4,9 @@ public sealed class SecurityUserEntity
 {
     public Guid Id { get; set; }
 
-    public Guid? PersonaId { get; set; }
+    public Guid PersonaId { get; set; }
 
-    public PersonaEntity? Persona { get; set; }
+    public PersonaEntity Persona { get; set; } = default!;
 
     public string UserName { get; set; } = string.Empty;
 

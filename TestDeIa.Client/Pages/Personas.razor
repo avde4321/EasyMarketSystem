@@ -34,9 +34,11 @@
                         <th>Tipo</th>
                         <th>Identificacion</th>
                         <th>Nombre</th>
+                        <th>Estado civil</th>
                         <th>F. nacimiento</th>
                         <th>Correo</th>
                         <th>Telefono</th>
+                        <th>Roles</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
@@ -48,9 +50,11 @@
                             <td>@persona.TipoIdentificacion</td>
                             <td>@persona.Identificacion</td>
                             <td>@persona.NombreCompleto</td>
+                            <td>@(persona.EstadoCivil ?? "-")</td>
                             <td>@(persona.FechaNacimiento?.ToString("yyyy-MM-dd") ?? "-")</td>
                             <td>@persona.Email</td>
                             <td>@persona.Telefono</td>
+                            <td>@(persona.RolesPersona.Count == 0 ? "-" : string.Join(", ", persona.RolesPersona))</td>
                             <td><span class="status-pill">@((persona.IsActive ? "Activa" : "Inactiva"))</span></td>
                             <td class="row-actions">
                                 <button class="ghost-button" @onclick="() => OpenEditModal(persona)">Editar</button>
@@ -79,12 +83,10 @@
                     <div class="form-field">
                         <label for="tipoIdentificacion">Tipo identificacion</label>
                         <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="personaRequest.TipoIdentificacion">
-                            <option value="Cedula">Cedula</option>
-                            <option value="RUC">RUC</option>
-                            <option value="Pasaporte">Pasaporte</option>
-                            <option value="Consumidor Final">Consumidor final</option>
-                            <option value="Identificacion del Exterior">Identificacion del exterior</option>
-                            <option value="Placa">Placa</option>
+                            @foreach (var item in tiposIdentificacion)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
                         </InputSelect>
                         <ValidationMessage For="@(() => personaRequest.TipoIdentificacion)" />
                     </div>
@@ -111,6 +113,17 @@
                     <div class="form-field">
                         <label for="fechaNacimiento">Fecha nacimiento</label>
                         <InputDate id="fechaNacimiento" class="form-control" @bind-Value="personaRequest.FechaNacimiento" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="estadoCivil">Estado civil</label>
+                        <InputSelect id="estadoCivil" class="form-control" @bind-Value="personaRequest.EstadoCivil">
+                            <option value="">Sin definir</option>
+                            @foreach (var item in estadosCiviles)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
                     </div>
 
                     <div class="form-field">

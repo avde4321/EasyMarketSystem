@@ -1,0 +1,159 @@
+@page "/catalogos"
+@attribute [Authorize]
+
+<PageTitle>Catalogos</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Catalogos</h1>
+            <p>Parametros base del sistema para listas maestras y estados operativos.</p>
+        </div>
+        @if (selectedCatalogo is not null)
+        {
+            <button class="primary-action" @onclick="OpenCreateModal">Nuevo item</button>
+        }
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="pos-grid">
+        <div class="pos-column">
+            <section class="table-card">
+                <header class="section-header">
+                    <div>
+                        <h2>Catalogos disponibles</h2>
+                        <p>Selecciona uno para consultar o ajustar sus items.</p>
+                    </div>
+                </header>
+
+                @if (isLoadingCatalogos)
+                {
+                    <p><em>Cargando catalogos...</em></p>
+                }
+                else
+                {
+                    <div class="result-list">
+                        @foreach (var catalogo in catalogos)
+                        {
+                            <button class="result-item" @onclick="() => SelectCatalogoAsync(catalogo)">
+                                <strong>@catalogo.Nombre</strong>
+                                <span>@catalogo.Codigo</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+        </div>
+
+        <div class="pos-column wide">
+            <section class="table-card">
+                <header class="section-header">
+                    <div>
+                        <h2>@(selectedCatalogo?.Nombre ?? "Items del catalogo")</h2>
+                        <p>@(selectedCatalogo?.Descripcion ?? "Escoge un catalogo para ver sus valores parametrizados.")</p>
+                    </div>
+                </header>
+
+                @if (selectedCatalogo is null)
+                {
+                    <div class="empty-state">Selecciona un catalogo para comenzar.</div>
+                }
+                else if (isLoadingItems)
+                {
+                    <p><em>Cargando items...</em></p>
+                }
+                else if (catalogoItems.Count == 0)
+                {
+                    <div class="empty-state">Este catalogo aun no tiene items.</div>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Nombre</th>
+                                <th>Descripcion</th>
+                                <th>Orden</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in catalogoItems)
+                            {
+                                <tr>
+                                    <td>@item.Codigo</td>
+                                    <td>@item.Nombre</td>
+                                    <td>@item.Descripcion</td>
+                                    <td>@item.Orden</td>
+                                    <td><span class="status-pill">@((item.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                    <td class="row-actions">
+                                        <button class="ghost-button" @onclick="() => OpenEditModal(item)">Editar</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+        </div>
+    </section>
+</section>
+
+@if (isEditorOpen && selectedCatalogo is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingItemId.HasValue ? "Actualizar item" : "Nuevo item")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="catalogoItemRequest" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Catalogo</label>
+                        <input class="form-control" value="@selectedCatalogo.Nombre" disabled />
+                    </div>
+                    <div class="form-field">
+                        <label>Codigo</label>
+                        <InputText class="form-control" @bind-Value="catalogoItemRequest.Codigo" />
+                        <ValidationMessage For="@(() => catalogoItemRequest.Codigo)" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="catalogoItemRequest.Nombre" />
+                        <ValidationMessage For="@(() => catalogoItemRequest.Nombre)" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Descripcion</label>
+                        <InputTextArea class="form-control" @bind-Value="catalogoItemRequest.Descripcion" />
+                    </div>
+                    <div class="form-field">
+                        <label>Orden</label>
+                        <InputNumber class="form-control" @bind-Value="catalogoItemRequest.Orden" />
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="catalogoItemRequest.IsActive" />
+                    <span class="form-check-label">Item activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

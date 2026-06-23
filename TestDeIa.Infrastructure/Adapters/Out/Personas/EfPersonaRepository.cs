@@ -17,8 +17,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
     public async Task<IReadOnlyCollection<Persona>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var personas = await dbContext.Personas
-            .AsNoTracking()
+        var personas = await BaseQuery()
             .Where(persona => !persona.IsSystemRecord)
             .OrderBy(persona => persona.Apellidos)
             .ThenBy(persona => persona.Nombres)
@@ -29,10 +28,18 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
     public async Task<Persona?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var persona = await dbContext.Personas
-            .AsNoTracking()
+        var persona = await BaseQuery()
+            .FirstOrDefaultAsync(current => current.Id == id && !current.IsSystemRecord, cancellationToken);
+
+        return persona is null ? null : MapToDomain(persona);
+    }
+
+    public async Task<Persona?> FindByIdentificacionAsync(string identificacion, CancellationToken cancellationToken = default)
+    {
+        var normalizedIdentificacion = identificacion.Trim();
+        var persona = await BaseQuery()
             .FirstOrDefaultAsync(
-                current => current.Id == id && !current.IsSystemRecord,
+                current => !current.IsSystemRecord && current.Identificacion == normalizedIdentificacion,
                 cancellationToken);
 
         return persona is null ? null : MapToDomain(persona);
@@ -59,15 +66,13 @@ public sealed class EfPersonaRepository : IPersonaRepository
         dbContext.Personas.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken) ?? MapToDomain(entity);
     }
 
     public async Task<Persona?> UpdateAsync(Persona persona, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Personas
-            .FirstOrDefaultAsync(
-                current => current.Id == persona.Id && !current.IsSystemRecord,
-                cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == persona.Id && !current.IsSystemRecord, cancellationToken);
 
         if (entity is null)
         {
@@ -78,6 +83,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
         entity.Identificacion = persona.Identificacion;
         entity.Nombres = persona.Nombres;
         entity.Apellidos = persona.Apellidos;
+        entity.EstadoCivil = persona.EstadoCivil;
         entity.FechaNacimiento = persona.FechaNacimiento;
         entity.Email = persona.Email;
         entity.Telefono = persona.Telefono;
@@ -86,7 +92,16 @@ public sealed class EfPersonaRepository : IPersonaRepository
         entity.UpdatedAt = persona.UpdatedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken);
+    }
+
+    private IQueryable<PersonaEntity> BaseQuery()
+    {
+        return dbContext.Personas
+            .AsNoTracking()
+            .Include(persona => persona.Cliente)
+            .Include(persona => persona.Empleado)
+            .Include(persona => persona.SecurityUser);
     }
 
     private static Persona MapToDomain(PersonaEntity entity)
@@ -97,10 +112,12 @@ public sealed class EfPersonaRepository : IPersonaRepository
             entity.Identificacion,
             entity.Nombres,
             entity.Apellidos,
+            entity.EstadoCivil,
             entity.FechaNacimiento,
             entity.Email,
             entity.Telefono,
             entity.Direccion,
+            ResolvePersonaRoles(entity),
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
@@ -115,6 +132,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
             Identificacion = persona.Identificacion,
             Nombres = persona.Nombres,
             Apellidos = persona.Apellidos,
+            EstadoCivil = persona.EstadoCivil,
             FechaNacimiento = persona.FechaNacimiento,
             Email = persona.Email,
             Telefono = persona.Telefono,
@@ -123,5 +141,27 @@ public sealed class EfPersonaRepository : IPersonaRepository
             CreatedAt = persona.CreatedAt,
             UpdatedAt = persona.UpdatedAt
         };
+    }
+
+    private static string[] ResolvePersonaRoles(PersonaEntity entity)
+    {
+        var roles = new List<string>();
+
+        if (entity.Cliente is not null)
+        {
+            roles.Add("Cliente");
+        }
+
+        if (entity.Empleado is not null)
+        {
+            roles.Add("Empleado");
+        }
+
+        if (entity.SecurityUser is not null)
+        {
+            roles.Add("Usuario");
+        }
+
+        return roles.ToArray();
     }
 }

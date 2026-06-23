@@ -1,3 +1,4 @@
+using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.In;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
@@ -9,10 +10,12 @@ namespace TestDeIa.Application.Modules.Empresa.UseCases;
 public sealed class EmpresaUseCase : IEmpresaUseCase
 {
     private readonly IEmpresaRepository empresaRepository;
+    private readonly ICatalogoRepository catalogoRepository;
 
-    public EmpresaUseCase(IEmpresaRepository empresaRepository)
+    public EmpresaUseCase(IEmpresaRepository empresaRepository, ICatalogoRepository catalogoRepository)
     {
         this.empresaRepository = empresaRepository;
+        this.catalogoRepository = catalogoRepository;
     }
 
     public async Task<EmpresaResponse?> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -24,7 +27,8 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
     public async Task<EmpresaResponse> UpsertAsync(EmpresaRequest request, CancellationToken cancellationToken = default)
     {
         var current = await empresaRepository.GetCurrentAsync(cancellationToken);
-        ValidateRequest(request, current);
+        await ValidateRequestAsync(request, current, cancellationToken);
+
         var empresa = new EmpresaEmisora(
             current?.Id ?? Guid.NewGuid(),
             request.RazonSocial.Trim(),
@@ -78,7 +82,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         };
     }
 
-    private static void ValidateRequest(EmpresaRequest request, EmpresaEmisora? current)
+    private async Task ValidateRequestAsync(EmpresaRequest request, EmpresaEmisora? current, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.RazonSocial))
         {
@@ -105,10 +109,9 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             throw new InvalidOperationException("El punto de emision debe tener 3 digitos.");
         }
 
-        if (!string.Equals(request.AmbienteSri, "Pruebas", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase))
+        if (!await catalogoRepository.ExistsActiveItemAsync("AMBIENTE_SRI", request.AmbienteSri.Trim(), cancellationToken))
         {
-            throw new InvalidOperationException("El ambiente SRI debe ser Pruebas o Produccion.");
+            throw new InvalidOperationException("El ambiente SRI no existe en el catalogo parametrizado.");
         }
 
         if (request.ModoDesarrollo &&
@@ -117,9 +120,9 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             throw new InvalidOperationException("No se puede dejar el modo desarrollo activo con ambiente SRI en Produccion.");
         }
 
-        if (!string.Equals(request.TipoEmision, "Normal", StringComparison.OrdinalIgnoreCase))
+        if (!await catalogoRepository.ExistsActiveItemAsync("TIPO_EMISION", request.TipoEmision.Trim(), cancellationToken))
         {
-            throw new InvalidOperationException("Por ahora solo se soporta tipo de emision Normal.");
+            throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.ContribuyenteEspecial) &&

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Client.Pages;
@@ -10,8 +12,12 @@ public partial class FacturacionPos : IDisposable
     [Inject]
     private FacturacionApiClient FacturacionApiClient { get; set; } = default!;
 
+    [Inject]
+    private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
+
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
+    private readonly List<CatalogoItemResponse> formasPago = [];
     private readonly List<CartItemModel> cartItems = [];
     private string clienteSearchTerm = string.Empty;
     private string productoSearchTerm = string.Empty;
@@ -21,6 +27,18 @@ public partial class FacturacionPos : IDisposable
     private bool isSubmitting;
     private string? errorMessage;
     private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCatalogosAsync();
+    }
+
+    private async Task LoadCatalogosAsync()
+    {
+        formasPago.Clear();
+        formasPago.AddRange(await CatalogosApiClient.GetItemsAsync("FORMA_PAGO_SRI", true));
+        formaPago = formasPago.FirstOrDefault()?.Codigo ?? "Efectivo";
+    }
 
     private async Task SearchClientesAsync()
     {

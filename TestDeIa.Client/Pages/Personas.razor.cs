@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Personas;
 using TestDeIa.Shared.Requests.Personas;
+using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Personas;
 
 namespace TestDeIa.Client.Pages;
@@ -10,7 +12,12 @@ public partial class Personas
     [Inject]
     private PersonasApiClient PersonasApiClient { get; set; } = default!;
 
+    [Inject]
+    private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
+
     private readonly List<PersonaResponse> personas = [];
+    private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
+    private readonly List<CatalogoItemResponse> estadosCiviles = [];
     private PersonaRequest personaRequest = new();
     private Guid? editingPersonaId;
     private bool isLoading = true;
@@ -20,7 +27,16 @@ public partial class Personas
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCatalogosAsync();
         await LoadPersonasAsync();
+    }
+
+    private async Task LoadCatalogosAsync()
+    {
+        tiposIdentificacion.Clear();
+        estadosCiviles.Clear();
+        tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
+        estadosCiviles.AddRange(await CatalogosApiClient.GetItemsAsync("ESTADO_CIVIL", true));
     }
 
     private async Task LoadPersonasAsync()
@@ -61,6 +77,7 @@ public partial class Personas
             Identificacion = persona.Identificacion,
             Nombres = persona.Nombres,
             Apellidos = persona.Apellidos,
+            EstadoCivil = persona.EstadoCivil,
             FechaNacimiento = persona.FechaNacimiento,
             Email = persona.Email,
             Telefono = persona.Telefono,

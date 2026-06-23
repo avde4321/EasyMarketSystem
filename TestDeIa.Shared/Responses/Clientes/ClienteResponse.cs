@@ -22,6 +22,8 @@ public sealed class ClienteResponse
 
     public string? Direccion { get; set; }
 
+    public IReadOnlyCollection<string> RolesPersona { get; set; } = [];
+
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

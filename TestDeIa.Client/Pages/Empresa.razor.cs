@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Shared.Requests.Empresa;
+using TestDeIa.Shared.Responses.Catalogos;
 
 namespace TestDeIa.Client.Pages;
 
@@ -10,8 +12,13 @@ public partial class Empresa
     [Inject]
     private EmpresaApiClient EmpresaApiClient { get; set; } = default!;
 
+    [Inject]
+    private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
+
     private EmpresaRequest empresaRequest = new();
     private TestDeIa.Shared.Responses.Empresa.EmpresaResponse? empresaActual;
+    private readonly List<CatalogoItemResponse> ambientesSri = [];
+    private readonly List<CatalogoItemResponse> tiposEmision = [];
     private bool isSaving;
     private string? errorMessage;
     private string? statusMessage;
@@ -19,7 +26,16 @@ public partial class Empresa
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCatalogosAsync();
         await LoadAsync();
+    }
+
+    private async Task LoadCatalogosAsync()
+    {
+        ambientesSri.Clear();
+        tiposEmision.Clear();
+        ambientesSri.AddRange(await CatalogosApiClient.GetItemsAsync("AMBIENTE_SRI", true));
+        tiposEmision.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_EMISION", true));
     }
 
     private async Task LoadAsync()
@@ -32,6 +48,11 @@ public partial class Empresa
             if (empresa is null)
             {
                 empresaActual = null;
+                empresaRequest = new EmpresaRequest
+                {
+                    AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "Pruebas",
+                    TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "Normal"
+                };
                 return;
             }
 

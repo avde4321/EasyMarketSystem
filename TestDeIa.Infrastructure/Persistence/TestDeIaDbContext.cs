@@ -11,12 +11,16 @@ public sealed class TestDeIaDbContext : DbContext
     }
 
     public DbSet<SecurityUserEntity> SecurityUsers => Set<SecurityUserEntity>();
+    public DbSet<CatalogoEntity> Catalogos => Set<CatalogoEntity>();
+    public DbSet<CatalogoItemEntity> CatalogoItems => Set<CatalogoItemEntity>();
 
     public DbSet<SecurityRoleEntity> SecurityRoles => Set<SecurityRoleEntity>();
 
     public DbSet<SecurityUserRoleEntity> SecurityUserRoles => Set<SecurityUserRoleEntity>();
 
     public DbSet<ClienteEntity> Clientes => Set<ClienteEntity>();
+
+    public DbSet<EmpleadoEntity> Empleados => Set<EmpleadoEntity>();
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
 

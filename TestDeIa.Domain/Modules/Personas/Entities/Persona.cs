@@ -8,10 +8,12 @@ public sealed class Persona
         string identificacion,
         string nombres,
         string apellidos,
+        string? estadoCivil,
         DateOnly? fechaNacimiento,
         string? email,
         string? telefono,
         string? direccion,
+        IReadOnlyCollection<string> rolesPersona,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -21,10 +23,12 @@ public sealed class Persona
         Identificacion = identificacion;
         Nombres = nombres;
         Apellidos = apellidos;
+        EstadoCivil = estadoCivil;
         FechaNacimiento = fechaNacimiento;
         Email = email;
         Telefono = telefono;
         Direccion = direccion;
+        RolesPersona = rolesPersona;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -40,6 +44,8 @@ public sealed class Persona
 
     public string Apellidos { get; }
 
+    public string? EstadoCivil { get; }
+
     public DateOnly? FechaNacimiento { get; }
 
     public string? Email { get; }
@@ -47,6 +53,8 @@ public sealed class Persona
     public string? Telefono { get; }
 
     public string? Direccion { get; }
+
+    public IReadOnlyCollection<string> RolesPersona { get; }
 
     public bool IsActive { get; }
 

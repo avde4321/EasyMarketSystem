@@ -35,4 +35,49 @@ public sealed class SecurityApiClient
                 ErrorMessage = "No se pudo leer la respuesta del servidor."
             };
     }
+
+    public async Task<IReadOnlyCollection<SecurityUserResponse>> GetUsersAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<SecurityUserResponse>>("api/security/users")
+            ?? Array.Empty<SecurityUserResponse>();
+    }
+
+    public async Task<IReadOnlyCollection<SecurityRoleResponse>> GetRolesAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<SecurityRoleResponse>>("api/security/roles")
+            ?? Array.Empty<SecurityRoleResponse>();
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> CreateUserAsync(SecurityUserRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/security/users", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> UpdateUserAsync(Guid id, SecurityUserRequest request)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/security/users/{id}", request);
+        return await BuildResultAsync(response);
+    }
+
+    private static async Task<(bool Succeeded, string? ErrorMessage)> BuildResultAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null);
+        }
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            return (false, error?.Message ?? "No se pudo completar la operacion.");
+        }
+
+        return (false, "No se pudo completar la operacion.");
+    }
+
+    private sealed class ApiError
+    {
+        public string? Message { get; set; }
+    }
 }

@@ -28,6 +28,9 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
             .HasMaxLength(120)
             .IsRequired();
 
+        builder.Property(persona => persona.EstadoCivil)
+            .HasMaxLength(30);
+
         builder.Property(persona => persona.Email)
             .HasMaxLength(180);
 
@@ -50,6 +53,7 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
             Identificacion = "ADMIN",
             Nombres = "Administrador",
             Apellidos = "Sistema",
+            EstadoCivil = null,
             Email = "admin@testdeia.local",
             IsActive = true,
             IsSystemRecord = true,

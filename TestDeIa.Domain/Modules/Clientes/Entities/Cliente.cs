@@ -12,6 +12,7 @@ public sealed class Cliente
         string? email,
         string? telefono,
         string? direccion,
+        IReadOnlyCollection<string> rolesPersona,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -25,6 +26,7 @@ public sealed class Cliente
         Email = email;
         Telefono = telefono;
         Direccion = direccion;
+        RolesPersona = rolesPersona;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -47,6 +49,8 @@ public sealed class Cliente
     public string? Telefono { get; }
 
     public string? Direccion { get; }
+
+    public IReadOnlyCollection<string> RolesPersona { get; }
 
     public bool IsActive { get; }
 

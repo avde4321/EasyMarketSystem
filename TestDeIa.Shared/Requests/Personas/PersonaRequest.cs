@@ -20,6 +20,9 @@ public sealed class PersonaRequest
     [StringLength(120, ErrorMessage = "Los apellidos no pueden superar 120 caracteres.")]
     public string Apellidos { get; set; } = string.Empty;
 
+    [StringLength(30, ErrorMessage = "El estado civil no puede superar 30 caracteres.")]
+    public string? EstadoCivil { get; set; }
+
     public DateOnly? FechaNacimiento { get; set; }
 
     [EmailAddress(ErrorMessage = "El correo no tiene un formato valido.")]

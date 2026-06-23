@@ -17,9 +17,7 @@ public sealed class EfClienteRepository : IClienteRepository
 
     public async Task<IReadOnlyCollection<Cliente>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var clientes = await dbContext.Clientes
-            .AsNoTracking()
-            .Include(cliente => cliente.Persona)
+        var clientes = await BaseQuery()
             .OrderBy(cliente => cliente.Persona.Apellidos)
             .ThenBy(cliente => cliente.Persona.Nombres)
             .ToListAsync(cancellationToken);
@@ -29,84 +27,26 @@ public sealed class EfClienteRepository : IClienteRepository
 
     public async Task<Cliente?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var cliente = await dbContext.Clientes
-            .AsNoTracking()
-            .Include(current => current.Persona)
-            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var cliente = await BaseQuery().FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        return cliente is null ? null : MapToDomain(cliente);
+    }
+
+    public async Task<Cliente?> GetByPersonaIdAsync(Guid personaId, Guid? excludedId = null, CancellationToken cancellationToken = default)
+    {
+        var cliente = await BaseQuery()
+            .FirstOrDefaultAsync(
+                current => current.PersonaId == personaId && (!excludedId.HasValue || current.Id != excludedId.Value),
+                cancellationToken);
 
         return cliente is null ? null : MapToDomain(cliente);
     }
 
-    public Task<bool> ExistsByIdentificacionAsync(
-        string identificacion,
-        Guid? excludedId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedIdentificacion = identificacion.Trim();
-
-        return dbContext.Clientes
-            .Include(cliente => cliente.Persona)
-            .AnyAsync(
-                cliente =>
-                    cliente.Persona.Identificacion == normalizedIdentificacion &&
-                    (!excludedId.HasValue || cliente.Id != excludedId.Value),
-                cancellationToken);
-    }
-
-    public Task<bool> ExistsPersonaByIdentificacionAsync(
-        string identificacion,
-        Guid? excludedPersonaId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedIdentificacion = identificacion.Trim();
-
-        return dbContext.Personas.AnyAsync(
-            persona =>
-                persona.Identificacion == normalizedIdentificacion &&
-                (!excludedPersonaId.HasValue || persona.Id != excludedPersonaId.Value),
-            cancellationToken);
-    }
-
     public async Task<Cliente> CreateAsync(Cliente cliente, CancellationToken cancellationToken = default)
     {
-        var persona = await dbContext.Personas
-            .FirstOrDefaultAsync(
-                current => current.Identificacion == cliente.Identificacion && !current.IsSystemRecord,
-                cancellationToken);
-
-        if (persona is null)
-        {
-            persona = new PersonaEntity
-            {
-                Id = cliente.PersonaId,
-                TipoIdentificacion = cliente.TipoIdentificacion,
-                Identificacion = cliente.Identificacion,
-                Nombres = cliente.Nombres,
-                Apellidos = cliente.Apellidos,
-                Email = cliente.Email,
-                Telefono = cliente.Telefono,
-                Direccion = cliente.Direccion,
-                IsActive = cliente.IsActive,
-                CreatedAt = cliente.CreatedAt
-            };
-        }
-        else
-        {
-            persona.TipoIdentificacion = cliente.TipoIdentificacion;
-            persona.Nombres = cliente.Nombres;
-            persona.Apellidos = cliente.Apellidos;
-            persona.Email = cliente.Email;
-            persona.Telefono = cliente.Telefono;
-            persona.Direccion = cliente.Direccion;
-            persona.IsActive = cliente.IsActive;
-            persona.UpdatedAt = cliente.UpdatedAt ?? DateTimeOffset.UtcNow;
-        }
-
         var entity = new ClienteEntity
         {
             Id = cliente.Id,
-            PersonaId = persona.Id,
-            Persona = persona,
+            PersonaId = cliente.PersonaId,
             IsActive = cliente.IsActive,
             CreatedAt = cliente.CreatedAt,
             UpdatedAt = cliente.UpdatedAt
@@ -114,14 +54,12 @@ public sealed class EfClienteRepository : IClienteRepository
 
         dbContext.Clientes.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken) ?? cliente;
     }
 
     public async Task<Cliente?> UpdateAsync(Cliente cliente, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Clientes
-            .Include(current => current.Persona)
             .FirstOrDefaultAsync(current => current.Id == cliente.Id, cancellationToken);
 
         if (entity is null)
@@ -131,24 +69,14 @@ public sealed class EfClienteRepository : IClienteRepository
 
         entity.IsActive = cliente.IsActive;
         entity.UpdatedAt = cliente.UpdatedAt;
-        entity.Persona.TipoIdentificacion = cliente.TipoIdentificacion;
-        entity.Persona.Identificacion = cliente.Identificacion;
-        entity.Persona.Nombres = cliente.Nombres;
-        entity.Persona.Apellidos = cliente.Apellidos;
-        entity.Persona.Email = cliente.Email;
-        entity.Persona.Telefono = cliente.Telefono;
-        entity.Persona.Direccion = cliente.Direccion;
-        entity.Persona.IsActive = cliente.IsActive;
-        entity.Persona.UpdatedAt = cliente.UpdatedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var entity = await dbContext.Clientes
-            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var entity = await dbContext.Clientes.FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
 
         if (entity is null)
         {
@@ -157,8 +85,17 @@ public sealed class EfClienteRepository : IClienteRepository
 
         dbContext.Clientes.Remove(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-
         return true;
+    }
+
+    private IQueryable<ClienteEntity> BaseQuery()
+    {
+        return dbContext.Clientes
+            .AsNoTracking()
+            .Include(cliente => cliente.Persona)
+            .ThenInclude(persona => persona.Empleado)
+            .Include(cliente => cliente.Persona)
+            .ThenInclude(persona => persona.SecurityUser);
     }
 
     private static Cliente MapToDomain(ClienteEntity entity)
@@ -173,8 +110,26 @@ public sealed class EfClienteRepository : IClienteRepository
             entity.Persona.Email,
             entity.Persona.Telefono,
             entity.Persona.Direccion,
+            ResolvePersonaRoles(entity.Persona),
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
+    }
+
+    private static string[] ResolvePersonaRoles(PersonaEntity persona)
+    {
+        var roles = new List<string> { "Cliente" };
+
+        if (persona.Empleado is not null)
+        {
+            roles.Add("Empleado");
+        }
+
+        if (persona.SecurityUser is not null)
+        {
+            roles.Add("Usuario");
+        }
+
+        return roles.ToArray();
     }
 }

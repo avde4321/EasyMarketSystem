@@ -2,12 +2,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
+using TestDeIa.Application.Modules.Catalogos.Ports.Out;
+using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Infrastructure.Adapters.Out.Clientes;
+using TestDeIa.Infrastructure.Adapters.Out.Catalogos;
+using TestDeIa.Infrastructure.Adapters.Out.Empleados;
 using TestDeIa.Infrastructure.Adapters.Out.Empresa;
 using TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 using TestDeIa.Infrastructure.Adapters.Out.Inventario;
@@ -30,9 +34,11 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString));
 
         services.AddSingleton<IPasswordHashService, Sha256PasswordHashService>();
+        services.AddScoped<ICatalogoRepository, EfCatalogoRepository>();
         services.AddScoped<ISecurityUserRepository, EfSecurityUserRepository>();
         services.AddScoped<ISecurityTokenGenerator, JwtSecurityTokenGenerator>();
         services.AddScoped<IClienteRepository, EfClienteRepository>();
+        services.AddScoped<IEmpleadoRepository, EfEmpleadoRepository>();
         services.AddScoped<IEmpresaRepository, EfEmpresaRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Shared.Requests.Clientes;
+using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Clientes;
 
 namespace TestDeIa.Client.Pages;
@@ -10,7 +12,11 @@ public partial class Clientes
     [Inject]
     private ClientesApiClient ClientesApiClient { get; set; } = default!;
 
+    [Inject]
+    private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
+
     private readonly List<ClienteResponse> clientes = [];
+    private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
     private ClienteRequest clienteRequest = new();
     private Guid? editingClienteId;
     private bool isLoading = true;
@@ -20,7 +26,14 @@ public partial class Clientes
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCatalogosAsync();
         await LoadClientesAsync();
+    }
+
+    private async Task LoadCatalogosAsync()
+    {
+        tiposIdentificacion.Clear();
+        tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
     }
 
     private async Task LoadClientesAsync()
@@ -46,7 +59,10 @@ public partial class Clientes
     private void OpenCreateModal()
     {
         editingClienteId = null;
-        clienteRequest = new ClienteRequest();
+        clienteRequest = new ClienteRequest
+        {
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "Cedula"
+        };
         errorMessage = null;
         isEditorOpen = true;
     }

@@ -52,15 +52,20 @@
                 <div class="form-field">
                     <label>Ambiente SRI</label>
                     <InputSelect class="form-control" @bind-Value="empresaRequest.AmbienteSri">
-                        <option value="Pruebas">Pruebas</option>
-                        <option value="Produccion">Produccion</option>
+                        @foreach (var item in ambientesSri)
+                        {
+                            <option value="@item.Codigo">@item.Nombre</option>
+                        }
                     </InputSelect>
                     <small class="file-hint">Pruebas usa codigo 1 y Produccion usa codigo 2 en la clave de acceso.</small>
                 </div>
                 <div class="form-field">
                     <label>Tipo de emision</label>
                     <InputSelect class="form-control" @bind-Value="empresaRequest.TipoEmision">
-                        <option value="Normal">Normal</option>
+                        @foreach (var item in tiposEmision)
+                        {
+                            <option value="@item.Codigo">@item.Nombre</option>
+                        }
                     </InputSelect>
                 </div>
                 <div class="form-field">

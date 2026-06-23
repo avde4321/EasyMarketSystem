@@ -1,5 +1,6 @@
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
+using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Facturacion;
 
@@ -9,13 +10,16 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
 {
     private readonly IFacturacionRepository facturacionRepository;
     private readonly IFacturaBackgroundQueue facturaBackgroundQueue;
+    private readonly ICatalogoRepository catalogoRepository;
 
     public FacturacionUseCase(
         IFacturacionRepository facturacionRepository,
-        IFacturaBackgroundQueue facturaBackgroundQueue)
+        IFacturaBackgroundQueue facturaBackgroundQueue,
+        ICatalogoRepository catalogoRepository)
     {
         this.facturacionRepository = facturacionRepository;
         this.facturaBackgroundQueue = facturaBackgroundQueue;
+        this.catalogoRepository = catalogoRepository;
     }
 
     public Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default)
@@ -30,7 +34,7 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
 
     public async Task<FacturaEmissionResponse> EmitirFacturaAsync(EmitirFacturaRequest request, CancellationToken cancellationToken = default)
     {
-        ValidateRequest(request);
+        await ValidateRequestAsync(request, cancellationToken);
 
         var response = await facturacionRepository.CreatePendingFacturaAsync(
             request,
@@ -45,7 +49,7 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return facturacionRepository.GetMonitorAsync(cancellationToken);
     }
 
-    private static void ValidateRequest(EmitirFacturaRequest request)
+    private async Task ValidateRequestAsync(EmitirFacturaRequest request, CancellationToken cancellationToken)
     {
         if (request.ClienteId == Guid.Empty)
         {
@@ -55,6 +59,11 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         if (string.IsNullOrWhiteSpace(request.FormaPago))
         {
             throw new InvalidOperationException("La forma de pago es obligatoria.");
+        }
+
+        if (!await catalogoRepository.ExistsActiveItemAsync("FORMA_PAGO_SRI", request.FormaPago.Trim(), cancellationToken))
+        {
+            throw new InvalidOperationException("La forma de pago seleccionada no esta disponible en el catalogo activo.");
         }
 
         if (request.Items.Count == 0)
