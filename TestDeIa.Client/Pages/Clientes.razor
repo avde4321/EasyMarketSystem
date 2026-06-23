@@ -1,0 +1,146 @@
+@page "/clientes"
+@attribute [Authorize]
+
+<PageTitle>Clientes</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Clientes</h1>
+            <p>Consulta y mantenimiento de clientes relacionados con personas.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear cliente</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando clientes...</em></p>
+        }
+        else if (clientes.Count == 0)
+        {
+            <div class="empty-state">No hay clientes registrados.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Identificacion</th>
+                        <th>Nombre</th>
+                        <th>Direccion</th>
+                        <th>Correo</th>
+                        <th>Telefono</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cliente in clientes)
+                    {
+                        <tr>
+                            <td>@cliente.TipoIdentificacion</td>
+                            <td>@cliente.Identificacion</td>
+                            <td>@cliente.NombreCompleto</td>
+                            <td>@cliente.Direccion</td>
+                            <td>@cliente.Email</td>
+                            <td>@cliente.Telefono</td>
+                            <td><span class="status-pill">@((cliente.IsActive ? "Activo" : "Inactivo"))</span></td>
+                            <td class="row-actions">
+                                <button class="ghost-button" @onclick="() => OpenEditModal(cliente)">Editar</button>
+                                <button class="danger-button" @onclick="() => DeleteClienteAsync(cliente.Id)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingClienteId.HasValue ? "Actualizar cliente" : "Crear cliente")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync">
+                <DataAnnotationsValidator />
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="tipoIdentificacion">Tipo identificacion</label>
+                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="clienteRequest.TipoIdentificacion">
+                            <option value="Cedula">Cedula</option>
+                            <option value="RUC">RUC</option>
+                            <option value="Pasaporte">Pasaporte</option>
+                            <option value="Consumidor Final">Consumidor final</option>
+                            <option value="Identificacion del Exterior">Identificacion del exterior</option>
+                            <option value="Placa">Placa</option>
+                        </InputSelect>
+                        <ValidationMessage For="@(() => clienteRequest.TipoIdentificacion)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="identificacion">Identificacion</label>
+                        <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" />
+                        <ValidationMessage For="@(() => clienteRequest.Identificacion)" />
+                        <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="nombres">Nombres</label>
+                        <InputText id="nombres" class="form-control" @bind-Value="clienteRequest.Nombres" />
+                        <ValidationMessage For="@(() => clienteRequest.Nombres)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="apellidos">Apellidos</label>
+                        <InputText id="apellidos" class="form-control" @bind-Value="clienteRequest.Apellidos" />
+                        <ValidationMessage For="@(() => clienteRequest.Apellidos)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="email">Correo</label>
+                        <InputText id="email" class="form-control" @bind-Value="clienteRequest.Email" />
+                        <ValidationMessage For="@(() => clienteRequest.Email)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="telefono">Telefono</label>
+                        <InputText id="telefono" class="form-control" @bind-Value="clienteRequest.Telefono" />
+                        <ValidationMessage For="@(() => clienteRequest.Telefono)" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label for="direccion">Direccion</label>
+                        <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.Direccion" />
+                        <ValidationMessage For="@(() => clienteRequest.Direccion)" />
+                        <small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small>
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.IsActive" />
+                    <span class="form-check-label">Cliente activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

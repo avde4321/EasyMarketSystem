@@ -1,0 +1,106 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using TestDeIa.Application.Modules.Inventario.Ports.In;
+using TestDeIa.Shared.Requests.Inventario;
+
+namespace TestDeIa.Api.Controllers;
+
+[ApiController]
+[Authorize]
+[Route("api/[controller]")]
+public sealed class InventarioController : ControllerBase
+{
+    private readonly IInventarioUseCase inventarioUseCase;
+
+    public InventarioController(IInventarioUseCase inventarioUseCase)
+    {
+        this.inventarioUseCase = inventarioUseCase;
+    }
+
+    [HttpGet("productos")]
+    public async Task<IActionResult> GetProductos(CancellationToken cancellationToken)
+    {
+        var productos = await inventarioUseCase.GetCatalogoAsync(cancellationToken);
+        return Ok(productos);
+    }
+
+    [HttpGet("productos/{id:guid}")]
+    public async Task<IActionResult> GetProductoById(Guid id, CancellationToken cancellationToken)
+    {
+        var producto = await inventarioUseCase.GetProductoByIdAsync(id, cancellationToken);
+        return producto is null ? NotFound() : Ok(producto);
+    }
+
+    [HttpPost("productos")]
+    public async Task<IActionResult> CreateProducto(
+        [FromBody] ProductoRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.CreateProductoAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetProductoById), new { id = producto.Id }, producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPut("productos/{id:guid}")]
+    public async Task<IActionResult> UpdateProducto(
+        Guid id,
+        [FromBody] ProductoRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.UpdateProductoAsync(id, request, cancellationToken);
+            return producto is null ? NotFound() : Ok(producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpGet("productos/{id:guid}/kardex")]
+    public async Task<IActionResult> GetKardex(Guid id, CancellationToken cancellationToken)
+    {
+        var movimientos = await inventarioUseCase.GetKardexAsync(id, cancellationToken);
+        return Ok(movimientos);
+    }
+
+    [HttpPost("productos/{id:guid}/ajustes")]
+    public async Task<IActionResult> AjustarStock(
+        Guid id,
+        [FromBody] AjusteStockRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.AjustarStockAsync(id, request, cancellationToken);
+            return producto is null ? NotFound() : Ok(producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("facturas/descontar-stock")]
+    public async Task<IActionResult> DescontarStockPorFactura(
+        [FromBody] DescontarStockFacturaRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inventarioUseCase.DescontarStockPorFacturaAsync(request, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+}

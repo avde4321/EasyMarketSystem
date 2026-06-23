@@ -1,0 +1,7 @@
+.table-card {
+    overflow: visible;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(18, 74, 117, 0.035);
+}

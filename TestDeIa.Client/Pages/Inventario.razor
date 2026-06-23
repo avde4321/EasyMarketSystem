@@ -1,0 +1,247 @@
+@page "/inventario"
+@attribute [Authorize]
+
+<PageTitle>Inventario</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Inventario</h1>
+            <p>Catalogo, alertas de stock minimo, Kardex y ajustes manuales.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenProductModal">Crear producto</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando productos...</em></p>
+        }
+        else if (productos.Count == 0)
+        {
+            <div class="empty-state">No hay productos registrados.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Producto</th>
+                        <th>IVA</th>
+                        <th>PVP</th>
+                        <th>Stock</th>
+                        <th>Minimo</th>
+                        <th>Costo prom.</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var producto in productos)
+                    {
+                        <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
+                            <td>@producto.Codigo</td>
+                            <td>
+                                <strong>@producto.Nombre</strong>
+                                <small>@producto.Descripcion</small>
+                            </td>
+                            <td>@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
+                            <td>@producto.PrecioVenta.ToString("0.00")</td>
+                            <td>@producto.StockActual.ToString("0.####")</td>
+                            <td>@producto.StockMinimo.ToString("0.####")</td>
+                            <td>@producto.CostoPromedio.ToString("0.######")</td>
+                            <td><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
+                            <td class="row-actions">
+                                <button class="ghost-button" @onclick="() => OpenEditProductModal(producto)">Editar</button>
+                                <button class="ghost-button" @onclick="() => LoadKardexAsync(producto)">Kardex</button>
+                                <button class="primary-soft-button" @onclick="() => OpenAdjustmentModal(producto)">Ajustar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @if (selectedProduct is not null)
+    {
+        <section class="table-card">
+            <header class="section-header">
+                <div>
+                    <h2>Kardex: @selectedProduct.Nombre</h2>
+                    <p>Entradas, salidas y saldos del producto seleccionado.</p>
+                </div>
+            </header>
+
+            @if (kardex.Count == 0)
+            {
+                <div class="empty-state">Este producto aun no tiene movimientos.</div>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Concepto</th>
+                            <th>Entrada</th>
+                            <th>Salida</th>
+                            <th>Saldo</th>
+                            <th>Costo prom.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var movimiento in kardex)
+                        {
+                            <tr>
+                                <td>@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@movimiento.TipoMovimiento</td>
+                                <td>@movimiento.Concepto</td>
+                                <td>@movimiento.CantidadEntrada.ToString("0.####")</td>
+                                <td>@movimiento.CantidadSalida.ToString("0.####")</td>
+                                <td>@movimiento.SaldoCantidad.ToString("0.####")</td>
+                                <td>@movimiento.CostoPromedio.ToString("0.######")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+</section>
+
+@if (isProductModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingProductId.HasValue ? "Actualizar producto" : "Crear producto")</h2>
+                <button class="icon-button" @onclick="CloseProductModal">x</button>
+            </header>
+
+            <EditForm Model="productoRequest" OnValidSubmit="SaveProductAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Codigo</label>
+                        <InputText class="form-control" @bind-Value="productoRequest.Codigo" />
+                        <ValidationMessage For="@(() => productoRequest.Codigo)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="productoRequest.Nombre" />
+                        <ValidationMessage For="@(() => productoRequest.Nombre)" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Descripcion</label>
+                        <InputTextArea class="form-control" @bind-Value="productoRequest.Descripcion" />
+                    </div>
+                    <div class="form-field">
+                        <label>Codigo IVA</label>
+                        <InputText class="form-control" @bind-Value="productoRequest.CodigoIva" />
+                    </div>
+                    <div class="form-field">
+                        <label>% IVA</label>
+                        <InputNumber class="form-control" @bind-Value="productoRequest.PorcentajeIva" />
+                    </div>
+                    <div class="form-field">
+                        <label>PVP</label>
+                        <InputNumber class="form-control" @bind-Value="productoRequest.PrecioVenta" />
+                    </div>
+                    <div class="form-field">
+                        <label>Stock minimo</label>
+                        <InputNumber class="form-control" @bind-Value="productoRequest.StockMinimo" />
+                    </div>
+                    @if (!editingProductId.HasValue)
+                    {
+                        <div class="form-field">
+                            <label>Stock inicial</label>
+                            <InputNumber class="form-control" @bind-Value="productoRequest.StockInicial" />
+                        </div>
+                        <div class="form-field">
+                            <label>Costo inicial</label>
+                            <InputNumber class="form-control" @bind-Value="productoRequest.CostoInicial" />
+                        </div>
+                    }
+                    else if (editingProductSnapshot is not null)
+                    {
+                        <div class="form-field">
+                            <label>Stock actual</label>
+                            <input class="form-control" value="@editingProductSnapshot.StockActual.ToString("0.####")" disabled />
+                        </div>
+                        <div class="form-field">
+                            <label>Costo promedio actual</label>
+                            <input class="form-control" value="@editingProductSnapshot.CostoPromedio.ToString("0.######")" disabled />
+                        </div>
+                    }
+                </div>
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="productoRequest.IsActive" />
+                    <span class="form-check-label">Producto activo</span>
+                </label>
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseProductModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isAdjustmentModalOpen && selectedAdjustmentProduct is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow">
+            <header class="modal-header">
+                <h2>Ajuste de stock</h2>
+                <button class="icon-button" @onclick="CloseAdjustmentModal">x</button>
+            </header>
+            <p class="modal-subtitle">@selectedAdjustmentProduct.Nombre</p>
+            <p class="modal-subtitle">Stock actual: @selectedAdjustmentProduct.StockActual.ToString("0.####") | Costo promedio: @selectedAdjustmentProduct.CostoPromedio.ToString("0.######")</p>
+
+            <EditForm Model="ajusteRequest" OnValidSubmit="SaveAdjustmentAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid single">
+                    <div class="form-field">
+                        <label>Tipo</label>
+                        <InputSelect class="form-control" @bind-Value="ajusteRequest.TipoMovimiento">
+                            <option value="Entrada">Entrada</option>
+                            <option value="Salida">Salida</option>
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Concepto</label>
+                        <InputText class="form-control" @bind-Value="ajusteRequest.Concepto" />
+                    </div>
+                    <div class="form-field">
+                        <label>Referencia</label>
+                        <InputText class="form-control" @bind-Value="ajusteRequest.Referencia" />
+                    </div>
+                    <div class="form-field">
+                        <label>Cantidad</label>
+                        <InputNumber class="form-control" @bind-Value="ajusteRequest.Cantidad" />
+                    </div>
+                    <div class="form-field">
+                        <label>Costo unitario</label>
+                        <InputNumber class="form-control" @bind-Value="ajusteRequest.CostoUnitario" />
+                    </div>
+                </div>
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseAdjustmentModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Aplicando..." : "Aplicar ajuste")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

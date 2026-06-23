@@ -1,0 +1,7 @@
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+TestDeIa.Api/appsettings.Development.json
+*.p12

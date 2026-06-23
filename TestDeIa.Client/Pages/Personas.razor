@@ -1,0 +1,149 @@
+@page "/personas"
+@attribute [Authorize]
+
+<PageTitle>Personas</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Personas</h1>
+            <p>Informacion personal centralizada para usuarios y clientes.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear persona</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando personas...</em></p>
+        }
+        else if (personas.Count == 0)
+        {
+            <div class="empty-state">No hay personas registradas.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Identificacion</th>
+                        <th>Nombre</th>
+                        <th>F. nacimiento</th>
+                        <th>Correo</th>
+                        <th>Telefono</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var persona in personas)
+                    {
+                        <tr>
+                            <td>@persona.TipoIdentificacion</td>
+                            <td>@persona.Identificacion</td>
+                            <td>@persona.NombreCompleto</td>
+                            <td>@(persona.FechaNacimiento?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td>@persona.Email</td>
+                            <td>@persona.Telefono</td>
+                            <td><span class="status-pill">@((persona.IsActive ? "Activa" : "Inactiva"))</span></td>
+                            <td class="row-actions">
+                                <button class="ghost-button" @onclick="() => OpenEditModal(persona)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingPersonaId.HasValue ? "Actualizar persona" : "Crear persona")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="personaRequest" OnValidSubmit="SavePersonaAsync">
+                <DataAnnotationsValidator />
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="tipoIdentificacion">Tipo identificacion</label>
+                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="personaRequest.TipoIdentificacion">
+                            <option value="Cedula">Cedula</option>
+                            <option value="RUC">RUC</option>
+                            <option value="Pasaporte">Pasaporte</option>
+                            <option value="Consumidor Final">Consumidor final</option>
+                            <option value="Identificacion del Exterior">Identificacion del exterior</option>
+                            <option value="Placa">Placa</option>
+                        </InputSelect>
+                        <ValidationMessage For="@(() => personaRequest.TipoIdentificacion)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="identificacion">Identificacion</label>
+                        <InputText id="identificacion" class="form-control" @bind-Value="personaRequest.Identificacion" />
+                        <ValidationMessage For="@(() => personaRequest.Identificacion)" />
+                        <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="nombres">Nombres</label>
+                        <InputText id="nombres" class="form-control" @bind-Value="personaRequest.Nombres" />
+                        <ValidationMessage For="@(() => personaRequest.Nombres)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="apellidos">Apellidos</label>
+                        <InputText id="apellidos" class="form-control" @bind-Value="personaRequest.Apellidos" />
+                        <ValidationMessage For="@(() => personaRequest.Apellidos)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="fechaNacimiento">Fecha nacimiento</label>
+                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="personaRequest.FechaNacimiento" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="email">Correo</label>
+                        <InputText id="email" class="form-control" @bind-Value="personaRequest.Email" />
+                        <ValidationMessage For="@(() => personaRequest.Email)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="telefono">Telefono</label>
+                        <InputText id="telefono" class="form-control" @bind-Value="personaRequest.Telefono" />
+                        <ValidationMessage For="@(() => personaRequest.Telefono)" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label for="direccion">Direccion</label>
+                        <InputTextArea id="direccion" class="form-control" @bind-Value="personaRequest.Direccion" />
+                        <ValidationMessage For="@(() => personaRequest.Direccion)" />
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="personaRequest.IsActive" />
+                    <span class="form-check-label">Persona activa</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

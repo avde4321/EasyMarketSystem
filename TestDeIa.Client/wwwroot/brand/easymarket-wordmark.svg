@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 120" role="img" aria-labelledby="title desc">
+  <title id="title">EasyMarket Systems</title>
+  <desc id="desc">Logotipo principal EasyMarket Systems.</desc>
+  <rect width="460" height="120" rx="24" fill="#FFFFFF"/>
+  <g transform="translate(18 18)">
+    <rect x="0" y="14" width="54" height="16" rx="4" fill="#F18000"/>
+    <rect x="0" y="38" width="64" height="16" rx="4" fill="#F1B100"/>
+    <rect x="0" y="62" width="72" height="16" rx="4" fill="#F19691"/>
+    <path d="M84 2c11 0 20 9 20 20 0 5-2 10-5 14L74 66a9 9 0 0 1-13 1L49 56a9 9 0 1 1 12-13l5 4 19-26c4-6 11-9 19-9Z" fill="#1F9691"/>
+    <path d="M65 50 58 44l-7 8 14 13 31-36-7-6-24 27Z" fill="#124A75"/>
+  </g>
+  <g transform="translate(130 20)">
+    <text x="0" y="38" fill="#1F9691" font-family="Montserrat, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="0">EASY</text>
+    <text x="92" y="38" fill="#F18000" font-family="Montserrat, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="0">MARKET</text>
+    <text x="88" y="76" fill="#124A75" font-family="Montserrat, Arial, sans-serif" font-size="30" font-weight="800" letter-spacing="0">SYSTEMS</text>
+  </g>
+</svg>

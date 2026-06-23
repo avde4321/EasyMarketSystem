@@ -1,0 +1,141 @@
+@page "/empresa"
+@attribute [Authorize]
+
+<PageTitle>Empresa</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Empresa Emisora</h1>
+            <p>Configuracion tributaria base para comprobantes electronicos del SRI.</p>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="status-banner">@statusMessage</div>
+    }
+
+    <section class="table-card">
+        <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            @if (empresaActual is not null)
+            {
+                <div class="status-banner">
+                    Ambiente actual: @empresaActual.AmbienteSri |
+                    Certificado: @(empresaActual.TieneCertificadoConfigurado ? "Configurado" : "Pendiente") |
+                    Estado: @(empresaActual.IsActive ? "Activo" : "Inactivo")
+                </div>
+            }
+
+            <div class="form-grid empresa-grid">
+                <div class="form-field full">
+                    <label>Razon social</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.RazonSocial" />
+                    <ValidationMessage For="@(() => empresaRequest.RazonSocial)" />
+                </div>
+                <div class="form-field full">
+                    <label>Nombre comercial</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.NombreComercial" />
+                </div>
+                <div class="form-field">
+                    <label>RUC</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.Ruc" />
+                    <ValidationMessage For="@(() => empresaRequest.Ruc)" />
+                </div>
+                <div class="form-field">
+                    <label>Ambiente SRI</label>
+                    <InputSelect class="form-control" @bind-Value="empresaRequest.AmbienteSri">
+                        <option value="Pruebas">Pruebas</option>
+                        <option value="Produccion">Produccion</option>
+                    </InputSelect>
+                    <small class="file-hint">Pruebas usa codigo 1 y Produccion usa codigo 2 en la clave de acceso.</small>
+                </div>
+                <div class="form-field">
+                    <label>Tipo de emision</label>
+                    <InputSelect class="form-control" @bind-Value="empresaRequest.TipoEmision">
+                        <option value="Normal">Normal</option>
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Modo desarrollo interno</label>
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ModoDesarrollo" />
+                        <span class="form-check-label">Mantener simulacion interna activa</span>
+                    </label>
+                    <small class="file-hint">Si esta activo, la empresa debe permanecer en ambiente de Pruebas.</small>
+                </div>
+                <div class="form-field full">
+                    <label>Direccion matriz</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.DireccionMatriz" />
+                    <ValidationMessage For="@(() => empresaRequest.DireccionMatriz)" />
+                </div>
+                <div class="form-field full">
+                    <label>Direccion establecimiento</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.DireccionEstablecimiento" />
+                </div>
+                <div class="form-field">
+                    <label>Establecimiento</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.Establecimiento" />
+                </div>
+                <div class="form-field">
+                    <label>Punto de emision</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.PuntoEmision" />
+                </div>
+                <div class="form-field">
+                    <label>Obligado a llevar contabilidad</label>
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ObligadoContabilidad" />
+                        <span class="form-check-label">Si</span>
+                    </label>
+                </div>
+                <div class="form-field">
+                    <label>Activo</label>
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.IsActive" />
+                        <span class="form-check-label">Configuracion activa</span>
+                    </label>
+                </div>
+                <div class="form-field">
+                    <label>Contribuyente especial</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.ContribuyenteEspecial" />
+                </div>
+                <div class="form-field">
+                    <label>Regimen RIMPE</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.RegimenRimpe" />
+                </div>
+                <div class="form-field">
+                    <label>Agente de retencion</label>
+                    <InputText class="form-control" @bind-Value="empresaRequest.AgenteRetencionResolucion" />
+                </div>
+                <div class="form-field full">
+                    <label>Certificado .p12</label>
+                    <InputFile class="form-control" OnChange="OnCertificadoSelectedAsync" accept=".p12" />
+                    @if (!string.IsNullOrWhiteSpace(certificadoNombreArchivoActual))
+                    {
+                        <small class="file-hint">
+                            Archivo actual: @certificadoNombreArchivoActual
+                        </small>
+                    }
+                </div>
+                <div class="form-field full">
+                    <label>Clave certificado .p12</label>
+                    <InputText class="form-control" type="password" @bind-Value="empresaRequest.CertificadoClave" />
+                    <small class="file-hint">En Produccion no deberia quedar vacia si la empresa va a emitir.</small>
+                </div>
+            </div>
+
+            <footer class="module-actions">
+                <button class="primary-action" type="submit" disabled="@isSaving">
+                    @(isSaving ? "Guardando..." : "Guardar configuracion")
+                </button>
+            </footer>
+        </EditForm>
+    </section>
+</section>

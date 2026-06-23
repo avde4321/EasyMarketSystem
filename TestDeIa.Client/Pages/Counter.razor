@@ -1,0 +1,10 @@
+@page "/counter"
+@attribute [Authorize]
+
+<PageTitle>Contador</PageTitle>
+
+<h1>Contador</h1>
+
+<p role="status">Valor actual: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="IncrementCount">Incrementar</button>

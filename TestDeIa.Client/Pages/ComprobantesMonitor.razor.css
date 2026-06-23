@@ -1,0 +1,25 @@
+.status-pill {
+    min-width: 8rem;
+}
+
+.status-pendiente {
+    background: linear-gradient(180deg, #fff7e8, #ffefc9);
+    color: #946400;
+}
+
+.status-enproceso,
+.status-recibido {
+    background: linear-gradient(180deg, #edf6ff, #dfeeff);
+    color: #23568d;
+}
+
+.status-autorizado {
+    background: linear-gradient(180deg, #ecfaf7, #def5ef);
+    color: #1d665f;
+}
+
+.status-rechazado,
+.status-error {
+    background: linear-gradient(180deg, #fff0f0, #ffe2e0);
+    color: #944246;
+}

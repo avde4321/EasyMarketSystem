@@ -1,0 +1,35 @@
+.empresa-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.empresa-grid .full {
+    grid-column: 1 / -1;
+}
+
+.module-actions {
+    margin-top: 1.25rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.file-hint {
+    display: block;
+    margin-top: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.status-banner {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 0.9rem;
+    background: #edf8f1;
+    color: #204b39;
+    border: 1px solid #cce7d9;
+}
+
+@media (max-width: 900px) {
+    .empresa-grid {
+        grid-template-columns: 1fr;
+    }
+}

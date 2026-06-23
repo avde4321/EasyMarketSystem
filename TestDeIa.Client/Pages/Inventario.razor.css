@@ -1,0 +1,27 @@
+.table-card {
+    overflow: visible;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(31, 150, 145, 0.04);
+}
+
+.stock-alert {
+    box-shadow: inset 4px 0 0 #f19691;
+}
+
+.modal-card {
+    animation: float-in 180ms ease;
+}
+
+@keyframes float-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.99);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

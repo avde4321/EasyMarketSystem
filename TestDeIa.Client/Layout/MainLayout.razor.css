@@ -1,0 +1,25 @@
+.page {
+    position: relative;
+}
+
+.sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+}
+
+.top-row {
+    animation: fade-in-down 260ms ease;
+}
+
+@keyframes fade-in-down {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

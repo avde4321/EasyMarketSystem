@@ -1,0 +1,61 @@
+<div class="nav-shell @(IsCollapsed ? "is-collapsed" : string.Empty)">
+    <div class="brand-row">
+        <a class="brand" href="">
+            <img class="brand-mark-image" src="brand/easymarket-mark.svg" alt="EasyMarket Systems" />
+            <span class="brand-text">
+                <strong>EasyMarket</strong>
+                <small>Systems CRM</small>
+            </span>
+        </a>
+        <button class="collapse-button" title="Contraer menu" @onclick="OnToggle">
+            <span>@(IsCollapsed ? "+" : "−")</span>
+        </button>
+    </div>
+
+    <nav class="nav-list">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <span class="nav-icon">I</span>
+            <span class="nav-text">Inicio</span>
+        </NavLink>
+        <NavLink class="nav-link" href="personas">
+            <span class="nav-icon">P</span>
+            <span class="nav-text">Personas</span>
+        </NavLink>
+        <NavLink class="nav-link" href="clientes">
+            <span class="nav-icon">C</span>
+            <span class="nav-text">Clientes</span>
+        </NavLink>
+        <NavLink class="nav-link" href="empresa">
+            <span class="nav-icon">E</span>
+            <span class="nav-text">Empresa</span>
+        </NavLink>
+        <NavLink class="nav-link" href="inventario">
+            <span class="nav-icon">K</span>
+            <span class="nav-text">Inventario</span>
+        </NavLink>
+        <NavLink class="nav-link" href="facturacion/pos">
+            <span class="nav-icon">F</span>
+            <span class="nav-text">POS</span>
+        </NavLink>
+        <NavLink class="nav-link" href="facturacion/monitor">
+            <span class="nav-icon">M</span>
+            <span class="nav-text">Comprobantes</span>
+        </NavLink>
+        <AuthorizeView>
+            <Authorized>
+                <NavLink class="nav-link" href="logout">
+                    <span class="nav-icon">S</span>
+                    <span class="nav-text">Salir</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    [Parameter]
+    public bool IsCollapsed { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+}

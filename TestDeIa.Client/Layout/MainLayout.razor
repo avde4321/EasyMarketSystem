@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+
+<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+    <aside class="sidebar">
+        <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" />
+    </aside>
+
+    <main>
+        <header class="top-row">
+            <div class="top-brand">
+                <img class="top-brand-image" src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
+                <div class="top-brand-copy">
+                    <span class="top-title">Plataforma operativa</span>
+                    <small>Inventario, clientes y facturacion en una sola vista</small>
+                </div>
+            </div>
+            <div class="top-accent">Ecuador SRI Ready</div>
+        </header>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private bool isSidebarCollapsed;
+
+    private void ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
+    }
+}

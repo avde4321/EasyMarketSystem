@@ -1,0 +1,28 @@
+namespace TestDeIa.Shared.Responses.Inventario;
+
+public sealed class ProductoResponse
+{
+    public Guid Id { get; set; }
+
+    public string Codigo { get; set; } = string.Empty;
+
+    public string Nombre { get; set; } = string.Empty;
+
+    public string? Descripcion { get; set; }
+
+    public string CodigoIva { get; set; } = string.Empty;
+
+    public decimal PorcentajeIva { get; set; }
+
+    public decimal PrecioVenta { get; set; }
+
+    public decimal StockActual { get; set; }
+
+    public decimal StockMinimo { get; set; }
+
+    public bool TieneAlertaStockMinimo => StockActual <= StockMinimo;
+
+    public decimal CostoPromedio { get; set; }
+
+    public bool IsActive { get; set; }
+}

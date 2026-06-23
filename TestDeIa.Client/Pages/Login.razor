@@ -1,0 +1,45 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+<PageTitle>Login</PageTitle>
+
+<section class="login-shell">
+    <div class="login-panel">
+        <div class="login-header">
+            <img class="login-brand-image" src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
+            <p>Control comercial y facturacion electronica</p>
+            <h1>Iniciar sesion</h1>
+        </div>
+
+        <EditForm Model="loginRequest" OnValidSubmit="LoginAsync">
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label for="userName">Usuario</label>
+                <InputText id="userName" class="form-control" @bind-Value="loginRequest.UserName" />
+                <ValidationMessage For="@(() => loginRequest.UserName)" />
+            </div>
+
+            <div class="form-field">
+                <label for="password">Contrasena</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" />
+                <ValidationMessage For="@(() => loginRequest.Password)" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="login-error">@errorMessage</div>
+            }
+
+            <button type="submit" class="btn btn-primary login-button" disabled="@isBusy">
+                @(isBusy ? "Validando..." : "Entrar")
+            </button>
+        </EditForm>
+
+        <div class="login-demo">
+            <span>Usuario: admin</span>
+            <span>Contrasena: Admin123*</span>
+        </div>
+    </div>
+</section>

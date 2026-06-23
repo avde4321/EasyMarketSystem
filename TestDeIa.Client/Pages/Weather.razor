@@ -1,0 +1,17 @@
+@page "/weather"
+@attribute [Authorize]
+
+<PageTitle>Datos</PageTitle>
+
+<h1>Datos</h1>
+
+<p>Esta pagina consulta el API usando el token JWT de la sesion.</p>
+
+@if (healthStatus is null)
+{
+    <p><em>Cargando...</em></p>
+}
+else
+{
+    <p role="status">Estado del API: <strong>@healthStatus.Status</strong></p>
+}

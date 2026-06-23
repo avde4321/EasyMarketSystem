@@ -1,0 +1,70 @@
+@page "/facturacion/monitor"
+@attribute [Authorize]
+@implements IAsyncDisposable
+
+<PageTitle>Monitor de Comprobantes</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Monitor de Comprobantes</h1>
+            <p>Seguimiento en tiempo real del estado de facturas ante el SRI.</p>
+        </div>
+        <button class="secondary-action" @onclick="LoadMonitorAsync">Actualizar</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando comprobantes...</em></p>
+        }
+        else if (facturas.Count == 0)
+        {
+            <div class="empty-state">Todavia no hay facturas emitidas.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Numero</th>
+                        <th>Cliente</th>
+                        <th>Pago</th>
+                        <th>Estado</th>
+                        <th>Total</th>
+                        <th>Emision</th>
+                        <th>Autorizacion</th>
+                        <th>Mensaje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var factura in facturas)
+                    {
+                        <tr>
+                            <td>@factura.NumeroComprobante</td>
+                            <td>
+                                <strong>@factura.ClienteNombre</strong>
+                                <small>@factura.ClienteTipoIdentificacion</small>
+                                <small>@factura.ClienteIdentificacion</small>
+                            </td>
+                            <td>@factura.FormaPago</td>
+                            <td><span class="status-pill status-@factura.Estado.ToLowerInvariant()">@factura.Estado</span></td>
+                            <td>
+                                <strong>@factura.Total.ToString("0.00")</strong>
+                                <small>Sub: @factura.Subtotal.ToString("0.00") | IVA: @factura.IvaTotal.ToString("0.00")</small>
+                            </td>
+                            <td>@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                            <td>@factura.MensajeEstado</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>

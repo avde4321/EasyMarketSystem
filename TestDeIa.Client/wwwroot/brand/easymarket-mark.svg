@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="title desc">
+  <title id="title">EasyMarket Systems</title>
+  <desc id="desc">Icono de marca con caja, paneles y check.</desc>
+  <rect x="8" y="8" width="104" height="104" rx="28" fill="#EFF8FF"/>
+  <rect x="24" y="28" width="42" height="14" rx="4" fill="#F18000"/>
+  <rect x="24" y="48" width="50" height="14" rx="4" fill="#F1B100"/>
+  <rect x="24" y="68" width="58" height="14" rx="4" fill="#F19691"/>
+  <path d="M77 28l-6 12h12l-6-12Z" fill="#124A75"/>
+  <path d="M86 26c8 0 14 6 14 14 0 5-2 8-5 12L75 77a7 7 0 0 1-10 .6l-10-9a7 7 0 0 1 9.4-10.3l4.4 4 17.6-21.8A14 14 0 0 1 86 26Z" fill="#1F9691"/>
+  <path d="M68.8 66.4l-6.2-5.6-5.8 6.4 11.4 10.2 25-30.2-6.6-5.5-17.8 24.7Z" fill="#124A75"/>
+</svg>

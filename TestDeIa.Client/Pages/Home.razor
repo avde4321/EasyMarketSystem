@@ -1,0 +1,47 @@
+@page "/"
+@attribute [Authorize]
+
+<PageTitle>Inicio</PageTitle>
+
+<section class="home-page">
+    <header class="hero-panel">
+        <div class="hero-copy">
+            <p class="hero-eyebrow">EasyMarket Systems</p>
+            <h1>Operacion comercial lista para vender, controlar y facturar.</h1>
+            <span class="hero-chip">Arquitectura modular .NET 9 + Blazor</span>
+        </div>
+        <div class="hero-metrics">
+            <div class="metric-card">
+                <strong>Clientes</strong>
+                <span>Gestion centralizada de personas y cuentas comerciales.</span>
+            </div>
+            <div class="metric-card">
+                <strong>Inventario</strong>
+                <span>Catalogo con stock minimo, kardex y ajustes controlados.</span>
+            </div>
+            <div class="metric-card">
+                <strong>Facturacion</strong>
+                <span>POS asincrono y monitor de comprobantes para el SRI.</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="quick-grid">
+        <a class="quick-card" href="empresa">
+            <strong>Empresa emisora</strong>
+            <span>Datos tributarios, ambiente SRI y certificado.</span>
+        </a>
+        <a class="quick-card" href="inventario">
+            <strong>Inventario</strong>
+            <span>Productos, costos y alertas de stock minimo.</span>
+        </a>
+        <a class="quick-card" href="facturacion/pos">
+            <strong>Punto de venta</strong>
+            <span>Venta rapida con procesamiento desacoplado.</span>
+        </a>
+        <a class="quick-card" href="facturacion/monitor">
+            <strong>Comprobantes</strong>
+            <span>Estados de envio, recepcion y autorizacion.</span>
+        </a>
+    </section>
+</section>
