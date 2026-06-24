@@ -23,6 +23,21 @@ public partial class Inventario
     private bool isProductModalOpen;
     private bool isAdjustmentModalOpen;
     private string? errorMessage;
+    private string searchTerm = string.Empty;
+    private string kardexSearchTerm = string.Empty;
+
+    private IEnumerable<ProductoResponse> FilteredProductos => productos.Where(producto =>
+        string.IsNullOrWhiteSpace(searchTerm) ||
+        producto.Codigo.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        producto.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (producto.Descripcion?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        producto.CodigoIva.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<KardexMovimientoResponse> FilteredKardex => kardex.Where(movimiento =>
+        string.IsNullOrWhiteSpace(kardexSearchTerm) ||
+        movimiento.TipoMovimiento.Contains(kardexSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        movimiento.Concepto.Contains(kardexSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (movimiento.Referencia?.Contains(kardexSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
 
     protected override async Task OnInitializedAsync()
     {

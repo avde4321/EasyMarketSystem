@@ -31,6 +31,13 @@ public sealed class PersonasController : ControllerBase
         return persona is null ? NotFound() : Ok(persona);
     }
 
+    [HttpGet("buscar")]
+    public async Task<IActionResult> FindByIdentificacion([FromQuery] string identificacion, CancellationToken cancellationToken)
+    {
+        var persona = await personaUseCase.FindByIdentificacionAsync(identificacion, cancellationToken);
+        return persona is null ? NotFound() : Ok(persona);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] PersonaRequest request,

@@ -34,6 +34,10 @@ public sealed class FacturaMonitorResponse
 
     public string? MensajeEstado { get; set; }
 
+    public bool TieneXmlGenerado { get; set; }
+
+    public bool TieneXmlFirmado { get; set; }
+
     public DateTimeOffset FechaEmision { get; set; }
 
     public DateTimeOffset? FechaAutorizacion { get; set; }

@@ -3,6 +3,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class SecurityUserEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public Guid PersonaId { get; set; }
 
@@ -25,4 +26,6 @@ public sealed class SecurityUserEntity
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<SecurityUserRoleEntity> UserRoles { get; set; } = [];
+
+    public ICollection<SecurityUserEmpresaEntity> EmpresasAcceso { get; set; } = [];
 }

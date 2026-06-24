@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Security;
 using TestDeIa.Client.Services.Catalogos;
+using TestDeIa.Client.Services.Personas;
 using TestDeIa.Shared.Requests.Security;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Security;
@@ -15,6 +16,9 @@ public partial class Usuarios
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
+    [Inject]
+    private PersonasApiClient PersonasApiClient { get; set; } = default!;
+
     private readonly List<SecurityUserResponse> users = [];
     private readonly List<SecurityRoleResponse> roles = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
@@ -24,7 +28,19 @@ public partial class Usuarios
     private bool isLoading = true;
     private bool isSaving;
     private bool isEditorOpen;
+    private bool isSearchingPersona;
     private string? errorMessage;
+    private string? statusMessage;
+    private string searchTerm = string.Empty;
+
+    private IEnumerable<SecurityUserResponse> FilteredUsers => users.Where(user =>
+        string.IsNullOrWhiteSpace(searchTerm) ||
+        user.UserName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        user.PersonaNombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        user.PersonaIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        user.Email.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        user.Roles.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
+        user.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,6 +86,7 @@ public partial class Usuarios
         };
         selectedRoles.Clear();
         errorMessage = null;
+        statusMessage = null;
         isEditorOpen = true;
     }
 
@@ -100,6 +117,7 @@ public partial class Usuarios
         }
 
         errorMessage = null;
+        statusMessage = null;
         isEditorOpen = true;
     }
 
@@ -122,6 +140,50 @@ public partial class Usuarios
         isEditorOpen = false;
         isSaving = false;
         errorMessage = null;
+        statusMessage = null;
+    }
+
+    private async Task BuscarPersonaAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (string.IsNullOrWhiteSpace(userRequest.Identificacion))
+        {
+            errorMessage = "Ingresa una identificacion antes de buscar.";
+            return;
+        }
+
+        isSearchingPersona = true;
+
+        try
+        {
+            var persona = await PersonasApiClient.FindByIdentificacionAsync(userRequest.Identificacion);
+            if (persona is null)
+            {
+                statusMessage = "No se encontro una persona registrada con esa identificacion.";
+                return;
+            }
+
+            userRequest.TipoIdentificacion = persona.TipoIdentificacion;
+            userRequest.Identificacion = persona.Identificacion;
+            userRequest.Nombres = persona.Nombres;
+            userRequest.Apellidos = persona.Apellidos;
+            userRequest.Email = persona.Email;
+            userRequest.Telefono = persona.Telefono;
+            userRequest.Direccion = persona.Direccion;
+            userRequest.IsActive = persona.IsActive;
+
+            statusMessage = "Se cargo la informacion de la persona existente.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar la persona.";
+        }
+        finally
+        {
+            isSearchingPersona = false;
+        }
     }
 
     private async Task SaveUserAsync()

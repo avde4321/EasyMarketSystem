@@ -12,7 +12,10 @@ public sealed class EmpleadoEntityConfiguration : IEntityTypeConfiguration<Emple
 
         builder.HasKey(empleado => empleado.Id);
 
-        builder.HasIndex(empleado => empleado.PersonaId)
+        builder.Property(empleado => empleado.EmpresaId)
+            .IsRequired();
+
+        builder.HasIndex(empleado => new { empleado.EmpresaId, empleado.PersonaId })
             .IsUnique();
 
         builder.HasOne(empleado => empleado.Persona)

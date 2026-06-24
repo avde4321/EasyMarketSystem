@@ -12,6 +12,9 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
 
         builder.HasKey(user => user.Id);
 
+        builder.Property(user => user.EmpresaId)
+            .IsRequired();
+
         builder.Property(user => user.UserName)
             .HasMaxLength(80)
             .IsRequired();
@@ -36,18 +39,19 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             .HasMaxLength(128)
             .IsRequired();
 
-        builder.HasIndex(user => user.NormalizedUserName)
+        builder.HasIndex(user => new { user.EmpresaId, user.NormalizedUserName })
             .IsUnique();
 
-        builder.HasIndex(user => user.NormalizedEmail)
+        builder.HasIndex(user => new { user.EmpresaId, user.NormalizedEmail })
             .IsUnique();
 
-        builder.HasIndex(user => user.PersonaId)
+        builder.HasIndex(user => new { user.EmpresaId, user.PersonaId })
             .IsUnique();
 
         builder.HasData(new SecurityUserEntity
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            EmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
             PersonaId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
             UserName = "admin",
             NormalizedUserName = "ADMIN",
@@ -63,5 +67,6 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             .WithOne(persona => persona.SecurityUser)
             .HasForeignKey<SecurityUserEntity>(user => user.PersonaId)
             .OnDelete(DeleteBehavior.Restrict);
+
     }
 }

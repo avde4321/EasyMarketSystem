@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empleados.Ports.Out;
@@ -18,6 +19,8 @@ using TestDeIa.Infrastructure.Adapters.Out.Inventario;
 using TestDeIa.Infrastructure.Adapters.Out.Personas;
 using TestDeIa.Infrastructure.Adapters.Out.Security;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Infrastructure.Persistence.Tenancy;
+using TestDeIa.Infrastructure.Security;
 
 namespace TestDeIa.Infrastructure;
 
@@ -34,6 +37,8 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString));
 
         services.AddSingleton<IPasswordHashService, Sha256PasswordHashService>();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
         services.AddScoped<ICatalogoRepository, EfCatalogoRepository>();
         services.AddScoped<ISecurityUserRepository, EfSecurityUserRepository>();
         services.AddScoped<ISecurityTokenGenerator, JwtSecurityTokenGenerator>();

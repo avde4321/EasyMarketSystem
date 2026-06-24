@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
 using TestDeIa.Domain.Modules.Clientes.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -9,10 +10,12 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Clientes;
 public sealed class EfClienteRepository : IClienteRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfClienteRepository(TestDeIaDbContext dbContext)
+    public EfClienteRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<IReadOnlyCollection<Cliente>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -46,6 +49,7 @@ public sealed class EfClienteRepository : IClienteRepository
         var entity = new ClienteEntity
         {
             Id = cliente.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el cliente."),
             PersonaId = cliente.PersonaId,
             IsActive = cliente.IsActive,
             CreatedAt = cliente.CreatedAt,

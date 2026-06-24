@@ -20,6 +20,19 @@ public sealed class PersonasApiClient
             ?? Array.Empty<PersonaResponse>();
     }
 
+    public async Task<PersonaResponse?> FindByIdentificacionAsync(string identificacion)
+    {
+        var response = await httpClient.GetAsync($"api/personas/buscar?identificacion={Uri.EscapeDataString(identificacion.Trim())}");
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<PersonaResponse>();
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateAsync(PersonaRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/personas", request);

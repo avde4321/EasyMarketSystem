@@ -12,6 +12,9 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
 
         builder.HasKey(producto => producto.Id);
 
+        builder.Property(producto => producto.EmpresaId)
+            .IsRequired();
+
         builder.Property(producto => producto.Codigo)
             .HasMaxLength(40)
             .IsRequired();
@@ -42,7 +45,7 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(producto => producto.CostoPromedio)
             .HasPrecision(18, 6);
 
-        builder.HasIndex(producto => producto.Codigo)
+        builder.HasIndex(producto => new { producto.EmpresaId, producto.Codigo })
             .IsUnique();
     }
 }

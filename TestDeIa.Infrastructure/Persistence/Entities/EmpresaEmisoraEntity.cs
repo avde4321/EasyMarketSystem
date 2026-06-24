@@ -3,6 +3,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class EmpresaEmisoraEntity
 {
     public Guid Id { get; set; }
+    public Guid OwnerUserId { get; set; }
     public string RazonSocial { get; set; } = string.Empty;
     public string? NombreComercial { get; set; }
     public string Ruc { get; set; } = string.Empty;
@@ -23,4 +24,5 @@ public sealed class EmpresaEmisoraEntity
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+    public ICollection<SecurityUserEmpresaEntity> UserAssignments { get; set; } = [];
 }

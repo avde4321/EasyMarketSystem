@@ -30,6 +30,10 @@
                     </div>
                 </header>
 
+                <div class="table-toolbar">
+                    <InputText class="form-control search-control" @bind-Value="catalogSearchTerm" placeholder="Buscar catalogo por codigo o nombre..." />
+                </div>
+
                 @if (isLoadingCatalogos)
                 {
                     <p><em>Cargando catalogos...</em></p>
@@ -37,7 +41,7 @@
                 else
                 {
                     <div class="result-list">
-                        @foreach (var catalogo in catalogos)
+                        @foreach (var catalogo in FilteredCatalogos)
                         {
                             <button class="result-item" @onclick="() => SelectCatalogoAsync(catalogo)">
                                 <strong>@catalogo.Nombre</strong>
@@ -58,6 +62,13 @@
                     </div>
                 </header>
 
+                @if (selectedCatalogo is not null)
+                {
+                    <div class="table-toolbar">
+                        <InputText class="form-control search-control" @bind-Value="itemSearchTerm" placeholder="Buscar item por codigo, nombre o descripcion..." />
+                    </div>
+                }
+
                 @if (selectedCatalogo is null)
                 {
                     <div class="empty-state">Selecciona un catalogo para comenzar.</div>
@@ -69,6 +80,10 @@
                 else if (catalogoItems.Count == 0)
                 {
                     <div class="empty-state">Este catalogo aun no tiene items.</div>
+                }
+                else if (!FilteredCatalogoItems.Any())
+                {
+                    <div class="empty-state">No hay items que coincidan con la busqueda.</div>
                 }
                 else
                 {
@@ -84,7 +99,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var item in catalogoItems)
+                            @foreach (var item in FilteredCatalogoItems)
                             {
                                 <tr>
                                     <td>@item.Codigo</td>

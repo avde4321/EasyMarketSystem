@@ -10,6 +10,53 @@
 
 .top-row {
     animation: fade-in-down 260ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.company-switch {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 18rem;
+}
+
+.company-switch label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #4c92d3;
+    text-transform: uppercase;
+}
+
+.company-select {
+    height: 2.75rem;
+    border: 1px solid #b9d6ee;
+    border-radius: 12px;
+    background: #f6fbff;
+    color: #124a75;
+    padding: 0 0.9rem;
+    font-weight: 600;
+}
+
+@media (max-width: 920px) {
+    .top-row,
+    .top-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .company-switch {
+        min-width: 0;
+        width: 100%;
+    }
 }
 
 @keyframes fade-in-down {

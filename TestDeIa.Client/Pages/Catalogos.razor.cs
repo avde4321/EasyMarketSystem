@@ -20,6 +20,20 @@ public partial class Catalogos
     private bool isEditorOpen;
     private bool isSaving;
     private string? errorMessage;
+    private string catalogSearchTerm = string.Empty;
+    private string itemSearchTerm = string.Empty;
+
+    private IEnumerable<CatalogoResponse> FilteredCatalogos => catalogos.Where(catalogo =>
+        string.IsNullOrWhiteSpace(catalogSearchTerm) ||
+        catalogo.Codigo.Contains(catalogSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        catalogo.Nombre.Contains(catalogSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (catalogo.Descripcion?.Contains(catalogSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private IEnumerable<CatalogoItemResponse> FilteredCatalogoItems => catalogoItems.Where(item =>
+        string.IsNullOrWhiteSpace(itemSearchTerm) ||
+        item.Codigo.Contains(itemSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        item.Nombre.Contains(itemSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (item.Descripcion?.Contains(itemSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
 
     protected override async Task OnInitializedAsync()
     {

@@ -1,6 +1,7 @@
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
+using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Facturacion;
 
@@ -40,7 +41,11 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             request,
             cancellationToken);
 
-        facturaBackgroundQueue.Enqueue(response.FacturaId);
+        if (string.Equals(response.Estado, FacturaEstados.Pendiente, StringComparison.OrdinalIgnoreCase))
+        {
+            facturaBackgroundQueue.Enqueue(response.FacturaId);
+        }
+
         return response;
     }
 

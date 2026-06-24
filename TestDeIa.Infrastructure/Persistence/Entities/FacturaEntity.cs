@@ -3,6 +3,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class FacturaEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public long Secuencial { get; set; }
 
@@ -72,11 +73,13 @@ public sealed class FacturaEntity
 
     public string? Observacion { get; set; }
 
-    public string? ClaveAcceso { get; set; }
+    public string ClaveAcceso { get; set; } = string.Empty;
 
     public string? NumeroAutorizacion { get; set; }
 
     public string? MensajeEstado { get; set; }
+
+    public string? XmlGenerado { get; set; }
 
     public string? XmlFirmado { get; set; }
 

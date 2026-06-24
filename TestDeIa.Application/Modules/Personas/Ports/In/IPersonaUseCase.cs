@@ -9,6 +9,8 @@ public interface IPersonaUseCase
 
     Task<PersonaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<PersonaResponse?> FindByIdentificacionAsync(string identificacion, CancellationToken cancellationToken = default);
+
     Task<PersonaResponse> CreateAsync(PersonaRequest request, CancellationToken cancellationToken = default);
 
     Task<PersonaResponse?> UpdateAsync(Guid id, PersonaRequest request, CancellationToken cancellationToken = default);

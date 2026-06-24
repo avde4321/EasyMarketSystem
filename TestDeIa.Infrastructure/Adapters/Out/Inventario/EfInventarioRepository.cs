@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -9,10 +10,12 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Inventario;
 public sealed class EfInventarioRepository : IInventarioRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfInventarioRepository(TestDeIaDbContext dbContext)
+    public EfInventarioRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<IReadOnlyCollection<Producto>> GetProductosAsync(CancellationToken cancellationToken = default)
@@ -218,6 +221,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
         dbContext.KardexMovimientos.Add(new KardexMovimientoEntity
         {
             Id = Guid.NewGuid(),
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el movimiento de inventario."),
             ProductoId = producto.Id,
             TipoMovimiento = isEntrada ? "Entrada" : "Salida",
             Concepto = concepto,
@@ -276,11 +280,12 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.UpdatedAt);
     }
 
-    private static ProductoEntity MapProductoEntity(Producto producto)
+    private ProductoEntity MapProductoEntity(Producto producto)
     {
         return new ProductoEntity
         {
             Id = producto.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el producto."),
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,

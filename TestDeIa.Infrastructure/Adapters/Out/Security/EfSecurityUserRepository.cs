@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Security.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -8,16 +9,19 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Security;
 public sealed class EfSecurityUserRepository : ISecurityUserRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfSecurityUserRepository(TestDeIaDbContext dbContext)
+    public EfSecurityUserRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<SecurityUser?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim().ToUpperInvariant();
-        var user = await BaseQuery().FirstOrDefaultAsync(current => current.NormalizedUserName == normalizedUserName, cancellationToken);
+        var user = await BaseQuery(ignoreQueryFilters: true)
+            .FirstOrDefaultAsync(current => current.NormalizedUserName == normalizedUserName, cancellationToken);
         return user is null ? null : MapUser(user);
     }
 
@@ -80,6 +84,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         var entity = new Persistence.Entities.SecurityUserEntity
         {
             Id = user.Id,
+            EmpresaId = ResolveEmpresaId(user.EmpresaId),
             PersonaId = user.PersonaId,
             UserName = user.UserName,
             NormalizedUserName = user.UserName.ToUpperInvariant(),
@@ -100,6 +105,14 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             });
         }
 
+        entity.EmpresasAcceso.Add(new Persistence.Entities.SecurityUserEmpresaEntity
+        {
+            SecurityUserId = entity.Id,
+            EmpresaId = entity.EmpresaId,
+            IsDefault = true,
+            CreatedAt = user.CreatedAt
+        });
+
         dbContext.SecurityUsers.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(entity.Id, cancellationToken) ?? user;
@@ -109,6 +122,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
     {
         var entity = await dbContext.SecurityUsers
             .Include(current => current.UserRoles)
+            .Include(current => current.EmpresasAcceso)
             .FirstOrDefaultAsync(current => current.Id == user.Id, cancellationToken);
 
         if (entity is null)
@@ -119,6 +133,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         var roleEntities = await ResolveRolesAsync(user.Roles, cancellationToken);
 
         entity.PersonaId = user.PersonaId;
+        entity.EmpresaId = ResolveEmpresaId(user.EmpresaId);
         entity.UserName = user.UserName;
         entity.NormalizedUserName = user.UserName.ToUpperInvariant();
         entity.DisplayName = user.DisplayName;
@@ -127,6 +142,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         entity.PasswordHash = user.PasswordHash;
         entity.IsActive = user.IsActive;
         entity.UserRoles.Clear();
+        entity.EmpresasAcceso.Clear();
 
         foreach (var role in roleEntities)
         {
@@ -137,20 +153,39 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             });
         }
 
+        var accessCompanies = user.EmpresasAcceso.Count == 0
+            ? [new UserEmpresaAcceso(entity.EmpresaId, string.Empty, null, string.Empty, true, true)]
+            : user.EmpresasAcceso;
+
+        foreach (var empresa in accessCompanies)
+        {
+            entity.EmpresasAcceso.Add(new Persistence.Entities.SecurityUserEmpresaEntity
+            {
+                SecurityUserId = entity.Id,
+                EmpresaId = empresa.EmpresaId,
+                IsDefault = empresa.IsDefault,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(entity.Id, cancellationToken);
     }
 
-    private IQueryable<Persistence.Entities.SecurityUserEntity> BaseQuery()
+    private IQueryable<Persistence.Entities.SecurityUserEntity> BaseQuery(bool ignoreQueryFilters = false)
     {
-        return dbContext.SecurityUsers
+        var query = dbContext.SecurityUsers
             .AsNoTracking()
             .Include(current => current.Persona)
             .ThenInclude(persona => persona.Cliente)
             .Include(current => current.Persona)
             .ThenInclude(persona => persona.Empleado)
             .Include(current => current.UserRoles)
-            .ThenInclude(userRole => userRole.Role);
+            .ThenInclude(userRole => userRole.Role)
+            .Include(current => current.EmpresasAcceso)
+            .ThenInclude(link => link.Empresa);
+
+        return ignoreQueryFilters ? query.IgnoreQueryFilters() : query;
     }
 
     private async Task<IReadOnlyCollection<Persistence.Entities.SecurityRoleEntity>> ResolveRolesAsync(
@@ -195,14 +230,41 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
 
         return new SecurityUser(
             user.Id,
+            user.EmpresaId,
             user.PersonaId,
             user.UserName,
             user.DisplayName,
             user.Email,
             user.PasswordHash,
             roles,
+            user.EmpresasAcceso
+                .OrderByDescending(link => link.IsDefault)
+                .ThenBy(link => link.Empresa.RazonSocial)
+                .Select(link => new UserEmpresaAcceso(
+                    link.EmpresaId,
+                    link.Empresa.RazonSocial,
+                    link.Empresa.NombreComercial,
+                    link.Empresa.Ruc,
+                    link.Empresa.IsActive,
+                    link.IsDefault))
+                .ToArray(),
             personaRoles.ToArray(),
             user.IsActive,
             user.CreatedAt);
+    }
+
+    private Guid ResolveEmpresaId(Guid empresaId)
+    {
+        if (empresaId != Guid.Empty)
+        {
+            return empresaId;
+        }
+
+        if (tenantContextAccessor.EmpresaId.HasValue)
+        {
+            return tenantContextAccessor.EmpresaId.Value;
+        }
+
+        throw new InvalidOperationException("No existe una empresa activa para registrar el usuario.");
     }
 }

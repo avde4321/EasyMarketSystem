@@ -18,6 +18,9 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o direccion..." />
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando clientes...</em></p>
@@ -25,6 +28,10 @@
         else if (clientes.Count == 0)
         {
             <div class="empty-state">No hay clientes registrados.</div>
+        }
+        else if (!FilteredClientes.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
@@ -43,7 +50,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var cliente in clientes)
+                    @foreach (var cliente in FilteredClientes)
                     {
                         <tr>
                             <td>@cliente.TipoIdentificacion</td>
@@ -78,6 +85,11 @@
             <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync">
                 <DataAnnotationsValidator />
 
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="status-banner">@statusMessage</div>
+                }
+
                 <div class="status-banner">
                     Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de cliente sin duplicar sus datos base.
                 </div>
@@ -96,7 +108,12 @@
 
                     <div class="form-field">
                         <label for="identificacion">Identificacion</label>
-                        <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" />
+                        <div class="input-action-row">
+                            <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" />
+                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                            </button>
+                        </div>
                         <ValidationMessage For="@(() => clienteRequest.Identificacion)" />
                         <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
                     </div>

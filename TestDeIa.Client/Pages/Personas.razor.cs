@@ -24,6 +24,16 @@ public partial class Personas
     private bool isSaving;
     private bool isEditorOpen;
     private string? errorMessage;
+    private string searchTerm = string.Empty;
+
+    private IEnumerable<PersonaResponse> FilteredPersonas => personas.Where(persona =>
+        string.IsNullOrWhiteSpace(searchTerm) ||
+        persona.TipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        persona.Identificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        persona.NombreCompleto.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (persona.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        (persona.Telefono?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        persona.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {

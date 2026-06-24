@@ -1,13 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Infrastructure.Persistence.Entities;
 
 namespace TestDeIa.Infrastructure.Persistence;
 
 public sealed class TestDeIaDbContext : DbContext
 {
-    public TestDeIaDbContext(DbContextOptions<TestDeIaDbContext> options)
+    private readonly ITenantContextAccessor tenantContextAccessor;
+
+    public TestDeIaDbContext(DbContextOptions<TestDeIaDbContext> options, ITenantContextAccessor tenantContextAccessor)
         : base(options)
     {
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public DbSet<SecurityUserEntity> SecurityUsers => Set<SecurityUserEntity>();
@@ -17,6 +21,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<SecurityRoleEntity> SecurityRoles => Set<SecurityRoleEntity>();
 
     public DbSet<SecurityUserRoleEntity> SecurityUserRoles => Set<SecurityUserRoleEntity>();
+
+    public DbSet<SecurityUserEmpresaEntity> SecurityUserEmpresas => Set<SecurityUserEmpresaEntity>();
 
     public DbSet<ClienteEntity> Clientes => Set<ClienteEntity>();
 
@@ -39,5 +45,38 @@ public sealed class TestDeIaDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TestDeIaDbContext).Assembly);
+
+        modelBuilder.Entity<PersonaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ClienteEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<EmpleadoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ProductoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<KardexMovimientoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaSriEventoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<SecurityUserEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                entity.EmpresasAcceso.Any(link => link.EmpresaId == tenantContextAccessor.EmpresaId));
+        modelBuilder.Entity<SecurityUserRoleEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                entity.User.EmpresasAcceso.Any(link => link.EmpresaId == tenantContextAccessor.EmpresaId));
+        modelBuilder.Entity<SecurityUserEmpresaEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                (tenantContextAccessor.UserId.HasValue && entity.SecurityUserId == tenantContextAccessor.UserId.Value));
+        modelBuilder.Entity<EmpresaEmisoraEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                (tenantContextAccessor.UserId.HasValue && entity.OwnerUserId == tenantContextAccessor.UserId.Value));
     }
 }

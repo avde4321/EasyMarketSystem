@@ -12,6 +12,9 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
 
         builder.HasKey(persona => persona.Id);
 
+        builder.Property(persona => persona.EmpresaId)
+            .IsRequired();
+
         builder.Property(persona => persona.TipoIdentificacion)
             .HasMaxLength(30)
             .IsRequired();
@@ -40,7 +43,7 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
         builder.Property(persona => persona.Direccion)
             .HasMaxLength(250);
 
-        builder.HasIndex(persona => persona.Identificacion)
+        builder.HasIndex(persona => new { persona.EmpresaId, persona.Identificacion })
             .IsUnique();
 
         builder.Property(persona => persona.IsSystemRecord)
@@ -49,6 +52,7 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
         builder.HasData(new PersonaEntity
         {
             Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            EmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
             TipoIdentificacion = "Sistema",
             Identificacion = "ADMIN",
             Nombres = "Administrador",

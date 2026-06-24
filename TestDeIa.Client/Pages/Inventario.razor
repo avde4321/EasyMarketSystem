@@ -18,6 +18,9 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por codigo, producto, descripcion o IVA..." />
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando productos...</em></p>
@@ -25,6 +28,10 @@
         else if (productos.Count == 0)
         {
             <div class="empty-state">No hay productos registrados.</div>
+        }
+        else if (!FilteredProductos.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
@@ -43,7 +50,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var producto in productos)
+                    @foreach (var producto in FilteredProductos)
                     {
                         <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
                             <td>@producto.Codigo</td>
@@ -79,9 +86,17 @@
                 </div>
             </header>
 
+            <div class="table-toolbar">
+                <InputText class="form-control search-control" @bind-Value="kardexSearchTerm" placeholder="Buscar en kardex por tipo, concepto o referencia..." />
+            </div>
+
             @if (kardex.Count == 0)
             {
                 <div class="empty-state">Este producto aun no tiene movimientos.</div>
+            }
+            else if (!FilteredKardex.Any())
+            {
+                <div class="empty-state">No hay movimientos que coincidan con la busqueda.</div>
             }
             else
             {
@@ -98,7 +113,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var movimiento in kardex)
+                        @foreach (var movimiento in FilteredKardex)
                         {
                             <tr>
                                 <td>@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -9,10 +10,12 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Personas;
 public sealed class EfPersonaRepository : IPersonaRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfPersonaRepository(TestDeIaDbContext dbContext)
+    public EfPersonaRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<IReadOnlyCollection<Persona>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -123,11 +126,12 @@ public sealed class EfPersonaRepository : IPersonaRepository
             entity.UpdatedAt);
     }
 
-    private static PersonaEntity MapToEntity(Persona persona)
+    private PersonaEntity MapToEntity(Persona persona)
     {
         return new PersonaEntity
         {
             Id = persona.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la persona."),
             TipoIdentificacion = persona.TipoIdentificacion,
             Identificacion = persona.Identificacion,
             Nombres = persona.Nombres,

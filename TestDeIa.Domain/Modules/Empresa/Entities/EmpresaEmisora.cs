@@ -4,6 +4,7 @@ public sealed class EmpresaEmisora
 {
     public EmpresaEmisora(
         Guid id,
+        Guid ownerUserId,
         string razonSocial,
         string? nombreComercial,
         string ruc,
@@ -26,6 +27,7 @@ public sealed class EmpresaEmisora
         DateTimeOffset? updatedAt)
     {
         Id = id;
+        OwnerUserId = ownerUserId;
         RazonSocial = razonSocial;
         NombreComercial = nombreComercial;
         Ruc = ruc;
@@ -49,6 +51,7 @@ public sealed class EmpresaEmisora
     }
 
     public Guid Id { get; }
+    public Guid OwnerUserId { get; }
     public string RazonSocial { get; }
     public string? NombreComercial { get; }
     public string Ruc { get; }

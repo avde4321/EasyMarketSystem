@@ -18,7 +18,15 @@
         <div class="alert-message">@errorMessage</div>
     }
 
+    @if (!string.IsNullOrWhiteSpace(downloadStatusMessage))
+    {
+        <div class="soft-info-message">@downloadStatusMessage</div>
+    }
+
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por numero, cliente, identificacion, pago o estado..." />
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando comprobantes...</em></p>
@@ -26,6 +34,10 @@
         else if (facturas.Count == 0)
         {
             <div class="empty-state">Todavia no hay facturas emitidas.</div>
+        }
+        else if (!FilteredFacturas.Any())
+        {
+            <div class="empty-state">No hay comprobantes que coincidan con la busqueda.</div>
         }
         else
         {
@@ -40,10 +52,11 @@
                         <th>Emision</th>
                         <th>Autorizacion</th>
                         <th>Mensaje</th>
+                        <th>Documentos</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var factura in facturas)
+                    @foreach (var factura in FilteredFacturas)
                     {
                         <tr>
                             <td>@factura.NumeroComprobante</td>
@@ -61,6 +74,25 @@
                             <td>@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
                             <td>@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
                             <td>@factura.MensajeEstado</td>
+                            <td>
+                                <div class="table-actions">
+                                    <button class="table-action"
+                                            @onclick="() => DownloadXmlGeneradoAsync(factura)"
+                                            disabled="@IsBusyFor(factura.Id)">
+                                        @GetXmlGeneradoLabel(factura.Id)
+                                    </button>
+                                    <button class="table-action"
+                                            @onclick="() => DownloadXmlFirmadoAsync(factura)"
+                                            disabled="@(!factura.TieneXmlFirmado || IsBusyFor(factura.Id))">
+                                        @GetXmlFirmadoLabel(factura.Id)
+                                    </button>
+                                    <button class="table-action primary"
+                                            @onclick="() => DownloadRideAsync(factura)"
+                                            disabled="@IsBusyFor(factura.Id)">
+                                        @GetRideLabel(factura.Id)
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>

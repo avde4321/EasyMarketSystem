@@ -39,6 +39,11 @@ public sealed class JwtSecurityTokenGenerator : ISecurityTokenGenerator
             new(ClaimTypes.Email, user.Email)
         };
 
+        if (user.DefaultEmpresaId.HasValue)
+        {
+            claims.Add(new Claim("default_empresa_id", user.DefaultEmpresaId.Value.ToString()));
+        }
+
         claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));

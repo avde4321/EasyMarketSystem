@@ -52,6 +52,44 @@ public sealed class FacturacionApiClient
             ?? Array.Empty<FacturaMonitorResponse>();
     }
 
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetRidePdfAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/ride");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlGeneradoAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-generado");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlFirmadoAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-firmado");
+    }
+
+    private async Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetFileAsync(string url)
+    {
+        var response = await httpClient.GetAsync(url);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadAsByteArrayAsync());
+        }
+
+        var errorMessage = "No se pudo descargar el documento.";
+
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            errorMessage = error?.Message ?? errorMessage;
+        }
+        catch
+        {
+        }
+
+        return (false, errorMessage, null);
+    }
+
     private sealed class ApiError
     {
         public string? Message { get; set; }

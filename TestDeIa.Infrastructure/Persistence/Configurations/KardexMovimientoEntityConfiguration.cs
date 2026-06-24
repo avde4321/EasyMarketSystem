@@ -12,6 +12,9 @@ public sealed class KardexMovimientoEntityConfiguration : IEntityTypeConfigurati
 
         builder.HasKey(movimiento => movimiento.Id);
 
+        builder.Property(movimiento => movimiento.EmpresaId)
+            .IsRequired();
+
         builder.Property(movimiento => movimiento.TipoMovimiento)
             .HasMaxLength(30)
             .IsRequired();

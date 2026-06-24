@@ -38,6 +38,14 @@ public interface IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 
+    Task MarkFacturaAsUnsignedAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string mensaje,
+        string xmlGenerado,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default);
+
     Task MarkFacturaAsErrorAsync(
         Guid facturaId,
         string mensaje,

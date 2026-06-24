@@ -18,6 +18,9 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por usuario, persona, identificacion, correo o rol..." />
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando usuarios...</em></p>
@@ -25,6 +28,10 @@
         else if (users.Count == 0)
         {
             <div class="empty-state">No hay usuarios registrados.</div>
+        }
+        else if (!FilteredUsers.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
@@ -41,7 +48,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var user in users)
+                    @foreach (var user in FilteredUsers)
                     {
                         <tr>
                             <td>@user.UserName</td>
@@ -76,6 +83,11 @@
             <EditForm Model="userRequest" OnValidSubmit="SaveUserAsync">
                 <DataAnnotationsValidator />
 
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="status-banner">@statusMessage</div>
+                }
+
                 <div class="status-banner">
                     Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de usuario sin duplicar sus datos base.
                 </div>
@@ -93,7 +105,12 @@
 
                     <div class="form-field">
                         <label>Identificacion</label>
-                        <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
+                        <div class="input-action-row">
+                            <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
+                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                            </button>
+                        </div>
                         <ValidationMessage For="@(() => userRequest.Identificacion)" />
                     </div>
 

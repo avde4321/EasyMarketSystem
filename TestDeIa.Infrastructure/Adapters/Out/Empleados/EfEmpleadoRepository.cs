@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Domain.Modules.Empleados.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -9,10 +10,12 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Empleados;
 public sealed class EfEmpleadoRepository : IEmpleadoRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfEmpleadoRepository(TestDeIaDbContext dbContext)
+    public EfEmpleadoRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<IReadOnlyCollection<Empleado>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -46,6 +49,7 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
         var entity = new EmpleadoEntity
         {
             Id = empleado.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el empleado."),
             PersonaId = empleado.PersonaId,
             IsActive = empleado.IsActive,
             CreatedAt = empleado.CreatedAt,

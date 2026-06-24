@@ -12,7 +12,10 @@ public sealed class ClienteEntityConfiguration : IEntityTypeConfiguration<Client
 
         builder.HasKey(cliente => cliente.Id);
 
-        builder.HasIndex(cliente => cliente.PersonaId)
+        builder.Property(cliente => cliente.EmpresaId)
+            .IsRequired();
+
+        builder.HasIndex(cliente => new { cliente.EmpresaId, cliente.PersonaId })
             .IsUnique();
 
         builder.HasOne(cliente => cliente.Persona)

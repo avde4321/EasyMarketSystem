@@ -1,6 +1,7 @@
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.In;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
+using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
 using TestDeIa.Shared.Requests.Empresa;
 using TestDeIa.Shared.Responses.Empresa;
@@ -11,11 +12,16 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
 {
     private readonly IEmpresaRepository empresaRepository;
     private readonly ICatalogoRepository catalogoRepository;
+    private readonly ICurrentUserAccessor currentUserAccessor;
 
-    public EmpresaUseCase(IEmpresaRepository empresaRepository, ICatalogoRepository catalogoRepository)
+    public EmpresaUseCase(
+        IEmpresaRepository empresaRepository,
+        ICatalogoRepository catalogoRepository,
+        ICurrentUserAccessor currentUserAccessor)
     {
         this.empresaRepository = empresaRepository;
         this.catalogoRepository = catalogoRepository;
+        this.currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<EmpresaResponse?> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -24,13 +30,29 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         return empresa is null ? null : MapResponse(empresa);
     }
 
-    public async Task<EmpresaResponse> UpsertAsync(EmpresaRequest request, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<EmpresaOptionResponse>> GetMineAsync(CancellationToken cancellationToken = default)
     {
-        var current = await empresaRepository.GetCurrentAsync(cancellationToken);
+        var empresas = await empresaRepository.GetMineAsync(cancellationToken);
+        return empresas.Select(MapOption).ToArray();
+    }
+
+    public async Task<EmpresaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var empresa = await empresaRepository.GetByIdAsync(id, cancellationToken);
+        return empresa is null ? null : MapResponse(empresa);
+    }
+
+    public async Task<EmpresaResponse> SaveAsync(Guid? id, EmpresaRequest request, CancellationToken cancellationToken = default)
+    {
+        var current = id.HasValue
+            ? await empresaRepository.GetByIdAsync(id.Value, cancellationToken)
+            : null;
+
         await ValidateRequestAsync(request, current, cancellationToken);
 
         var empresa = new EmpresaEmisora(
             current?.Id ?? Guid.NewGuid(),
+            current?.OwnerUserId ?? currentUserAccessor.GetRequiredUserId(),
             request.RazonSocial.Trim(),
             NormalizeOptional(request.NombreComercial),
             request.Ruc.Trim(),
@@ -52,7 +74,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             current?.CreatedAt ?? DateTimeOffset.UtcNow,
             current is null ? null : DateTimeOffset.UtcNow);
 
-        return MapResponse(await empresaRepository.UpsertAsync(empresa, cancellationToken));
+        return MapResponse(await empresaRepository.SaveAsync(empresa, cancellationToken));
     }
 
     private static EmpresaResponse MapResponse(EmpresaEmisora empresa)
@@ -60,6 +82,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         return new EmpresaResponse
         {
             Id = empresa.Id,
+            OwnerUserId = empresa.OwnerUserId,
             RazonSocial = empresa.RazonSocial,
             NombreComercial = empresa.NombreComercial,
             Ruc = empresa.Ruc,
@@ -79,6 +102,18 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             IsActive = empresa.IsActive,
             CreatedAt = empresa.CreatedAt,
             UpdatedAt = empresa.UpdatedAt
+        };
+    }
+
+    private static EmpresaOptionResponse MapOption(EmpresaEmisora empresa)
+    {
+        return new EmpresaOptionResponse
+        {
+            Id = empresa.Id,
+            RazonSocial = empresa.RazonSocial,
+            NombreComercial = empresa.NombreComercial,
+            Ruc = empresa.Ruc,
+            IsActive = empresa.IsActive
         };
     }
 

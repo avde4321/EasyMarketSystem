@@ -6,9 +6,10 @@
 <section class="module-page">
     <header class="module-header">
         <div>
-            <h1>Empresa Emisora</h1>
-            <p>Configuracion tributaria base para comprobantes electronicos del SRI.</p>
+            <h1>Mis Empresas</h1>
+            <p>Administra multiples RUCs, firmas .p12 y parametros tributarios por empresa.</p>
         </div>
+        <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -22,12 +23,67 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razon social, ambiente o establecimiento..." />
+        </div>
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>RUC</th>
+                        <th>Razon social</th>
+                        <th>Ambiente</th>
+                        <th>Emision</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (empresas.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="empty-state-cell">Todavia no tienes empresas registradas.</td>
+                        </tr>
+                    }
+                    else if (!FilteredEmpresas.Any())
+                    {
+                        <tr>
+                            <td colspan="6" class="empty-state-cell">No hay empresas que coincidan con la busqueda.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var empresa in FilteredEmpresas)
+                        {
+                            <tr class="@(selectedEmpresaId == empresa.Id ? "is-selected-row" : string.Empty)">
+                                <td>@empresa.Ruc</td>
+                                <td>@empresa.RazonSocial</td>
+                                <td>@empresa.AmbienteSri</td>
+                                <td>@($"{empresa.Establecimiento}-{empresa.PuntoEmision}")</td>
+                                <td>
+                                    <span class="status-pill @(empresa.IsActive ? "is-active" : "is-inactive")">
+                                        @(empresa.IsActive ? "Activa" : "Inactiva")
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="ghost-button" type="button" @onclick="() => SelectEmpresaAsync(empresa.Id)">Editar</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="table-card">
         <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
             @if (empresaActual is not null)
             {
                 <div class="status-banner">
+                    Empresa actual: @empresaActual.RazonSocial |
                     Ambiente actual: @empresaActual.AmbienteSri |
                     Certificado: @(empresaActual.TieneCertificadoConfigurado ? "Configurado" : "Pendiente") |
                     Estado: @(empresaActual.IsActive ? "Activo" : "Inactivo")
@@ -138,7 +194,7 @@
 
             <footer class="module-actions">
                 <button class="primary-action" type="submit" disabled="@isSaving">
-                    @(isSaving ? "Guardando..." : "Guardar configuracion")
+                    @(isSaving ? "Guardando..." : (selectedEmpresaId.HasValue ? "Actualizar empresa" : "Crear empresa"))
                 </button>
             </footer>
         </EditForm>

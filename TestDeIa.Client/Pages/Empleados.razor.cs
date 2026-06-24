@@ -23,6 +23,16 @@ public partial class Empleados
     private bool isSaving;
     private bool isEditorOpen;
     private string? errorMessage;
+    private string searchTerm = string.Empty;
+
+    private IEnumerable<EmpleadoResponse> FilteredEmpleados => empleados.Where(empleado =>
+        string.IsNullOrWhiteSpace(searchTerm) ||
+        empleado.TipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        empleado.Identificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        empleado.NombreCompleto.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (empleado.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        (empleado.Telefono?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        empleado.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {

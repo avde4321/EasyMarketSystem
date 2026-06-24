@@ -3,6 +3,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class ProductoEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public string Codigo { get; set; } = string.Empty;
 

@@ -17,12 +17,24 @@ public partial class Empresa
 
     private EmpresaRequest empresaRequest = new();
     private TestDeIa.Shared.Responses.Empresa.EmpresaResponse? empresaActual;
+    private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> empresas = [];
     private readonly List<CatalogoItemResponse> ambientesSri = [];
     private readonly List<CatalogoItemResponse> tiposEmision = [];
     private bool isSaving;
     private string? errorMessage;
     private string? statusMessage;
     private string? certificadoNombreArchivoActual;
+    private Guid? selectedEmpresaId;
+    private string searchTerm = string.Empty;
+
+    private IEnumerable<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> FilteredEmpresas => empresas.Where(empresa =>
+        string.IsNullOrWhiteSpace(searchTerm) ||
+        empresa.Ruc.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        empresa.RazonSocial.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (empresa.NombreComercial?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        empresa.AmbienteSri.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        empresa.Establecimiento.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        empresa.PuntoEmision.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -44,39 +56,31 @@ public partial class Empresa
 
         try
         {
-            var empresa = await EmpresaApiClient.GetCurrentAsync();
-            if (empresa is null)
+            empresas.Clear();
+            var opciones = await EmpresaApiClient.GetMineAsync();
+
+            foreach (var opcion in opciones)
             {
-                empresaActual = null;
-                empresaRequest = new EmpresaRequest
+                var detalle = await EmpresaApiClient.GetByIdAsync(opcion.Id);
+                if (detalle is not null)
                 {
-                    AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "Pruebas",
-                    TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "Normal"
-                };
+                    empresas.Add(detalle);
+                }
+            }
+
+            if (selectedEmpresaId.HasValue)
+            {
+                await SelectEmpresaAsync(selectedEmpresaId.Value);
                 return;
             }
 
-            empresaActual = empresa;
-            empresaRequest = new EmpresaRequest
+            if (empresas.Count == 0)
             {
-                RazonSocial = empresa.RazonSocial,
-                NombreComercial = empresa.NombreComercial,
-                Ruc = empresa.Ruc,
-                DireccionMatriz = empresa.DireccionMatriz,
-                DireccionEstablecimiento = empresa.DireccionEstablecimiento,
-                Establecimiento = empresa.Establecimiento,
-                PuntoEmision = empresa.PuntoEmision,
-                AmbienteSri = empresa.AmbienteSri,
-                ModoDesarrollo = empresa.ModoDesarrollo,
-                TipoEmision = empresa.TipoEmision,
-                ObligadoContabilidad = empresa.ObligadoContabilidad,
-                ContribuyenteEspecial = empresa.ContribuyenteEspecial,
-                RegimenRimpe = empresa.RegimenRimpe,
-                AgenteRetencionResolucion = empresa.AgenteRetencionResolucion,
-                CertificadoNombreArchivo = empresa.CertificadoNombreArchivo,
-                IsActive = empresa.IsActive
-            };
-            certificadoNombreArchivoActual = empresa.CertificadoNombreArchivo;
+                StartCreate();
+                return;
+            }
+
+            await SelectEmpresaAsync(empresas[0].Id);
         }
         catch (HttpRequestException)
         {
@@ -92,14 +96,20 @@ public partial class Empresa
 
         try
         {
-            var result = await EmpresaApiClient.SaveAsync(empresaRequest);
+            var result = selectedEmpresaId.HasValue
+                ? await EmpresaApiClient.UpdateAsync(selectedEmpresaId.Value, empresaRequest)
+                : await EmpresaApiClient.CreateAsync(empresaRequest);
+
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
                 return;
             }
 
-            statusMessage = "La configuracion tributaria de la empresa fue actualizada.";
+            selectedEmpresaId = result.Data?.Id;
+            statusMessage = selectedEmpresaId.HasValue
+                ? "La empresa fue guardada correctamente."
+                : "La empresa fue creada correctamente.";
             await LoadAsync();
         }
         catch (HttpRequestException)
@@ -136,5 +146,56 @@ public partial class Empresa
         empresaRequest.CertificadoNombreArchivo = file.Name;
         empresaRequest.CertificadoContenido = memoryStream.ToArray();
         certificadoNombreArchivoActual = file.Name;
+    }
+
+    private async Task SelectEmpresaAsync(Guid id)
+    {
+        selectedEmpresaId = id;
+        empresaActual = empresas.FirstOrDefault(current => current.Id == id) ?? await EmpresaApiClient.GetByIdAsync(id);
+
+        if (empresaActual is null)
+        {
+            errorMessage = "No se pudo cargar la empresa seleccionada.";
+            return;
+        }
+
+        empresaRequest = new EmpresaRequest
+        {
+            RazonSocial = empresaActual.RazonSocial,
+            NombreComercial = empresaActual.NombreComercial,
+            Ruc = empresaActual.Ruc,
+            DireccionMatriz = empresaActual.DireccionMatriz,
+            DireccionEstablecimiento = empresaActual.DireccionEstablecimiento,
+            Establecimiento = empresaActual.Establecimiento,
+            PuntoEmision = empresaActual.PuntoEmision,
+            AmbienteSri = empresaActual.AmbienteSri,
+            ModoDesarrollo = empresaActual.ModoDesarrollo,
+            TipoEmision = empresaActual.TipoEmision,
+            ObligadoContabilidad = empresaActual.ObligadoContabilidad,
+            ContribuyenteEspecial = empresaActual.ContribuyenteEspecial,
+            RegimenRimpe = empresaActual.RegimenRimpe,
+            AgenteRetencionResolucion = empresaActual.AgenteRetencionResolucion,
+            CertificadoNombreArchivo = empresaActual.CertificadoNombreArchivo,
+            IsActive = empresaActual.IsActive
+        };
+
+        certificadoNombreArchivoActual = empresaActual.CertificadoNombreArchivo;
+        StateHasChanged();
+    }
+
+    private void StartCreate()
+    {
+        selectedEmpresaId = null;
+        empresaActual = null;
+        certificadoNombreArchivoActual = null;
+        empresaRequest = new EmpresaRequest
+        {
+            AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "Pruebas",
+            TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "Normal",
+            Establecimiento = "001",
+            PuntoEmision = "001",
+            IsActive = true,
+            ModoDesarrollo = true
+        };
     }
 }

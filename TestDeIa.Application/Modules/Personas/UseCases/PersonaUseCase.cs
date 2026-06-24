@@ -30,6 +30,17 @@ public sealed class PersonaUseCase : IPersonaUseCase
         return persona is null ? null : MapToResponse(persona);
     }
 
+    public async Task<PersonaResponse?> FindByIdentificacionAsync(string identificacion, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(identificacion))
+        {
+            return null;
+        }
+
+        var persona = await personaRepository.FindByIdentificacionAsync(identificacion.Trim(), cancellationToken);
+        return persona is null ? null : MapToResponse(persona);
+    }
+
     public async Task<PersonaResponse> CreateAsync(PersonaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);

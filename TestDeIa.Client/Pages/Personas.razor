@@ -18,6 +18,9 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o rol..." />
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando personas...</em></p>
@@ -25,6 +28,10 @@
         else if (personas.Count == 0)
         {
             <div class="empty-state">No hay personas registradas.</div>
+        }
+        else if (!FilteredPersonas.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
@@ -44,7 +51,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var persona in personas)
+                    @foreach (var persona in FilteredPersonas)
                     {
                         <tr>
                             <td>@persona.TipoIdentificacion</td>

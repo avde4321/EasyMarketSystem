@@ -1,6 +1,8 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using TestDeIa.Api.Reporting;
+using TestDeIa.Api.Middleware;
 using TestDeIa.Application;
 using TestDeIa.Infrastructure;
 
@@ -47,6 +49,8 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<FacturaDocumentQueryService>();
+builder.Services.AddSingleton<FacturaRideRdlcRenderer>();
 
 var app = builder.Build();
 
@@ -58,6 +62,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("BlazorClient");
 app.UseAuthentication();
+app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

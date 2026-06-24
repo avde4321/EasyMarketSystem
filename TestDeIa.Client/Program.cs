@@ -20,6 +20,7 @@ var apiOptions = builder.Configuration.GetSection("Api").Get<ApiOptions>() ?? ne
 
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<TokenStorageService>();
+builder.Services.AddScoped<EmpresaSessionService>();
 builder.Services.AddScoped<TokenAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
     provider.GetRequiredService<TokenAuthenticationStateProvider>());

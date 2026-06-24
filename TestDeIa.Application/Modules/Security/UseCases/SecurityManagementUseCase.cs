@@ -77,12 +77,14 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
 
         var user = new SecurityUser(
             Guid.NewGuid(),
+            Guid.Empty,
             persona.Id,
             request.UserName.Trim(),
             $"{persona.Nombres} {persona.Apellidos}".Trim(),
             persona.Email!.Trim(),
             passwordHashService.Hash(request.Password!.Trim()),
             request.Roles.Select(role => role.Trim()).ToArray(),
+            [],
             persona.RolesPersona.Concat(["Usuario"]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             request.IsActive,
             DateTimeOffset.UtcNow);
@@ -128,12 +130,14 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
 
         var user = new SecurityUser(
             current.Id,
+            current.EmpresaId,
             current.PersonaId,
             request.UserName.Trim(),
             $"{updatedPersona.Nombres} {updatedPersona.Apellidos}".Trim(),
             updatedPersona.Email!.Trim(),
             passwordHash,
             request.Roles.Select(role => role.Trim()).ToArray(),
+            current.EmpresasAcceso,
             updatedPersona.RolesPersona,
             request.IsActive,
             current.CreatedAt);

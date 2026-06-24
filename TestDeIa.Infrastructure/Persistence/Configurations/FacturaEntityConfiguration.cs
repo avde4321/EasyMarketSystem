@@ -12,6 +12,9 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
 
         builder.HasKey(factura => factura.Id);
 
+        builder.Property(factura => factura.EmpresaId)
+            .IsRequired();
+
         builder.Property(factura => factura.Secuencial)
             .UseIdentityColumn();
 
@@ -95,13 +98,17 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasMaxLength(300);
 
         builder.Property(factura => factura.ClaveAcceso)
-            .HasMaxLength(80);
+            .HasMaxLength(49)
+            .IsRequired();
 
         builder.Property(factura => factura.NumeroAutorizacion)
             .HasMaxLength(80);
 
         builder.Property(factura => factura.MensajeEstado)
             .HasMaxLength(400);
+
+        builder.Property(factura => factura.XmlGenerado)
+            .HasColumnType("nvarchar(max)");
 
         builder.Property(factura => factura.XmlFirmado)
             .HasColumnType("nvarchar(max)");
@@ -122,6 +129,9 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .IsRowVersion();
 
         builder.HasIndex(factura => new { factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
+            .IsUnique();
+
+        builder.HasIndex(factura => factura.ClaveAcceso)
             .IsUnique();
 
         builder.HasIndex(factura => new { factura.Estado, factura.CreatedAt });
