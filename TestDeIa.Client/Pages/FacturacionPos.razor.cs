@@ -27,6 +27,15 @@ public partial class FacturacionPos : IDisposable
     private bool isSubmitting;
     private string? errorMessage;
     private string? statusMessage;
+    private const int SearchPageSize = 8;
+    private int clienteSkip;
+    private int productoSkip;
+    private int clienteTotalCount;
+    private int productoTotalCount;
+    private bool CanGoPreviousClientes => clienteSkip > 0;
+    private bool CanGoNextClientes => clienteSkip + SearchPageSize < clienteTotalCount;
+    private bool CanGoPreviousProductos => productoSkip > 0;
+    private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -42,6 +51,12 @@ public partial class FacturacionPos : IDisposable
 
     private async Task SearchClientesAsync()
     {
+        clienteSkip = 0;
+        await LoadClientesPageAsync();
+    }
+
+    private async Task LoadClientesPageAsync()
+    {
         errorMessage = null;
         statusMessage = null;
         clienteResults.Clear();
@@ -51,10 +66,18 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
-        clienteResults.AddRange(await FacturacionApiClient.SearchClientesAsync(clienteSearchTerm.Trim()));
+        var page = await FacturacionApiClient.SearchClientesAsync(clienteSearchTerm.Trim(), clienteSkip, SearchPageSize);
+        clienteResults.AddRange(page.Items);
+        clienteTotalCount = page.TotalCount;
     }
 
     private async Task SearchProductosAsync()
+    {
+        productoSkip = 0;
+        await LoadProductosPageAsync();
+    }
+
+    private async Task LoadProductosPageAsync()
     {
         errorMessage = null;
         statusMessage = null;
@@ -65,7 +88,9 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
-        productoResults.AddRange(await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim()));
+        var page = await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim(), productoSkip, SearchPageSize);
+        productoResults.AddRange(page.Items);
+        productoTotalCount = page.TotalCount;
     }
 
     private void SelectCliente(PosClienteResponse cliente)
@@ -73,6 +98,50 @@ public partial class FacturacionPos : IDisposable
         selectedCliente = cliente;
         clienteResults.Clear();
         clienteSearchTerm = cliente.Identificacion;
+    }
+
+    private async Task PreviousClientesAsync()
+    {
+        if (!CanGoPreviousClientes)
+        {
+            return;
+        }
+
+        clienteSkip = Math.Max(0, clienteSkip - SearchPageSize);
+        await LoadClientesPageAsync();
+    }
+
+    private async Task NextClientesAsync()
+    {
+        if (!CanGoNextClientes)
+        {
+            return;
+        }
+
+        clienteSkip += SearchPageSize;
+        await LoadClientesPageAsync();
+    }
+
+    private async Task PreviousProductosAsync()
+    {
+        if (!CanGoPreviousProductos)
+        {
+            return;
+        }
+
+        productoSkip = Math.Max(0, productoSkip - SearchPageSize);
+        await LoadProductosPageAsync();
+    }
+
+    private async Task NextProductosAsync()
+    {
+        if (!CanGoNextProductos)
+        {
+            return;
+        }
+
+        productoSkip += SearchPageSize;
+        await LoadProductosPageAsync();
     }
 
     private void AddProducto(PosProductoResponse producto)

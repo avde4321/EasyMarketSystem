@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Domain.Modules.Empleados.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Empleados;
 
@@ -26,6 +27,26 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
             .ToListAsync(cancellationToken);
 
         return empleados.Select(MapToDomain).ToArray();
+    }
+
+    public async Task<PagedResultResponse<Empleado>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var query = ApplyFilter(BaseQuery(), term);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var empleados = await query
+            .OrderBy(empleado => empleado.Persona.Apellidos)
+            .ThenBy(empleado => empleado.Persona.Nombres)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<Empleado>
+        {
+            Items = empleados.Select(MapToDomain).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<Empleado?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -99,6 +120,24 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
             .ThenInclude(persona => persona.Cliente)
             .Include(empleado => empleado.Persona)
             .ThenInclude(persona => persona.SecurityUser);
+    }
+
+    private static IQueryable<EmpleadoEntity> ApplyFilter(IQueryable<EmpleadoEntity> query, string? term)
+    {
+        var normalizedTerm = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            return query;
+        }
+
+        return query.Where(empleado =>
+            empleado.Persona.TipoIdentificacion.Contains(normalizedTerm) ||
+            empleado.Persona.Identificacion.Contains(normalizedTerm) ||
+            empleado.Persona.Nombres.Contains(normalizedTerm) ||
+            empleado.Persona.Apellidos.Contains(normalizedTerm) ||
+            (empleado.Persona.Email != null && empleado.Persona.Email.Contains(normalizedTerm)) ||
+            (empleado.Persona.Telefono != null && empleado.Persona.Telefono.Contains(normalizedTerm)) ||
+            (empleado.Persona.Direccion != null && empleado.Persona.Direccion.Contains(normalizedTerm)));
     }
 
     private static Empleado MapToDomain(EmpleadoEntity entity)

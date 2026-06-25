@@ -91,6 +91,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .IsRequired();
 
         builder.Property(factura => factura.Estado)
+            .HasConversion<string>()
             .HasMaxLength(30)
             .IsRequired();
 
@@ -125,8 +126,8 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.ProcessingNode)
             .HasMaxLength(100);
 
-        builder.Property(factura => factura.RowVersion)
-            .IsRowVersion();
+        builder.Property(factura => factura.InventarioAplicado)
+            .HasDefaultValue(false);
 
         builder.HasIndex(factura => new { factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
             .IsUnique();

@@ -25,13 +25,14 @@ public partial class Inventario
     private string? errorMessage;
     private string searchTerm = string.Empty;
     private string kardexSearchTerm = string.Empty;
-
-    private IEnumerable<ProductoResponse> FilteredProductos => productos.Where(producto =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        producto.Codigo.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        producto.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (producto.Descripcion?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        producto.CodigoIva.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<ProductoResponse> VisibleProductos => productos;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     private IEnumerable<KardexMovimientoResponse> FilteredKardex => kardex.Where(movimiento =>
         string.IsNullOrWhiteSpace(kardexSearchTerm) ||
@@ -41,18 +42,25 @@ public partial class Inventario
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadProductsAsync();
+        await LoadProductsAsync(resetPaging: true);
     }
 
-    private async Task LoadProductsAsync()
+    private async Task LoadProductsAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await InventarioApiClient.GetProductosAsync(searchTerm, currentSkip, PageSize);
             productos.Clear();
-            productos.AddRange(await InventarioApiClient.GetProductosAsync());
+            productos.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -190,5 +198,32 @@ public partial class Inventario
         {
             isSaving = false;
         }
+    }
+
+    private async Task SearchProductsAsync()
+    {
+        await LoadProductsAsync(resetPaging: true);
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadProductsAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadProductsAsync();
     }
 }

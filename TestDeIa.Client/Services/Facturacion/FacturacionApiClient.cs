@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Client.Services.Facturacion;
@@ -14,18 +15,18 @@ public sealed class FacturacionApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term)
+    public async Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take)
     {
         var encodedTerm = Uri.EscapeDataString(term);
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosClienteResponse>>(
-            $"api/facturacion/clientes?term={encodedTerm}") ?? Array.Empty<PosClienteResponse>();
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<PosClienteResponse>>(
+            $"api/facturacion/clientes?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosClienteResponse> { Skip = skip, Take = take };
     }
 
-    public async Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term)
+    public async Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take)
     {
         var encodedTerm = Uri.EscapeDataString(term);
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosProductoResponse>>(
-            $"api/facturacion/productos?term={encodedTerm}") ?? Array.Empty<PosProductoResponse>();
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<PosProductoResponse>>(
+            $"api/facturacion/productos?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosProductoResponse> { Skip = skip, Take = take };
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage, FacturaEmissionResponse? Data)> EmitirFacturaAsync(EmitirFacturaRequest request)

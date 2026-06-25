@@ -1,21 +1,29 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Inventario;
 
 public sealed class EfInventarioRepository : IInventarioRepository
 {
+    private const int MaxConcurrencyRetries = 3;
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
+    private readonly ILogger<EfInventarioRepository> logger;
 
-    public EfInventarioRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
+    public EfInventarioRepository(
+        TestDeIaDbContext dbContext,
+        ITenantContextAccessor tenantContextAccessor,
+        ILogger<EfInventarioRepository> logger)
     {
         this.dbContext = dbContext;
         this.tenantContextAccessor = tenantContextAccessor;
+        this.logger = logger;
     }
 
     public async Task<IReadOnlyCollection<Producto>> GetProductosAsync(CancellationToken cancellationToken = default)
@@ -26,6 +34,25 @@ public sealed class EfInventarioRepository : IInventarioRepository
             .ToListAsync(cancellationToken);
 
         return productos.Select(MapProducto).ToArray();
+    }
+
+    public async Task<PagedResultResponse<Producto>> GetProductosPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var query = ApplyFilter(dbContext.Productos.AsNoTracking(), term);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var productos = await query
+            .OrderBy(producto => producto.Nombre)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<Producto>
+        {
+            Items = productos.Select(MapProducto).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<Producto?> GetProductoByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -65,7 +92,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
 
         if (stockInicial > 0)
         {
-            await RegistrarMovimientoInternalAsync(
+            RegistrarMovimientoInternalAsync(
                 entity,
                 "Entrada",
                 "Stock inicial",
@@ -73,6 +100,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                 stockInicial,
                 costoInicial,
                 cancellationToken);
+
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -123,56 +152,73 @@ public sealed class EfInventarioRepository : IInventarioRepository
         decimal costoUnitario,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        Producto? productoActualizado = null;
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                var producto = await dbContext.Productos
+                    .FirstOrDefaultAsync(current => current.Id == productoId, token);
 
-        var producto = await dbContext.Productos
-            .FirstOrDefaultAsync(current => current.Id == productoId, cancellationToken);
+                if (producto is null)
+                {
+                    productoActualizado = null;
+                    return;
+                }
 
-        if (producto is null)
-        {
-            return null;
-        }
+                RegistrarMovimientoInternalAsync(
+                    producto,
+                    tipoMovimiento,
+                    concepto,
+                    referencia,
+                    cantidad,
+                    costoUnitario,
+                    token);
 
-        await RegistrarMovimientoInternalAsync(
-            producto,
-            tipoMovimiento,
-            concepto,
-            referencia,
-            cantidad,
-            costoUnitario,
+                productoActualizado = MapProducto(producto);
+            },
+            $"ajuste manual de inventario para producto {productoId}",
             cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
-        return MapProducto(producto);
+        return productoActualizado;
     }
 
     public async Task DescontarStockPorFacturaAsync(
+        Guid facturaId,
         string referenciaFactura,
+        string concepto,
         IReadOnlyCollection<(Guid ProductoId, decimal Cantidad)> items,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                foreach (var item in items)
+                {
+                    var producto = await dbContext.Productos
+                        .FirstOrDefaultAsync(current => current.Id == item.ProductoId, token)
+                        ?? throw new InvalidOperationException("No se encontro uno de los productos de la factura.");
 
-        foreach (var item in items)
-        {
-            var producto = await dbContext.Productos
-                .FirstOrDefaultAsync(current => current.Id == item.ProductoId, cancellationToken)
-                ?? throw new InvalidOperationException("No se encontro uno de los productos de la factura.");
+                    RegistrarMovimientoInternalAsync(
+                        producto,
+                        "Salida",
+                        concepto,
+                        referenciaFactura,
+                        item.Cantidad,
+                        producto.CostoPromedio,
+                        token);
+                }
 
-            await RegistrarMovimientoInternalAsync(
-                producto,
-                "Salida",
-                "Factura",
-                referenciaFactura,
-                item.Cantidad,
-                producto.CostoPromedio,
-                cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
+                logger.LogInformation(
+                    "Kardex de salida aplicado para factura {FacturaId} con referencia {ReferenciaFactura} y {TotalItems} items.",
+                    facturaId,
+                    referenciaFactura,
+                    items.Count);
+            },
+            $"descuento de stock por factura {referenciaFactura}",
+            cancellationToken);
     }
 
-    private async Task RegistrarMovimientoInternalAsync(
+    private void RegistrarMovimientoInternalAsync(
         ProductoEntity producto,
         string tipoMovimiento,
         string concepto,
@@ -234,8 +280,77 @@ public sealed class EfInventarioRepository : IInventarioRepository
             SaldoValor = producto.StockActual * producto.CostoPromedio,
             FechaMovimiento = DateTimeOffset.UtcNow
         });
+    }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+    private async Task ExecuteWithConcurrencyRetryAsync(
+        Func<CancellationToken, Task> work,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaxConcurrencyRetries; attempt++)
+        {
+            var ownsTransaction = dbContext.Database.CurrentTransaction is null;
+            await using var transaction = ownsTransaction
+                ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+
+            try
+            {
+                await work(cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return;
+            }
+            catch (DbUpdateConcurrencyException exception) when (attempt < MaxConcurrencyRetries)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Colision de concurrencia durante {Operation}. Reintento {Attempt} de {MaxRetries}.",
+                    operationName,
+                    attempt,
+                    MaxConcurrencyRetries);
+
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                }
+
+                dbContext.ChangeTracker.Clear();
+                await Task.Delay(TimeSpan.FromMilliseconds(60 * attempt), cancellationToken);
+            }
+            catch
+            {
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                }
+
+                dbContext.ChangeTracker.Clear();
+                throw;
+            }
+        }
+
+        throw new InvalidOperationException($"No se pudo completar {operationName} por concurrencia luego de {MaxConcurrencyRetries} intentos.");
+    }
+
+    private static IQueryable<ProductoEntity> ApplyFilter(IQueryable<ProductoEntity> query, string? term)
+    {
+        var normalizedTerm = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            return query;
+        }
+
+        return query.Where(producto =>
+            producto.Codigo.Contains(normalizedTerm) ||
+            producto.Nombre.Contains(normalizedTerm) ||
+            (producto.Descripcion != null && producto.Descripcion.Contains(normalizedTerm)) ||
+            producto.CodigoIva.Contains(normalizedTerm));
     }
 
     private static decimal CalculateCostoPromedio(

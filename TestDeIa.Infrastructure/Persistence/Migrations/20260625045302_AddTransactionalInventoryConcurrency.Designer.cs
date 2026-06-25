@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260625045302_AddTransactionalInventoryConcurrency")]
+    partial class AddTransactionalInventoryConcurrency
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -836,6 +839,12 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("RetryCount")
                         .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<string>("RucEmisor")
                         .IsRequired()

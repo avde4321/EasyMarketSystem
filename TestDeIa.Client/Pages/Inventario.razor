@@ -20,59 +20,71 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por codigo, producto, descripcion o IVA..." />
+            <button class="secondary-action" type="button" @onclick="SearchProductsAsync">Buscar</button>
         </div>
         @if (isLoading)
         {
             <p><em>Cargando productos...</em></p>
         }
-        else if (productos.Count == 0)
+        else if (totalCount == 0)
         {
             <div class="empty-state">No hay productos registrados.</div>
         }
-        else if (!FilteredProductos.Any())
+        else if (!VisibleProductos.Any())
         {
             <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Codigo</th>
-                        <th>Producto</th>
-                        <th>IVA</th>
-                        <th>PVP</th>
-                        <th>Stock</th>
-                        <th>Minimo</th>
-                        <th>Costo prom.</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var producto in FilteredProductos)
-                    {
-                        <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
-                            <td>@producto.Codigo</td>
-                            <td>
-                                <strong>@producto.Nombre</strong>
-                                <small>@producto.Descripcion</small>
-                            </td>
-                            <td>@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
-                            <td>@producto.PrecioVenta.ToString("0.00")</td>
-                            <td>@producto.StockActual.ToString("0.####")</td>
-                            <td>@producto.StockMinimo.ToString("0.####")</td>
-                            <td>@producto.CostoPromedio.ToString("0.######")</td>
-                            <td><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
-                            <td class="row-actions">
-                                <button class="ghost-button" @onclick="() => OpenEditProductModal(producto)">Editar</button>
-                                <button class="ghost-button" @onclick="() => LoadKardexAsync(producto)">Kardex</button>
-                                <button class="primary-soft-button" @onclick="() => OpenAdjustmentModal(producto)">Ajustar</button>
-                            </td>
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Producto</th>
+                            <th>IVA</th>
+                            <th>PVP</th>
+                            <th>Stock</th>
+                            <th>Minimo</th>
+                            <th>Costo prom.</th>
+                            <th>Estado</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var producto in VisibleProductos)
+                        {
+                            <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
+                                <td data-label="Codigo">@producto.Codigo</td>
+                                <td data-label="Producto">
+                                    <strong>@producto.Nombre</strong>
+                                    <small>@producto.Descripcion</small>
+                                </td>
+                                <td data-label="IVA">@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
+                                <td data-label="PVP">@producto.PrecioVenta.ToString("0.00")</td>
+                                <td data-label="Stock">@producto.StockActual.ToString("0.####")</td>
+                                <td data-label="Minimo">@producto.StockMinimo.ToString("0.####")</td>
+                                <td data-label="Costo prom.">@producto.CostoPromedio.ToString("0.######")</td>
+                                <td data-label="Estado"><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" @onclick="() => OpenEditProductModal(producto)">Editar</button>
+                                    <button class="ghost-button" @onclick="() => LoadKardexAsync(producto)">Kardex</button>
+                                    <button class="primary-soft-button" @onclick="() => OpenAdjustmentModal(producto)">Ajustar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @productos.Count de @totalCount productos</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
         }
     </section>
 
@@ -100,7 +112,8 @@
             }
             else
             {
-                <table class="data-table">
+                <div class="table-scroll">
+                <table class="data-table responsive-table">
                     <thead>
                         <tr>
                             <th>Fecha</th>
@@ -116,17 +129,18 @@
                         @foreach (var movimiento in FilteredKardex)
                         {
                             <tr>
-                                <td>@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
-                                <td>@movimiento.TipoMovimiento</td>
-                                <td>@movimiento.Concepto</td>
-                                <td>@movimiento.CantidadEntrada.ToString("0.####")</td>
-                                <td>@movimiento.CantidadSalida.ToString("0.####")</td>
-                                <td>@movimiento.SaldoCantidad.ToString("0.####")</td>
-                                <td>@movimiento.CostoPromedio.ToString("0.######")</td>
+                                <td data-label="Fecha">@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td data-label="Tipo">@movimiento.TipoMovimiento</td>
+                                <td data-label="Concepto">@movimiento.Concepto</td>
+                                <td data-label="Entrada">@movimiento.CantidadEntrada.ToString("0.####")</td>
+                                <td data-label="Salida">@movimiento.CantidadSalida.ToString("0.####")</td>
+                                <td data-label="Saldo">@movimiento.SaldoCantidad.ToString("0.####")</td>
+                                <td data-label="Costo prom.">@movimiento.CostoPromedio.ToString("0.######")</td>
                             </tr>
                         }
                     </tbody>
                 </table>
+                </div>
             }
         </section>
     }

@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Clientes.Ports.Out;
 using TestDeIa.Domain.Modules.Clientes.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Clientes;
 
@@ -26,6 +27,26 @@ public sealed class EfClienteRepository : IClienteRepository
             .ToListAsync(cancellationToken);
 
         return clientes.Select(MapToDomain).ToArray();
+    }
+
+    public async Task<PagedResultResponse<Cliente>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var query = ApplyFilter(BaseQuery(), term);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var clientes = await query
+            .OrderBy(cliente => cliente.Persona.Apellidos)
+            .ThenBy(cliente => cliente.Persona.Nombres)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<Cliente>
+        {
+            Items = clientes.Select(MapToDomain).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<Cliente?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -100,6 +121,24 @@ public sealed class EfClienteRepository : IClienteRepository
             .ThenInclude(persona => persona.Empleado)
             .Include(cliente => cliente.Persona)
             .ThenInclude(persona => persona.SecurityUser);
+    }
+
+    private static IQueryable<ClienteEntity> ApplyFilter(IQueryable<ClienteEntity> query, string? term)
+    {
+        var normalizedTerm = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            return query;
+        }
+
+        return query.Where(cliente =>
+            cliente.Persona.TipoIdentificacion.Contains(normalizedTerm) ||
+            cliente.Persona.Identificacion.Contains(normalizedTerm) ||
+            cliente.Persona.Nombres.Contains(normalizedTerm) ||
+            cliente.Persona.Apellidos.Contains(normalizedTerm) ||
+            (cliente.Persona.Email != null && cliente.Persona.Email.Contains(normalizedTerm)) ||
+            (cliente.Persona.Telefono != null && cliente.Persona.Telefono.Contains(normalizedTerm)) ||
+            (cliente.Persona.Direccion != null && cliente.Persona.Direccion.Contains(normalizedTerm)));
     }
 
     private static Cliente MapToDomain(ClienteEntity entity)

@@ -19,6 +19,12 @@
     --radius-soft: 1rem;
 }
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 html,
 body {
     min-height: 100%;
@@ -58,6 +64,11 @@ h1:focus {
 
 a {
     color: inherit;
+}
+
+img,
+svg {
+    max-width: 100%;
 }
 
 .page {
@@ -198,6 +209,7 @@ main {
 
 .table-card {
     padding: 1.15rem;
+    min-width: 0;
 }
 
 .table-toolbar {
@@ -206,10 +218,16 @@ main {
     justify-content: space-between;
     gap: 0.85rem;
     margin-bottom: 1rem;
+    flex-wrap: wrap;
 }
 
 .search-control {
     width: min(100%, 28rem);
+}
+
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
 }
 
 .input-action-row {
@@ -257,6 +275,7 @@ main {
     border-bottom: 1px solid rgba(18, 74, 117, 0.08);
     vertical-align: middle;
     color: var(--text-body);
+    word-break: break-word;
 }
 
 .data-table tbody tr:last-child td {
@@ -278,6 +297,33 @@ main {
     gap: 0.55rem;
     justify-content: flex-end;
     flex-wrap: wrap;
+}
+
+.table-footer,
+.pager-actions,
+.inline-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.table-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(18, 74, 117, 0.08);
+}
+
+.table-count,
+.pager-meta {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.inline-pager {
+    margin-top: 0.85rem;
 }
 
 .table-actions {
@@ -522,6 +568,8 @@ textarea.form-control {
     max-width: 860px;
     padding: 1.35rem;
     box-shadow: var(--shadow-card);
+    max-height: min(calc(100vh - 2rem), 58rem);
+    overflow: auto;
 }
 
 .modal-card.narrow {
@@ -635,6 +683,10 @@ code {
         padding: 0 1rem 1rem;
     }
 
+    .content {
+        overflow-x: hidden;
+    }
+
     .top-row,
     .module-header,
     .section-header,
@@ -650,5 +702,121 @@ code {
 
     .checkbox-grid {
         grid-template-columns: 1fr;
+    }
+
+    .table-card {
+        padding: 0.95rem;
+        overflow-x: auto;
+    }
+
+    .table-toolbar,
+    .input-action-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-control {
+        width: 100%;
+    }
+
+    .data-table {
+        min-width: 44rem;
+    }
+
+    .row-actions > *,
+    .modal-actions > *,
+    .table-toolbar > .primary-action,
+    .table-toolbar > .secondary-action,
+    .table-toolbar > .ghost-button,
+    .table-toolbar > .danger-button,
+    .table-toolbar > .primary-soft-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    main {
+        padding: 0 0.75rem 0.75rem;
+    }
+
+    .sidebar {
+        padding: 0.75rem 0.75rem 0;
+    }
+
+    .top-row {
+        padding: 0.9rem 1rem;
+        border-radius: 1rem;
+    }
+
+    .top-brand-copy small {
+        display: none;
+    }
+
+    .module-header h1 {
+        font-size: 1.7rem;
+    }
+
+    .table-card,
+    .modal-card {
+        border-radius: 1rem;
+    }
+
+    .data-table {
+        min-width: 38rem;
+    }
+
+    .responsive-table {
+        min-width: 0;
+    }
+
+    .responsive-table thead {
+        display: none;
+    }
+
+    .responsive-table,
+    .responsive-table tbody,
+    .responsive-table tr,
+    .responsive-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .responsive-table tbody {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .responsive-table tr {
+        border: 1px solid rgba(18, 74, 117, 0.08);
+        border-radius: 1rem;
+        padding: 0.9rem;
+        background: rgba(255, 255, 255, 0.92);
+    }
+
+    .responsive-table td {
+        border: 0;
+        padding: 0.45rem 0;
+    }
+
+    .responsive-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.2rem;
+        color: var(--brand-blue);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .responsive-table td[data-label="Acciones"]::before {
+        margin-bottom: 0.45rem;
+    }
+
+    .row-actions {
+        justify-content: stretch;
+    }
+
+    .row-actions > * {
+        width: 100%;
     }
 }

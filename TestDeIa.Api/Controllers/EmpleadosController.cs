@@ -18,9 +18,11 @@ public sealed class EmpleadosController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        return Ok(await empleadoUseCase.GetAllAsync(cancellationToken));
+        take = Math.Clamp(take, 1, 50);
+        skip = Math.Max(0, skip);
+        return Ok(await empleadoUseCase.GetPagedAsync(term, skip, take, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

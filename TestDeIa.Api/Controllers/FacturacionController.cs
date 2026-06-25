@@ -18,16 +18,20 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("clientes")]
-    public async Task<IActionResult> SearchClientes([FromQuery] string term, CancellationToken cancellationToken)
+    public async Task<IActionResult> SearchClientes([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var clientes = await facturacionUseCase.SearchClientesAsync(term, cancellationToken);
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        var clientes = await facturacionUseCase.SearchClientesAsync(term, skip, take, cancellationToken);
         return Ok(clientes);
     }
 
     [HttpGet("productos")]
-    public async Task<IActionResult> SearchProductos([FromQuery] string term, CancellationToken cancellationToken)
+    public async Task<IActionResult> SearchProductos([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var productos = await facturacionUseCase.SearchProductosAsync(term, cancellationToken);
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        var productos = await facturacionUseCase.SearchProductosAsync(term, skip, take, cancellationToken);
         return Ok(productos);
     }
 

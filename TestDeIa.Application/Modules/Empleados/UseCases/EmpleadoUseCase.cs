@@ -5,6 +5,7 @@ using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Empleados.Entities;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Empleados;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empleados;
 
 namespace TestDeIa.Application.Modules.Empleados.UseCases;
@@ -29,6 +30,18 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     {
         var empleados = await empleadoRepository.GetAllAsync(cancellationToken);
         return empleados.Select(MapToResponse).ToArray();
+    }
+
+    public async Task<PagedResultResponse<EmpleadoResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await empleadoRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<EmpleadoResponse>
+        {
+            Items = page.Items.Select(MapToResponse).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<EmpleadoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

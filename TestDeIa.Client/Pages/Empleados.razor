@@ -20,53 +20,65 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo o telefono..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         @if (isLoading)
         {
             <p><em>Cargando empleados...</em></p>
         }
-        else if (empleados.Count == 0)
+        else if (totalCount == 0)
         {
             <div class="empty-state">No hay empleados registrados.</div>
         }
-        else if (!FilteredEmpleados.Any())
+        else if (!VisibleEmpleados.Any())
         {
             <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Identificacion</th>
-                        <th>Nombre</th>
-                        <th>Correo</th>
-                        <th>Telefono</th>
-                        <th>Roles</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var empleado in FilteredEmpleados)
-                    {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
                         <tr>
-                            <td>@empleado.TipoIdentificacion</td>
-                            <td>@empleado.Identificacion</td>
-                            <td>@empleado.NombreCompleto</td>
-                            <td>@empleado.Email</td>
-                            <td>@empleado.Telefono</td>
-                            <td>@string.Join(", ", empleado.RolesPersona)</td>
-                            <td><span class="status-pill">@((empleado.IsActive ? "Activo" : "Inactivo"))</span></td>
-                            <td class="row-actions">
-                                <button class="ghost-button" @onclick="() => OpenEditModal(empleado)">Editar</button>
-                                <button class="danger-button" @onclick="() => DeleteEmpleadoAsync(empleado.Id)">Eliminar</button>
-                            </td>
+                            <th>Tipo</th>
+                            <th>Identificacion</th>
+                            <th>Nombre</th>
+                            <th>Correo</th>
+                            <th>Telefono</th>
+                            <th>Roles</th>
+                            <th>Estado</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var empleado in VisibleEmpleados)
+                        {
+                            <tr>
+                                <td data-label="Tipo">@empleado.TipoIdentificacion</td>
+                                <td data-label="Identificacion">@empleado.Identificacion</td>
+                                <td data-label="Nombre">@empleado.NombreCompleto</td>
+                                <td data-label="Correo">@empleado.Email</td>
+                                <td data-label="Telefono">@empleado.Telefono</td>
+                                <td data-label="Roles">@string.Join(", ", empleado.RolesPersona)</td>
+                                <td data-label="Estado"><span class="status-pill">@((empleado.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" @onclick="() => OpenEditModal(empleado)">Editar</button>
+                                    <button class="danger-button" @onclick="() => DeleteEmpleadoAsync(empleado.Id)">Eliminar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @empleados.Count de @totalCount empleados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
         }
     </section>
 </section>

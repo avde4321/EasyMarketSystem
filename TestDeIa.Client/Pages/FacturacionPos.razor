@@ -64,6 +64,12 @@
                             </button>
                         }
                     </div>
+
+                    <div class="inline-pager">
+                        <button class="ghost-button" type="button" @onclick="PreviousClientesAsync" disabled="@(!CanGoPreviousClientes)">Anterior</button>
+                        <span class="pager-meta">Mostrando @clienteResults.Count de @clienteTotalCount</span>
+                        <button class="ghost-button" type="button" @onclick="NextClientesAsync" disabled="@(!CanGoNextClientes)">Siguiente</button>
+                    </div>
                 }
             </section>
 
@@ -97,6 +103,12 @@
                             </button>
                         }
                     </div>
+
+                    <div class="inline-pager">
+                        <button class="ghost-button" type="button" @onclick="PreviousProductosAsync" disabled="@(!CanGoPreviousProductos)">Anterior</button>
+                        <span class="pager-meta">Mostrando @productoResults.Count de @productoTotalCount</span>
+                        <button class="ghost-button" type="button" @onclick="NextProductosAsync" disabled="@(!CanGoNextProductos)">Siguiente</button>
+                    </div>
                 }
             </section>
         </div>
@@ -116,7 +128,8 @@
                 }
                 else
                 {
-                    <table class="data-table">
+                    <div class="table-scroll">
+                    <table class="data-table responsive-table">
                         <thead>
                             <tr>
                                 <th>Producto</th>
@@ -131,23 +144,24 @@
                             @foreach (var item in cartItems)
                             {
                                 <tr>
-                                    <td>
+                                    <td data-label="Producto">
                                         <strong>@item.Nombre</strong>
                                         <small>@item.Codigo</small>
                                     </td>
-                                    <td>
+                                    <td data-label="Cant.">
                                         <InputNumber class="quantity-input" @bind-Value="item.Cantidad" @bind-Value:after="StateHasChanged" />
                                     </td>
-                                    <td>@item.PrecioVenta.ToString("0.00")</td>
-                                    <td>@item.PorcentajeIva.ToString("0.##")%</td>
-                                    <td>@item.Total.ToString("0.00")</td>
-                                    <td>
+                                    <td data-label="P. unit">@item.PrecioVenta.ToString("0.00")</td>
+                                    <td data-label="IVA">@item.PorcentajeIva.ToString("0.##")%</td>
+                                    <td data-label="Total">@item.Total.ToString("0.00")</td>
+                                    <td data-label="Acciones">
                                         <button class="ghost-button" @onclick="() => RemoveProducto(item.ProductoId)">Quitar</button>
                                     </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
+                    </div>
                 }
 
                 <div class="checkout-panel">

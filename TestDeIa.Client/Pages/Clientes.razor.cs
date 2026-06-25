@@ -30,21 +30,19 @@ public partial class Clientes
     private string? errorMessage;
     private string? statusMessage;
     private string searchTerm = string.Empty;
-
-    private IEnumerable<ClienteResponse> FilteredClientes => clientes.Where(cliente =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        cliente.TipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        cliente.Identificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        cliente.NombreCompleto.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (cliente.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        (cliente.Telefono?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        (cliente.Direccion?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        cliente.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<ClienteResponse> VisibleClientes => clientes;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
-        await LoadClientesAsync();
+        await LoadClientesAsync(resetPaging: true);
     }
 
     private async Task LoadCatalogosAsync()
@@ -53,15 +51,22 @@ public partial class Clientes
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
     }
 
-    private async Task LoadClientesAsync()
+    private async Task LoadClientesAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await ClientesApiClient.GetPagedAsync(searchTerm, currentSkip, PageSize);
             clientes.Clear();
-            clientes.AddRange(await ClientesApiClient.GetAllAsync());
+            clientes.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -198,5 +203,32 @@ public partial class Clientes
         {
             errorMessage = "No se pudo eliminar el cliente.";
         }
+    }
+
+    private async Task SearchAsync()
+    {
+        await LoadClientesAsync(resetPaging: true);
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadClientesAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadClientesAsync();
     }
 }

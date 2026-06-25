@@ -350,3 +350,51 @@
         padding: 0 0 0 0.55rem;
     }
 }
+
+@media (max-width: 640px) {
+    .nav-shell,
+    .is-collapsed {
+        padding: 0.85rem;
+        border-radius: 1.15rem;
+    }
+
+    .brand-row {
+        gap: 0.65rem;
+    }
+
+    .brand-mark-image {
+        width: 2.5rem;
+        height: 2.5rem;
+        flex-basis: 2.5rem;
+    }
+
+    .brand-text strong {
+        font-size: 0.95rem;
+    }
+
+    .brand-text small {
+        font-size: 0.72rem;
+    }
+
+    .nav-link-root,
+    .nav-group-trigger,
+    .nav-sublink {
+        min-height: 2.8rem;
+    }
+
+    .nav-icon {
+        width: 2.2rem;
+        height: 2.2rem;
+        flex-basis: 2.2rem;
+    }
+
+    .nav-icon-sub {
+        width: 1.95rem;
+        height: 1.95rem;
+        flex-basis: 1.95rem;
+    }
+
+    .nav-text {
+        font-size: 0.86rem;
+    }
+}

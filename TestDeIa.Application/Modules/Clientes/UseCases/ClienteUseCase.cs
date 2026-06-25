@@ -5,6 +5,7 @@ using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Clientes.Entities;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Clientes;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Clientes;
 
 namespace TestDeIa.Application.Modules.Clientes.UseCases;
@@ -29,6 +30,18 @@ public sealed class ClienteUseCase : IClienteUseCase
     {
         var clientes = await clienteRepository.GetAllAsync(cancellationToken);
         return clientes.Select(MapToResponse).ToArray();
+    }
+
+    public async Task<PagedResultResponse<ClienteResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await clienteRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<ClienteResponse>
+        {
+            Items = page.Items.Select(MapToResponse).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

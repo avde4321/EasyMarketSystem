@@ -18,9 +18,11 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("productos")]
-    public async Task<IActionResult> GetProductos(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProductos([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var productos = await inventarioUseCase.GetCatalogoAsync(cancellationToken);
+        take = Math.Clamp(take, 1, 50);
+        skip = Math.Max(0, skip);
+        var productos = await inventarioUseCase.GetCatalogoPagedAsync(term, skip, take, cancellationToken);
         return Ok(productos);
     }
 

@@ -1,9 +1,22 @@
 namespace TestDeIa.Domain.Modules.Facturacion.Entities;
 
-public static class FacturaEstados
+public enum FacturaEstado
 {
-    public const string NoFirmado = "NO_FIRMADO";
-    public const string Pendiente = "PENDIENTE";
-    public const string Autorizado = "AUTORIZADO";
-    public const string Rechazado = "RECHAZADO";
+    NO_FIRMADO = 1,
+    PENDIENTE = 2,
+    AUTORIZADO = 3,
+    RECHAZADO = 4
+}
+
+public static class FacturaEstadoExtensions
+{
+    public static string ToApiValue(this FacturaEstado estado)
+    {
+        return estado.ToString();
+    }
+
+    public static bool IsFinal(this FacturaEstado estado)
+    {
+        return estado is FacturaEstado.AUTORIZADO or FacturaEstado.RECHAZADO;
+    }
 }

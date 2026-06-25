@@ -2,7 +2,7 @@ namespace TestDeIa.Application.Modules.Facturacion.Models;
 
 public sealed class SriFacturaProcessingResult
 {
-    public string EstadoFinal { get; set; } = "AUTORIZADO";
+    public Domain.Modules.Facturacion.Entities.FacturaEstado EstadoFinal { get; set; } = Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO;
 
     public string ClaveAcceso { get; set; } = string.Empty;
 

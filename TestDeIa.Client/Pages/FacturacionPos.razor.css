@@ -104,4 +104,33 @@
     .checkout-fields {
         grid-template-columns: 1fr;
     }
+
+    .pos-summary {
+        justify-items: start;
+    }
+}
+
+@media (max-width: 640px) {
+    .search-row {
+        grid-template-columns: 1fr;
+    }
+
+    .result-item,
+    .product-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .product-item .price-meta {
+        text-align: left;
+    }
+
+    .quantity-input {
+        width: 100%;
+        min-width: 5rem;
+    }
+
+    .totals-box .primary-action {
+        width: 100%;
+    }
 }

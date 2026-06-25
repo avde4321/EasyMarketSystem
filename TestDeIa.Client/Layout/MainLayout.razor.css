@@ -20,6 +20,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+    min-width: 0;
 }
 
 .company-switch {
@@ -56,6 +57,45 @@
     .company-switch {
         min-width: 0;
         width: 100%;
+    }
+
+    .top-accent {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .top-brand {
+        align-items: flex-start;
+    }
+
+    .top-brand-image {
+        width: min(100%, 11.5rem);
+    }
+
+    .top-brand-copy {
+        gap: 0.12rem;
+    }
+
+    .top-title {
+        font-size: 0.82rem;
+    }
+
+    .top-brand-copy small {
+        font-size: 0.82rem;
+    }
+
+    .company-select {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .top-accent {
+        min-height: 2.45rem;
+        padding: 0.55rem 0.8rem;
+        font-size: 0.82rem;
+        white-space: normal;
     }
 }
 

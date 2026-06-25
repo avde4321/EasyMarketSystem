@@ -24,20 +24,19 @@ public partial class Empleados
     private bool isEditorOpen;
     private string? errorMessage;
     private string searchTerm = string.Empty;
-
-    private IEnumerable<EmpleadoResponse> FilteredEmpleados => empleados.Where(empleado =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        empleado.TipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empleado.Identificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empleado.NombreCompleto.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (empleado.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        (empleado.Telefono?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        empleado.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<EmpleadoResponse> VisibleEmpleados => empleados;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
-        await LoadEmpleadosAsync();
+        await LoadEmpleadosAsync(resetPaging: true);
     }
 
     private async Task LoadCatalogosAsync()
@@ -46,15 +45,22 @@ public partial class Empleados
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
     }
 
-    private async Task LoadEmpleadosAsync()
+    private async Task LoadEmpleadosAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await EmpleadosApiClient.GetPagedAsync(searchTerm, currentSkip, PageSize);
             empleados.Clear();
-            empleados.AddRange(await EmpleadosApiClient.GetAllAsync());
+            empleados.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -145,5 +151,32 @@ public partial class Empleados
         {
             errorMessage = "No se pudo eliminar el empleado.";
         }
+    }
+
+    private async Task SearchAsync()
+    {
+        await LoadEmpleadosAsync(resetPaging: true);
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadEmpleadosAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadEmpleadosAsync();
     }
 }

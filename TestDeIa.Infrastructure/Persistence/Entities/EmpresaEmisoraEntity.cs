@@ -21,6 +21,8 @@ public sealed class EmpresaEmisoraEntity
     public string? CertificadoNombreArchivo { get; set; }
     public byte[]? CertificadoContenido { get; set; }
     public string? CertificadoClave { get; set; }
+    public byte[]? LogoRideContenido { get; set; }
+    public string? LogoRideMimeType { get; set; }
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }

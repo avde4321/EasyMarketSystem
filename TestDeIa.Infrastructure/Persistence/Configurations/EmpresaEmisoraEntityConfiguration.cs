@@ -67,6 +67,12 @@ public sealed class EmpresaEmisoraEntityConfiguration : IEntityTypeConfiguration
         builder.Property(empresa => empresa.CertificadoClave)
             .HasMaxLength(200);
 
+        builder.Property(empresa => empresa.LogoRideContenido)
+            .HasColumnType("varbinary(max)");
+
+        builder.Property(empresa => empresa.LogoRideMimeType)
+            .HasMaxLength(120);
+
         builder.HasIndex(empresa => empresa.Ruc)
             .IsUnique();
 

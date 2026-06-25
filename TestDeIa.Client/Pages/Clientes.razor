@@ -20,55 +20,67 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o direccion..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         @if (isLoading)
         {
             <p><em>Cargando clientes...</em></p>
         }
-        else if (clientes.Count == 0)
+        else if (totalCount == 0)
         {
             <div class="empty-state">No hay clientes registrados.</div>
         }
-        else if (!FilteredClientes.Any())
+        else if (!VisibleClientes.Any())
         {
             <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Identificacion</th>
-                        <th>Nombre</th>
-                        <th>Direccion</th>
-                        <th>Correo</th>
-                        <th>Telefono</th>
-                        <th>Roles</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var cliente in FilteredClientes)
-                    {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
                         <tr>
-                            <td>@cliente.TipoIdentificacion</td>
-                            <td>@cliente.Identificacion</td>
-                            <td>@cliente.NombreCompleto</td>
-                            <td>@cliente.Direccion</td>
-                            <td>@cliente.Email</td>
-                            <td>@cliente.Telefono</td>
-                            <td>@string.Join(", ", cliente.RolesPersona)</td>
-                            <td><span class="status-pill">@((cliente.IsActive ? "Activo" : "Inactivo"))</span></td>
-                            <td class="row-actions">
-                                <button class="ghost-button" @onclick="() => OpenEditModal(cliente)">Editar</button>
-                                <button class="danger-button" @onclick="() => DeleteClienteAsync(cliente.Id)">Eliminar</button>
-                            </td>
+                            <th>Tipo</th>
+                            <th>Identificacion</th>
+                            <th>Nombre</th>
+                            <th>Direccion</th>
+                            <th>Correo</th>
+                            <th>Telefono</th>
+                            <th>Roles</th>
+                            <th>Estado</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var cliente in VisibleClientes)
+                        {
+                            <tr>
+                                <td data-label="Tipo">@cliente.TipoIdentificacion</td>
+                                <td data-label="Identificacion">@cliente.Identificacion</td>
+                                <td data-label="Nombre">@cliente.NombreCompleto</td>
+                                <td data-label="Direccion">@cliente.Direccion</td>
+                                <td data-label="Correo">@cliente.Email</td>
+                                <td data-label="Telefono">@cliente.Telefono</td>
+                                <td data-label="Roles">@string.Join(", ", cliente.RolesPersona)</td>
+                                <td data-label="Estado"><span class="status-pill">@((cliente.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" @onclick="() => OpenEditModal(cliente)">Editar</button>
+                                    <button class="danger-button" @onclick="() => DeleteClienteAsync(cliente.Id)">Eliminar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @clientes.Count de @totalCount clientes</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
         }
     </section>
 </section>

@@ -1,4 +1,5 @@
 using TestDeIa.Shared.Requests.Inventario;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Application.Modules.Inventario.Ports.In;
@@ -6,6 +7,8 @@ namespace TestDeIa.Application.Modules.Inventario.Ports.In;
 public interface IInventarioUseCase
 {
     Task<IReadOnlyCollection<ProductoResponse>> GetCatalogoAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResultResponse<ProductoResponse>> GetCatalogoPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<ProductoResponse?> GetProductoByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

@@ -26,7 +26,7 @@ public sealed class SimulatedSriFacturaProcessor : ISriFacturaProcessor
         {
             return new SriFacturaProcessingResult
             {
-                EstadoFinal = FacturaEstados.NoFirmado,
+                EstadoFinal = FacturaEstado.NO_FIRMADO,
                 ClaveAcceso = factura.ClaveAcceso,
                 XmlGenerado = factura.XmlGenerado,
                 Mensaje = "El comprobante no pudo firmarse digitalmente. Revise el certificado .p12 configurado.",
@@ -38,7 +38,7 @@ public sealed class SimulatedSriFacturaProcessor : ISriFacturaProcessor
         {
             return new SriFacturaProcessingResult
             {
-                EstadoFinal = FacturaEstados.Rechazado,
+                EstadoFinal = FacturaEstado.RECHAZADO,
                 ClaveAcceso = factura.ClaveAcceso,
                 Mensaje = "El comprobante contiene una tarifa de IVA no soportada por el motor SRI.",
                 XmlGenerado = factura.XmlGenerado,
@@ -49,7 +49,7 @@ public sealed class SimulatedSriFacturaProcessor : ISriFacturaProcessor
 
         return new SriFacturaProcessingResult
         {
-            EstadoFinal = FacturaEstados.Autorizado,
+            EstadoFinal = FacturaEstado.AUTORIZADO,
             ClaveAcceso = factura.ClaveAcceso,
             NumeroAutorizacion = $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}{factura.Secuencial:000000000}",
             Mensaje = "Comprobante autorizado por el flujo asincrono.",

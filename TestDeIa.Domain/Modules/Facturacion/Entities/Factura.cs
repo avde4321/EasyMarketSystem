@@ -28,7 +28,7 @@ public sealed class Factura
         string? clienteTelefono,
         string formaPago,
         string formaPagoSriCodigo,
-        string estado,
+        FacturaEstado estado,
         decimal subtotal,
         decimal totalDescuento,
         decimal subtotalIva0,
@@ -142,7 +142,7 @@ public sealed class Factura
 
     public string FormaPagoSriCodigo { get; }
 
-    public string Estado { get; }
+    public FacturaEstado Estado { get; }
 
     public decimal Subtotal { get; }
 

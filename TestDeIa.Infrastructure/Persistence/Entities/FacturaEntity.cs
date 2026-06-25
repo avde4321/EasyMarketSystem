@@ -53,7 +53,7 @@ public sealed class FacturaEntity
 
     public string FormaPagoSriCodigo { get; set; } = string.Empty;
 
-    public string Estado { get; set; } = string.Empty;
+    public TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado Estado { get; set; }
 
     public decimal Subtotal { get; set; }
 
@@ -99,7 +99,9 @@ public sealed class FacturaEntity
 
     public DateTimeOffset? NextRetryAt { get; set; }
 
-    public byte[] RowVersion { get; set; } = [];
+    public bool InventarioAplicado { get; set; }
+
+    public DateTimeOffset? InventarioAplicadoAt { get; set; }
 
     public ICollection<FacturaDetalleEntity> Detalles { get; set; } = [];
 

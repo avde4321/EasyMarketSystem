@@ -4,6 +4,8 @@ public sealed class FacturaRideReportModel
 {
     public Guid FacturaId { get; init; }
     public string BannerImagePath { get; init; } = string.Empty;
+    public byte[]? BannerImageContent { get; init; }
+    public string? BannerImageMimeType { get; init; }
     public string NumeroComprobante { get; init; } = string.Empty;
     public string Estado { get; init; } = string.Empty;
     public string ClaveAcceso { get; init; } = string.Empty;

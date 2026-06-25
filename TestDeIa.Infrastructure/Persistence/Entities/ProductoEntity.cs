@@ -29,5 +29,7 @@ public sealed class ProductoEntity
 
     public DateTimeOffset? UpdatedAt { get; set; }
 
+    public byte[] RowVersion { get; set; } = null!;
+
     public ICollection<KardexMovimientoEntity> KardexMovimientos { get; set; } = [];
 }

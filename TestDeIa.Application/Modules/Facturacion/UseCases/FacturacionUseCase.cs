@@ -3,6 +3,7 @@ using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Application.Modules.Facturacion.UseCases;
@@ -23,14 +24,14 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         this.catalogoRepository = catalogoRepository;
     }
 
-    public Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default)
+    public Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
     {
-        return facturacionRepository.SearchClientesAsync(term, cancellationToken);
+        return facturacionRepository.SearchClientesAsync(term, skip, take, cancellationToken);
     }
 
-    public Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term, CancellationToken cancellationToken = default)
+    public Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
     {
-        return facturacionRepository.SearchProductosAsync(term, cancellationToken);
+        return facturacionRepository.SearchProductosAsync(term, skip, take, cancellationToken);
     }
 
     public async Task<FacturaEmissionResponse> EmitirFacturaAsync(EmitirFacturaRequest request, CancellationToken cancellationToken = default)
@@ -41,7 +42,7 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             request,
             cancellationToken);
 
-        if (string.Equals(response.Estado, FacturaEstados.Pendiente, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(response.Estado, FacturaEstado.PENDIENTE.ToApiValue(), StringComparison.Ordinal))
         {
             facturaBackgroundQueue.Enqueue(response.FacturaId);
         }

@@ -79,7 +79,18 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
 
             var result = await sriFacturaProcessor.ProcessAsync(factura, cancellationToken);
 
-            if (string.Equals(result.EstadoFinal, FacturaEstados.Autorizado, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(factura.ClaveAcceso))
+            {
+                throw new InvalidOperationException("La factura reclamada no tiene clave de acceso establecida.");
+            }
+
+            if (!string.Equals(result.ClaveAcceso, factura.ClaveAcceso, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Se detecto una violacion de idempotencia. La factura {factura.Id} ya estaba en proceso con la clave {factura.ClaveAcceso}, pero el motor devolvio {result.ClaveAcceso}.");
+            }
+
+            if (result.EstadoFinal == FacturaEstado.AUTORIZADO)
             {
                 await facturacionRepository.MarkFacturaAsAuthorizedAsync(
                     factura.Id,
@@ -93,7 +104,7 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
                 return;
             }
 
-            if (string.Equals(result.EstadoFinal, FacturaEstados.NoFirmado, StringComparison.OrdinalIgnoreCase))
+            if (result.EstadoFinal == FacturaEstado.NO_FIRMADO)
             {
                 await facturacionRepository.MarkFacturaAsUnsignedAsync(
                     factura.Id,
@@ -118,7 +129,7 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
             tenantContextAccessor.IsSystemContext = true;
             await facturacionRepository.MarkFacturaAsErrorAsync(
                 factura.Id,
-                exception.Message,
+                $"{exception.GetType().Name}: {exception.Message}",
                 DateTimeOffset.UtcNow.AddSeconds(20),
                 cancellationToken);
         }

@@ -25,6 +25,12 @@ public sealed class FacturaDocumentQueryService
             return null;
         }
 
+        var empresa = await dbContext.EmpresasEmisoras
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current =>
+                current.Id == (factura.EmpresaEmisoraId ?? factura.EmpresaId),
+                cancellationToken);
+
         var bannerPath = Path.Combine(AppContext.BaseDirectory, "Reporting", "Templates", "SriFacturaBanner.png");
         var subtotalIva12 = factura.Detalles
             .Where(current => current.PorcentajeIva > 0)
@@ -65,25 +71,36 @@ public sealed class FacturaDocumentQueryService
             new FacturaRideTotalRow { Label = "VALOR TOTAL", Valor = factura.Total.ToString("0.00") }
         };
 
+        var razonSocialEmisor = string.IsNullOrWhiteSpace(empresa?.RazonSocial) ? factura.RazonSocialEmisor : empresa.RazonSocial;
+        var nombreComercialEmisor = string.IsNullOrWhiteSpace(empresa?.NombreComercial)
+            ? (string.IsNullOrWhiteSpace(factura.NombreComercialEmisor) ? razonSocialEmisor : factura.NombreComercialEmisor)
+            : empresa.NombreComercial;
+        var direccionMatriz = string.IsNullOrWhiteSpace(empresa?.DireccionMatriz) ? factura.DireccionMatrizEmisor : empresa.DireccionMatriz;
+        var direccionSucursal = string.IsNullOrWhiteSpace(empresa?.DireccionEstablecimiento)
+            ? (string.IsNullOrWhiteSpace(factura.DireccionEstablecimientoEmisor) ? direccionMatriz : factura.DireccionEstablecimientoEmisor)
+            : empresa.DireccionEstablecimiento;
+
         return new FacturaRideReportModel
         {
             FacturaId = factura.Id,
             BannerImagePath = new Uri(bannerPath).AbsoluteUri,
+            BannerImageContent = empresa?.LogoRideContenido,
+            BannerImageMimeType = empresa?.LogoRideMimeType,
             NumeroComprobante = $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
-            Estado = factura.Estado,
+            Estado = factura.Estado.ToApiValue(),
             ClaveAcceso = factura.ClaveAcceso,
             NumeroAutorizacion = string.IsNullOrWhiteSpace(factura.NumeroAutorizacion) ? "-" : factura.NumeroAutorizacion,
             FechaEmision = factura.FechaEmision.LocalDateTime.ToString("dd/MM/yyyy"),
             FechaAutorizacion = factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-",
-            EmisorRazonSocial = factura.RazonSocialEmisor,
-            EmisorNombreComercial = string.IsNullOrWhiteSpace(factura.NombreComercialEmisor) ? factura.RazonSocialEmisor : factura.NombreComercialEmisor,
-            EmisorRuc = factura.RucEmisor,
-            EmisorDireccionMatriz = factura.DireccionMatrizEmisor,
-            EmisorDireccionSucursal = string.IsNullOrWhiteSpace(factura.DireccionEstablecimientoEmisor) ? factura.DireccionMatrizEmisor : factura.DireccionEstablecimientoEmisor,
-            AmbienteSri = factura.AmbienteSri,
-            EmisionTipo = string.IsNullOrWhiteSpace(factura.TipoEmision) ? "NORMAL" : factura.TipoEmision.ToUpperInvariant(),
-            ObligadoContabilidad = factura.ObligadoContabilidad ? "SI" : "NO",
-            ContribuyenteEspecial = factura.ContribuyenteEspecial ?? string.Empty,
+            EmisorRazonSocial = razonSocialEmisor,
+            EmisorNombreComercial = nombreComercialEmisor,
+            EmisorRuc = string.IsNullOrWhiteSpace(empresa?.Ruc) ? factura.RucEmisor : empresa.Ruc,
+            EmisorDireccionMatriz = direccionMatriz,
+            EmisorDireccionSucursal = string.IsNullOrWhiteSpace(direccionSucursal) ? direccionMatriz : direccionSucursal,
+            AmbienteSri = string.IsNullOrWhiteSpace(empresa?.AmbienteSri) ? factura.AmbienteSri : empresa.AmbienteSri,
+            EmisionTipo = string.IsNullOrWhiteSpace(empresa?.TipoEmision) ? factura.TipoEmision.ToUpperInvariant() : empresa.TipoEmision.ToUpperInvariant(),
+            ObligadoContabilidad = (empresa?.ObligadoContabilidad ?? factura.ObligadoContabilidad) ? "SI" : "NO",
+            ContribuyenteEspecial = string.IsNullOrWhiteSpace(empresa?.ContribuyenteEspecial) ? factura.ContribuyenteEspecial ?? string.Empty : empresa.ContribuyenteEspecial,
             ClienteNombre = factura.ClienteNombre,
             ClienteIdentificacion = factura.ClienteIdentificacion,
             ClienteDireccion = string.IsNullOrWhiteSpace(factura.ClienteDireccion) ? "-" : factura.ClienteDireccion,
@@ -114,13 +131,14 @@ public sealed class FacturaDocumentQueryService
         };
     }
 
-    private static string ResolveWatermark(string estado)
+    private static string ResolveWatermark(FacturaEstado estado)
     {
         return estado switch
         {
-            FacturaEstados.NoFirmado => "DOCUMENTO NO FIRMADO",
-            FacturaEstados.Pendiente => "PENDIENTE DE AUTORIZACION",
+            FacturaEstado.NO_FIRMADO => "DOCUMENTO NO FIRMADO",
+            FacturaEstado.PENDIENTE => "PENDIENTE DE AUTORIZACION",
             _ => string.Empty
         };
     }
+
 }

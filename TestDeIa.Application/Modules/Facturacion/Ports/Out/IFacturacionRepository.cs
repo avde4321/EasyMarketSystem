@@ -1,14 +1,15 @@
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Application.Modules.Facturacion.Ports.Out;
 
 public interface IFacturacionRepository
 {
-    Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<FacturaEmissionResponse> CreatePendingFacturaAsync(
         EmitirFacturaRequest request,

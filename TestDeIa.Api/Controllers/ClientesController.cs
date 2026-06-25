@@ -18,9 +18,11 @@ public sealed class ClientesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var clientes = await clienteUseCase.GetAllAsync(cancellationToken);
+        take = Math.Clamp(take, 1, 50);
+        skip = Math.Max(0, skip);
+        var clientes = await clienteUseCase.GetPagedAsync(term, skip, take, cancellationToken);
         return Ok(clientes);
     }
 

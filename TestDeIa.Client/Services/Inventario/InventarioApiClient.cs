@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Inventario;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Client.Services.Inventario;
@@ -14,10 +15,11 @@ public sealed class InventarioApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<IReadOnlyCollection<ProductoResponse>> GetProductosAsync()
+    public async Task<PagedResultResponse<ProductoResponse>> GetProductosAsync(string? term, int skip, int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<ProductoResponse>>("api/inventario/productos")
-            ?? Array.Empty<ProductoResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<ProductoResponse>>($"api/inventario/productos?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<ProductoResponse> { Skip = skip, Take = take };
     }
 
     public async Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId)

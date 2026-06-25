@@ -2,6 +2,7 @@ using TestDeIa.Application.Modules.Inventario.Ports.In;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Shared.Requests.Inventario;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Application.Modules.Inventario.UseCases;
@@ -19,6 +20,18 @@ public sealed class InventarioUseCase : IInventarioUseCase
     {
         var productos = await inventarioRepository.GetProductosAsync(cancellationToken);
         return productos.Select(MapProducto).ToArray();
+    }
+
+    public async Task<PagedResultResponse<ProductoResponse>> GetCatalogoPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await inventarioRepository.GetProductosPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<ProductoResponse>
+        {
+            Items = page.Items.Select(MapProducto).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<ProductoResponse?> GetProductoByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -133,7 +146,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
         }
 
         return inventarioRepository.DescontarStockPorFacturaAsync(
+            Guid.NewGuid(),
             request.ReferenciaFactura.Trim(),
+            "Factura",
             request.Items.Select(item => (item.ProductoId, item.Cantidad)).ToArray(),
             cancellationToken);
     }

@@ -1,3 +1,4 @@
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 
 namespace TestDeIa.Application.Modules.Inventario.Ports.Out;
@@ -5,6 +6,8 @@ namespace TestDeIa.Application.Modules.Inventario.Ports.Out;
 public interface IInventarioRepository
 {
     Task<IReadOnlyCollection<Producto>> GetProductosAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResultResponse<Producto>> GetProductosPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<Producto?> GetProductoByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
@@ -26,7 +29,9 @@ public interface IInventarioRepository
         CancellationToken cancellationToken = default);
 
     Task DescontarStockPorFacturaAsync(
+        Guid facturaId,
         string referenciaFactura,
+        string concepto,
         IReadOnlyCollection<(Guid ProductoId, decimal Cantidad)> items,
         CancellationToken cancellationToken = default);
 }
