@@ -34,5 +34,7 @@ public sealed class ProductoRequest
     [Range(0, 999999999, ErrorMessage = "El stock inicial no puede ser negativo.")]
     public decimal StockInicial { get; set; }
 
+    public bool ControlaStock { get; set; } = true;
+
     public bool IsActive { get; set; } = true;
 }

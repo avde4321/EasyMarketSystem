@@ -29,6 +29,7 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<EmpleadoEntity> Empleados => Set<EmpleadoEntity>();
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
+    public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
 
     public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
 
@@ -78,5 +79,9 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
                 (tenantContextAccessor.UserId.HasValue && entity.OwnerUserId == tenantContextAccessor.UserId.Value));
+        modelBuilder.Entity<EmpresaPuntoEmisionEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.OwnerUserId == tenantContextAccessor.UserId.Value));
     }
 }

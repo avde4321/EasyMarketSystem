@@ -27,6 +27,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
         var entity = await dbContext.EmpresasEmisoras
             .AsNoTracking()
+            .Include(empresa => empresa.PuntosEmision)
             .FirstOrDefaultAsync(empresa => empresa.Id == tenantContextAccessor.EmpresaId.Value, cancellationToken);
 
         return entity is null ? null : Map(entity);
@@ -36,6 +37,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
     {
         var entities = await dbContext.EmpresasEmisoras
             .AsNoTracking()
+            .Include(empresa => empresa.PuntosEmision)
             .OrderByDescending(empresa => empresa.IsActive)
             .ThenBy(empresa => empresa.RazonSocial)
             .ToListAsync(cancellationToken);
@@ -47,6 +49,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
     {
         var entity = await dbContext.EmpresasEmisoras
             .AsNoTracking()
+            .Include(empresa => empresa.PuntosEmision)
             .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
 
         return entity is null ? null : Map(entity);
@@ -55,6 +58,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
     public async Task<EmpresaEmisora> SaveAsync(EmpresaEmisora empresa, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.EmpresasEmisoras
+            .Include(current => current.PuntosEmision)
             .FirstOrDefaultAsync(current => current.Id == empresa.Id, cancellationToken);
 
         if (entity is null)
@@ -88,6 +92,20 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         entity.CertificadoClave = empresa.CertificadoClave;
         entity.IsActive = empresa.IsActive;
         entity.UpdatedAt = empresa.UpdatedAt;
+
+        entity.PuntosEmision.Clear();
+        foreach (var punto in empresa.PuntosEmision)
+        {
+            entity.PuntosEmision.Add(new EmpresaPuntoEmisionEntity
+            {
+                Id = punto.Id,
+                EmpresaEmisoraId = empresa.Id,
+                Establecimiento = punto.Establecimiento,
+                PuntoEmision = punto.PuntoEmision,
+                DireccionEstablecimiento = punto.DireccionEstablecimiento,
+                IsDefault = punto.IsDefault
+            });
+        }
 
         if (tenantContextAccessor.UserId.HasValue &&
             !await dbContext.SecurityUserEmpresas.AnyAsync(
@@ -129,6 +147,18 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             entity.CertificadoNombreArchivo,
             entity.CertificadoContenido,
             entity.CertificadoClave,
+            entity.PuntosEmision
+                .OrderByDescending(punto => punto.IsDefault)
+                .ThenBy(punto => punto.Establecimiento)
+                .ThenBy(punto => punto.PuntoEmision)
+                .Select(punto => new EmpresaPuntoEmision(
+                    punto.Id,
+                    entity.Id,
+                    punto.Establecimiento,
+                    punto.PuntoEmision,
+                    punto.DireccionEstablecimiento,
+                    punto.IsDefault))
+                .ToArray(),
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);

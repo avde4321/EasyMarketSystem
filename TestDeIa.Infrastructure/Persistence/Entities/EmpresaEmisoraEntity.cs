@@ -27,4 +27,5 @@ public sealed class EmpresaEmisoraEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public ICollection<SecurityUserEmpresaEntity> UserAssignments { get; set; } = [];
+    public ICollection<EmpresaPuntoEmisionEntity> PuntosEmision { get; set; } = [];
 }

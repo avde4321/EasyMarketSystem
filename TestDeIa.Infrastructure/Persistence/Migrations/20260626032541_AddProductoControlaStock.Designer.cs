@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626032541_AddProductoControlaStock")]
+    partial class AddProductoControlaStock
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -621,40 +624,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                             Ruc = "0999999999001",
                             TipoEmision = "Normal"
                         });
-                });
-
-            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaPuntoEmisionEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DireccionEstablecimiento")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<Guid>("EmpresaEmisoraId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Establecimiento")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PuntoEmision")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmpresaEmisoraId", "Establecimiento", "PuntoEmision")
-                        .IsUnique();
-
-                    b.ToTable("EmpresaPuntosEmision", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaDetalleEntity", b =>
@@ -1389,17 +1358,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Persona");
                 });
 
-            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaPuntoEmisionEntity", b =>
-                {
-                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", "Empresa")
-                        .WithMany("PuntosEmision")
-                        .HasForeignKey("EmpresaEmisoraId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Empresa");
-                });
-
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaDetalleEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.FacturaEntity", "Factura")
@@ -1489,8 +1447,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", b =>
                 {
-                    b.Navigation("PuntosEmision");
-
                     b.Navigation("UserAssignments");
                 });
 

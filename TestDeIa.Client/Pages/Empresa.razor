@@ -24,7 +24,7 @@
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razon social, ambiente o establecimiento..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razon social, ambiente o puntos de emision..." />
         </div>
         <div class="table-scroll">
             <table class="data-table">
@@ -59,7 +59,10 @@
                                 <td>@empresa.Ruc</td>
                                 <td>@empresa.RazonSocial</td>
                                 <td>@empresa.AmbienteSri</td>
-                                <td>@($"{empresa.Establecimiento}-{empresa.PuntoEmision}")</td>
+                                <td>
+                                    @GetPuntosResumen(empresa)
+                                    <small>@($"{empresa.PuntosEmision.Count} punto(s) configurado(s)")</small>
+                                </td>
                                 <td>
                                     <span class="status-pill @(empresa.IsActive ? "is-active" : "is-inactive")">
                                         @(empresa.IsActive ? "Activa" : "Inactiva")
@@ -138,16 +141,17 @@
                     <ValidationMessage For="@(() => empresaRequest.DireccionMatriz)" />
                 </div>
                 <div class="form-field full">
-                    <label>Direccion establecimiento</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.DireccionEstablecimiento" />
-                </div>
-                <div class="form-field">
-                    <label>Establecimiento</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.Establecimiento" />
-                </div>
-                <div class="form-field">
-                    <label>Punto de emision</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.PuntoEmision" />
+                    <div class="puntos-summary-card">
+                        <div>
+                            <label class="summary-label">Puntos de emision</label>
+                            <p class="summary-text">
+                                @(empresaRequest.PuntosEmision.Count == 0
+                                    ? "Todavia no hay puntos configurados."
+                                    : $"{empresaRequest.PuntosEmision.Count} punto(s) configurado(s). Predeterminado: {(empresaRequest.PuntosEmision.FirstOrDefault(p => p.IsDefault)?.Establecimiento ?? "001")}-{(empresaRequest.PuntosEmision.FirstOrDefault(p => p.IsDefault)?.PuntoEmision ?? "001")}")
+                            </p>
+                        </div>
+                        <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Puntos de emision</button>
+                    </div>
                 </div>
                 <div class="form-field">
                     <label>Obligado a llevar contabilidad</label>
@@ -200,3 +204,102 @@
         </EditForm>
     </section>
 </section>
+
+@if (showPuntosEmisionModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2>Puntos de emision</h2>
+                    <p>Agrega, revisa y marca el punto predeterminado de la empresa.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="ClosePuntosEmisionModal">X</button>
+            </div>
+
+            <div class="form-grid point-grid">
+                <div class="form-field">
+                    <label>Establecimiento</label>
+                    <InputText class="form-control" @bind-Value="puntoEmisionDraft.Establecimiento" />
+                </div>
+                <div class="form-field">
+                    <label>Punto de emision</label>
+                    <InputText class="form-control" @bind-Value="puntoEmisionDraft.PuntoEmision" />
+                </div>
+                <div class="form-field full">
+                    <label>Direccion establecimiento</label>
+                    <InputText class="form-control" @bind-Value="puntoEmisionDraft.DireccionEstablecimiento" />
+                </div>
+                <div class="form-field full">
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="puntoEmisionDraft.IsDefault" />
+                        <span class="form-check-label">Usar como punto predeterminado</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                @if (editingPuntoIndex.HasValue)
+                {
+                    <button class="ghost-button" type="button" @onclick="ResetPuntoEmisionDraft">Cancelar edicion</button>
+                }
+                <button class="primary-action" type="button" @onclick="AddPuntoEmision">
+                    @(editingPuntoIndex.HasValue ? "Actualizar punto" : "Agregar punto")
+                </button>
+            </div>
+
+            <section class="table-card embedded-card">
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Establecimiento</th>
+                                <th>Punto</th>
+                                <th>Direccion</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (empresaRequest.PuntosEmision.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="5" class="empty-state-cell">Todavia no has agregado puntos de emision.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @for (var index = 0; index < empresaRequest.PuntosEmision.Count; index++)
+                                {
+                                    var punto = empresaRequest.PuntosEmision[index];
+
+                                    <tr>
+                                        <td data-label="Establecimiento">@punto.Establecimiento</td>
+                                        <td data-label="Punto">@punto.PuntoEmision</td>
+                                        <td data-label="Direccion">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion" : punto.DireccionEstablecimiento)</td>
+                                        <td data-label="Estado">
+                                            <span class="status-pill @(punto.IsDefault ? "is-active" : string.Empty)">
+                                                @(punto.IsDefault ? "Predeterminado" : "Secundario")
+                                            </span>
+                                        </td>
+                                        <td data-label="Acciones">
+                                            <div class="row-actions">
+                                                <button class="ghost-button" type="button" @onclick="() => EditPuntoEmision(index)">Editar</button>
+                                                <button class="secondary-action" type="button" @onclick="() => SetDefaultPuntoEmision(index)">Predeterminar</button>
+                                                <button class="danger-button" type="button" @onclick="() => RemovePuntoEmision(index)">Quitar</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="modal-actions">
+                <button class="primary-action" type="button" @onclick="ClosePuntosEmisionModal">Listo</button>
+            </div>
+        </section>
+    </div>
+}

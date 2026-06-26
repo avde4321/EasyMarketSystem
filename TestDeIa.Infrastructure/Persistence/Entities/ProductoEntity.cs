@@ -23,6 +23,8 @@ public sealed class ProductoEntity
 
     public decimal CostoPromedio { get; set; }
 
+    public bool ControlaStock { get; set; } = true;
+
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

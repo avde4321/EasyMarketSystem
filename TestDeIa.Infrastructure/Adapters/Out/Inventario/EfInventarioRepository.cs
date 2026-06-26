@@ -126,6 +126,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
         entity.PrecioVenta = producto.PrecioVenta;
         entity.StockMinimo = producto.StockMinimo;
         entity.IsActive = producto.IsActive;
+        entity.ControlaStock = producto.ControlaStock;
         entity.UpdatedAt = producto.UpdatedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -197,6 +198,15 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     var producto = await dbContext.Productos
                         .FirstOrDefaultAsync(current => current.Id == item.ProductoId, token)
                         ?? throw new InvalidOperationException("No se encontro uno de los productos de la factura.");
+
+                    if (!producto.ControlaStock)
+                    {
+                        logger.LogInformation(
+                            "Se omite kardex y descuento de stock para el producto {ProductoId} en la factura {FacturaId} porque ControlaStock es false.",
+                            producto.Id,
+                            facturaId);
+                        continue;
+                    }
 
                     RegistrarMovimientoInternalAsync(
                         producto,
@@ -390,6 +400,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.StockActual,
             entity.StockMinimo,
             entity.CostoPromedio,
+            entity.ControlaStock,
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
@@ -410,6 +421,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
             StockActual = producto.StockActual,
             StockMinimo = producto.StockMinimo,
             CostoPromedio = producto.CostoPromedio,
+            ControlaStock = producto.ControlaStock,
             IsActive = producto.IsActive,
             CreatedAt = producto.CreatedAt,
             UpdatedAt = producto.UpdatedAt

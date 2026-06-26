@@ -107,7 +107,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 CodigoIva = producto.CodigoIva,
                 PorcentajeIva = producto.PorcentajeIva,
                 PrecioVenta = producto.PrecioVenta,
-                StockActual = producto.StockActual
+                StockActual = producto.StockActual,
+                ControlaStock = producto.ControlaStock
             }).ToArray(),
             TotalCount = totalCount,
             Skip = skip,
@@ -197,7 +198,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 throw new InvalidOperationException($"El producto {producto.Nombre} tiene una tarifa de IVA no soportada.");
             }
 
-            if (producto.StockActual < item.Cantidad)
+            if (producto.ControlaStock && producto.StockActual < item.Cantidad)
             {
                 throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre}.");
             }

@@ -45,6 +45,9 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(producto => producto.CostoPromedio)
             .HasPrecision(18, 6);
 
+        builder.Property(producto => producto.ControlaStock)
+            .HasDefaultValue(true);
+
         builder.Property(producto => producto.RowVersion)
             .IsRowVersion();
 

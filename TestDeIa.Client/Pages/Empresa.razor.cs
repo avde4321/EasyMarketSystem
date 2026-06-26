@@ -26,6 +26,9 @@ public partial class Empresa
     private string? certificadoNombreArchivoActual;
     private Guid? selectedEmpresaId;
     private string searchTerm = string.Empty;
+    private bool showPuntosEmisionModal;
+    private EmpresaPuntoEmisionRequest puntoEmisionDraft = new() { Establecimiento = "001", PuntoEmision = "001" };
+    private int? editingPuntoIndex;
 
     private IEnumerable<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> FilteredEmpresas => empresas.Where(empresa =>
         string.IsNullOrWhiteSpace(searchTerm) ||
@@ -33,8 +36,10 @@ public partial class Empresa
         empresa.RazonSocial.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
         (empresa.NombreComercial?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
         empresa.AmbienteSri.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empresa.Establecimiento.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empresa.PuntoEmision.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+        empresa.PuntosEmision.Any(punto =>
+            punto.Establecimiento.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+            punto.PuntoEmision.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+            (punto.DireccionEstablecimiento?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)));
 
     protected override async Task OnInitializedAsync()
     {
@@ -165,9 +170,6 @@ public partial class Empresa
             NombreComercial = empresaActual.NombreComercial,
             Ruc = empresaActual.Ruc,
             DireccionMatriz = empresaActual.DireccionMatriz,
-            DireccionEstablecimiento = empresaActual.DireccionEstablecimiento,
-            Establecimiento = empresaActual.Establecimiento,
-            PuntoEmision = empresaActual.PuntoEmision,
             AmbienteSri = empresaActual.AmbienteSri,
             ModoDesarrollo = empresaActual.ModoDesarrollo,
             TipoEmision = empresaActual.TipoEmision,
@@ -176,7 +178,16 @@ public partial class Empresa
             RegimenRimpe = empresaActual.RegimenRimpe,
             AgenteRetencionResolucion = empresaActual.AgenteRetencionResolucion,
             CertificadoNombreArchivo = empresaActual.CertificadoNombreArchivo,
-            IsActive = empresaActual.IsActive
+            IsActive = empresaActual.IsActive,
+            PuntosEmision = empresaActual.PuntosEmision
+                .Select(punto => new EmpresaPuntoEmisionRequest
+                {
+                    DireccionEstablecimiento = punto.DireccionEstablecimiento,
+                    Establecimiento = punto.Establecimiento,
+                    PuntoEmision = punto.PuntoEmision,
+                    IsDefault = punto.IsDefault
+                })
+                .ToList()
         };
 
         certificadoNombreArchivoActual = empresaActual.CertificadoNombreArchivo;
@@ -192,10 +203,123 @@ public partial class Empresa
         {
             AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "Pruebas",
             TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "Normal",
+            IsActive = true,
+            ModoDesarrollo = true,
+            PuntosEmision =
+            [
+                new EmpresaPuntoEmisionRequest
+                {
+                    Establecimiento = "001",
+                    PuntoEmision = "001",
+                    IsDefault = true
+                }
+            ]
+        };
+    }
+
+    private void AddPuntoEmision()
+    {
+        if (editingPuntoIndex.HasValue)
+        {
+            empresaRequest.PuntosEmision[editingPuntoIndex.Value] = new EmpresaPuntoEmisionRequest
+            {
+                DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
+                Establecimiento = puntoEmisionDraft.Establecimiento,
+                PuntoEmision = puntoEmisionDraft.PuntoEmision,
+                IsDefault = puntoEmisionDraft.IsDefault
+            };
+        }
+        else
+        {
+            empresaRequest.PuntosEmision.Add(new EmpresaPuntoEmisionRequest
+            {
+                DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
+                Establecimiento = puntoEmisionDraft.Establecimiento,
+                PuntoEmision = puntoEmisionDraft.PuntoEmision,
+                IsDefault = puntoEmisionDraft.IsDefault || empresaRequest.PuntosEmision.Count == 0
+            });
+        }
+
+        if (puntoEmisionDraft.IsDefault || empresaRequest.PuntosEmision.Count == 1)
+        {
+            var targetIndex = editingPuntoIndex ?? (empresaRequest.PuntosEmision.Count - 1);
+            SetDefaultPuntoEmision(targetIndex);
+        }
+
+        ResetPuntoEmisionDraft();
+    }
+
+    private void RemovePuntoEmision(int index)
+    {
+        if (empresaRequest.PuntosEmision.Count <= 1)
+        {
+            errorMessage = "La empresa debe conservar al menos un punto de emision.";
+            return;
+        }
+
+        var wasDefault = empresaRequest.PuntosEmision[index].IsDefault;
+        empresaRequest.PuntosEmision.RemoveAt(index);
+
+        if (wasDefault && empresaRequest.PuntosEmision.Count > 0)
+        {
+            empresaRequest.PuntosEmision[0].IsDefault = true;
+        }
+    }
+
+    private void SetDefaultPuntoEmision(int index)
+    {
+        for (var currentIndex = 0; currentIndex < empresaRequest.PuntosEmision.Count; currentIndex++)
+        {
+            empresaRequest.PuntosEmision[currentIndex].IsDefault = currentIndex == index;
+        }
+    }
+
+    private void OpenPuntosEmisionModal()
+    {
+        showPuntosEmisionModal = true;
+        ResetPuntoEmisionDraft();
+    }
+
+    private void ClosePuntosEmisionModal()
+    {
+        showPuntosEmisionModal = false;
+        ResetPuntoEmisionDraft();
+    }
+
+    private void EditPuntoEmision(int index)
+    {
+        var punto = empresaRequest.PuntosEmision[index];
+        editingPuntoIndex = index;
+        puntoEmisionDraft = new EmpresaPuntoEmisionRequest
+        {
+            DireccionEstablecimiento = punto.DireccionEstablecimiento,
+            Establecimiento = punto.Establecimiento,
+            PuntoEmision = punto.PuntoEmision,
+            IsDefault = punto.IsDefault
+        };
+    }
+
+    private void ResetPuntoEmisionDraft()
+    {
+        editingPuntoIndex = null;
+        puntoEmisionDraft = new EmpresaPuntoEmisionRequest
+        {
             Establecimiento = "001",
             PuntoEmision = "001",
-            IsActive = true,
-            ModoDesarrollo = true
+            IsDefault = empresaRequest.PuntosEmision.Count == 0
         };
+    }
+
+    private static string GetPuntosResumen(TestDeIa.Shared.Responses.Empresa.EmpresaResponse empresa)
+    {
+        if (empresa.PuntosEmision.Count == 0)
+        {
+            return $"{empresa.Establecimiento}-{empresa.PuntoEmision}";
+        }
+
+        var principal = empresa.PuntosEmision.FirstOrDefault(punto => punto.IsDefault) ?? empresa.PuntosEmision.First();
+        return empresa.PuntosEmision.Count == 1
+            ? $"{principal.Establecimiento}-{principal.PuntoEmision}"
+            : $"{principal.Establecimiento}-{principal.PuntoEmision} + {empresa.PuntosEmision.Count - 1}";
     }
 }

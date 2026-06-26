@@ -22,6 +22,9 @@
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o direccion..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
+        <div class="soft-info-message compact-message">
+            La busqueda respeta la empresa activa y reutiliza la persona centralizada cuando ya existe.
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando clientes...</em></p>

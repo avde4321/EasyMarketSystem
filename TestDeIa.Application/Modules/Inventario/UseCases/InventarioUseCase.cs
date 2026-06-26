@@ -58,16 +58,17 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.PorcentajeIva,
             request.PrecioVenta,
             0,
-            request.StockMinimo,
+            request.ControlaStock ? request.StockMinimo : 0,
             0,
+            request.ControlaStock,
             request.IsActive,
             DateTimeOffset.UtcNow,
             null);
 
         return MapProducto(await inventarioRepository.CreateProductoAsync(
             producto,
-            request.StockInicial,
-            request.CostoInicial,
+            request.ControlaStock ? request.StockInicial : 0,
+            request.ControlaStock ? request.CostoInicial : 0,
             cancellationToken));
     }
 
@@ -95,8 +96,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.PorcentajeIva,
             request.PrecioVenta,
             current.StockActual,
-            request.StockMinimo,
+            request.ControlaStock ? request.StockMinimo : 0,
             current.CostoPromedio,
+            request.ControlaStock,
             request.IsActive,
             current.CreatedAt,
             DateTimeOffset.UtcNow);
@@ -166,6 +168,7 @@ public sealed class InventarioUseCase : IInventarioUseCase
             PrecioVenta = producto.PrecioVenta,
             StockActual = producto.StockActual,
             StockMinimo = producto.StockMinimo,
+            ControlaStock = producto.ControlaStock,
             CostoPromedio = producto.CostoPromedio,
             IsActive = producto.IsActive
         };

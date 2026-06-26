@@ -50,16 +50,20 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
 
         await ValidateRequestAsync(request, current, cancellationToken);
 
+        var empresaId = current?.Id ?? Guid.NewGuid();
+        var puntosEmision = BuildPuntosEmision(request, empresaId);
+        var puntoDefault = puntosEmision.First(currentPunto => currentPunto.IsDefault);
+
         var empresa = new EmpresaEmisora(
-            current?.Id ?? Guid.NewGuid(),
+            empresaId,
             current?.OwnerUserId ?? currentUserAccessor.GetRequiredUserId(),
             request.RazonSocial.Trim(),
             NormalizeOptional(request.NombreComercial),
             request.Ruc.Trim(),
             request.DireccionMatriz.Trim(),
-            NormalizeOptional(request.DireccionEstablecimiento),
-            request.Establecimiento.Trim(),
-            request.PuntoEmision.Trim(),
+            puntoDefault.DireccionEstablecimiento,
+            puntoDefault.Establecimiento,
+            puntoDefault.PuntoEmision,
             request.AmbienteSri.Trim(),
             request.ModoDesarrollo,
             request.TipoEmision.Trim(),
@@ -70,6 +74,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             ResolveCertificadoNombreArchivo(request, current),
             ResolveCertificadoContenido(request, current),
             NormalizeOptional(request.CertificadoClave),
+            puntosEmision,
             request.IsActive,
             current?.CreatedAt ?? DateTimeOffset.UtcNow,
             current is null ? null : DateTimeOffset.UtcNow);
@@ -101,7 +106,20 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             TieneCertificadoConfigurado = empresa.CertificadoContenido is { Length: > 0 },
             IsActive = empresa.IsActive,
             CreatedAt = empresa.CreatedAt,
-            UpdatedAt = empresa.UpdatedAt
+            UpdatedAt = empresa.UpdatedAt,
+            PuntosEmision = empresa.PuntosEmision
+                .OrderByDescending(punto => punto.IsDefault)
+                .ThenBy(punto => punto.Establecimiento)
+                .ThenBy(punto => punto.PuntoEmision)
+                .Select(punto => new EmpresaPuntoEmisionResponse
+                {
+                    Id = punto.Id,
+                    DireccionEstablecimiento = punto.DireccionEstablecimiento,
+                    Establecimiento = punto.Establecimiento,
+                    PuntoEmision = punto.PuntoEmision,
+                    IsDefault = punto.IsDefault
+                })
+                .ToArray()
         };
     }
 
@@ -134,14 +152,34 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             throw new InvalidOperationException("La direccion matriz es obligatoria.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Establecimiento) || request.Establecimiento.Trim().Length != 3 || !request.Establecimiento.Trim().All(char.IsDigit))
+        if (request.PuntosEmision.Count == 0)
         {
-            throw new InvalidOperationException("El establecimiento debe tener 3 digitos.");
+            throw new InvalidOperationException("Debes registrar al menos un punto de emision.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.PuntoEmision) || request.PuntoEmision.Trim().Length != 3 || !request.PuntoEmision.Trim().All(char.IsDigit))
+        if (request.PuntosEmision.Count(currentPunto => currentPunto.IsDefault) != 1)
         {
-            throw new InvalidOperationException("El punto de emision debe tener 3 digitos.");
+            throw new InvalidOperationException("Debes definir un unico punto de emision predeterminado.");
+        }
+
+        var combinaciones = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var punto in request.PuntosEmision)
+        {
+            if (string.IsNullOrWhiteSpace(punto.Establecimiento) || punto.Establecimiento.Trim().Length != 3 || !punto.Establecimiento.Trim().All(char.IsDigit))
+            {
+                throw new InvalidOperationException("Cada establecimiento debe tener 3 digitos.");
+            }
+
+            if (string.IsNullOrWhiteSpace(punto.PuntoEmision) || punto.PuntoEmision.Trim().Length != 3 || !punto.PuntoEmision.Trim().All(char.IsDigit))
+            {
+                throw new InvalidOperationException("Cada punto de emision debe tener 3 digitos.");
+            }
+
+            var clave = $"{punto.Establecimiento.Trim()}-{punto.PuntoEmision.Trim()}";
+            if (!combinaciones.Add(clave))
+            {
+                throw new InvalidOperationException($"La combinacion {clave} esta repetida en los puntos de emision.");
+            }
         }
 
         if (!await catalogoRepository.ExistsActiveItemAsync("AMBIENTE_SRI", request.AmbienteSri.Trim(), cancellationToken))
@@ -202,6 +240,19 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static IReadOnlyCollection<EmpresaPuntoEmision> BuildPuntosEmision(EmpresaRequest request, Guid empresaId)
+    {
+        return request.PuntosEmision
+            .Select((punto, index) => new EmpresaPuntoEmision(
+                Guid.NewGuid(),
+                empresaId,
+                punto.Establecimiento.Trim(),
+                punto.PuntoEmision.Trim(),
+                NormalizeOptional(punto.DireccionEstablecimiento),
+                punto.IsDefault || (index == 0 && request.PuntosEmision.Count(current => current.IsDefault) == 0)))
+            .ToArray();
     }
 
     private static string? ResolveCertificadoNombreArchivo(EmpresaRequest request, EmpresaEmisora? current)

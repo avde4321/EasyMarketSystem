@@ -20,7 +20,9 @@ public sealed class ProductoResponse
 
     public decimal StockMinimo { get; set; }
 
-    public bool TieneAlertaStockMinimo => StockActual <= StockMinimo;
+    public bool ControlaStock { get; set; }
+
+    public bool TieneAlertaStockMinimo => ControlaStock && StockActual <= StockMinimo;
 
     public decimal CostoPromedio { get; set; }
 

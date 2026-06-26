@@ -22,6 +22,7 @@ public sealed class EmpresaEmisora
         string? certificadoNombreArchivo,
         byte[]? certificadoContenido,
         string? certificadoClave,
+        IReadOnlyCollection<EmpresaPuntoEmision> puntosEmision,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -45,6 +46,7 @@ public sealed class EmpresaEmisora
         CertificadoNombreArchivo = certificadoNombreArchivo;
         CertificadoContenido = certificadoContenido;
         CertificadoClave = certificadoClave;
+        PuntosEmision = puntosEmision;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -69,6 +71,7 @@ public sealed class EmpresaEmisora
     public string? CertificadoNombreArchivo { get; }
     public byte[]? CertificadoContenido { get; }
     public string? CertificadoClave { get; }
+    public IReadOnlyCollection<EmpresaPuntoEmision> PuntosEmision { get; }
     public bool IsActive { get; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset? UpdatedAt { get; }

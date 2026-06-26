@@ -17,4 +17,6 @@ public sealed class PosProductoResponse
     public decimal PrecioVenta { get; set; }
 
     public decimal StockActual { get; set; }
+
+    public bool ControlaStock { get; set; }
 }

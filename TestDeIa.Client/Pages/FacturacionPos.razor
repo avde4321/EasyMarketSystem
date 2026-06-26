@@ -95,10 +95,11 @@
                                 <div>
                                     <strong>@producto.Nombre</strong>
                                     <span>@producto.Codigo</span>
+                                    <small>@(producto.ControlaStock ? "Inventariable" : "Servicio")</small>
                                 </div>
                                 <div class="price-meta">
                                     <strong>@producto.PrecioVenta.ToString("0.00")</strong>
-                                    <small>Stock: @producto.StockActual.ToString("0.##")</small>
+                                    <small>@(producto.ControlaStock ? $"Stock: {producto.StockActual:0.##}" : "Sin control de stock")</small>
                                 </div>
                             </button>
                         }

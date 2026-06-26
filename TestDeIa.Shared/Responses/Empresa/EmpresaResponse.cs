@@ -23,4 +23,5 @@ public sealed class EmpresaResponse
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+    public IReadOnlyCollection<EmpresaPuntoEmisionResponse> PuntosEmision { get; set; } = Array.Empty<EmpresaPuntoEmisionResponse>();
 }

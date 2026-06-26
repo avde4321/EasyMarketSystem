@@ -13,6 +13,7 @@ public sealed class Producto
         decimal stockActual,
         decimal stockMinimo,
         decimal costoPromedio,
+        bool controlaStock,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -27,6 +28,7 @@ public sealed class Producto
         StockActual = stockActual;
         StockMinimo = stockMinimo;
         CostoPromedio = costoPromedio;
+        ControlaStock = controlaStock;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -51,6 +53,8 @@ public sealed class Producto
     public decimal StockMinimo { get; }
 
     public decimal CostoPromedio { get; }
+
+    public bool ControlaStock { get; }
 
     public bool IsActive { get; }
 

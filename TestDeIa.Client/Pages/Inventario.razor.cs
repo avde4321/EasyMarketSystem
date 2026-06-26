@@ -94,6 +94,7 @@ public partial class Inventario
             PorcentajeIva = producto.PorcentajeIva,
             PrecioVenta = producto.PrecioVenta,
             StockMinimo = producto.StockMinimo,
+            ControlaStock = producto.ControlaStock,
             IsActive = producto.IsActive
         };
         isProductModalOpen = true;
@@ -203,6 +204,18 @@ public partial class Inventario
     private async Task SearchProductsAsync()
     {
         await LoadProductsAsync(resetPaging: true);
+    }
+
+    private void OnControlaStockChanged(bool value)
+    {
+        productoRequest.ControlaStock = value;
+
+        if (!value)
+        {
+            productoRequest.StockMinimo = 0;
+            productoRequest.StockInicial = 0;
+            productoRequest.CostoInicial = 0;
+        }
     }
 
     private async Task GoToPreviousPageAsync()
