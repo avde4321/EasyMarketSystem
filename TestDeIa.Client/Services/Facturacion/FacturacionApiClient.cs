@@ -29,6 +29,12 @@ public sealed class FacturacionApiClient
             $"api/facturacion/productos?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosProductoResponse> { Skip = skip, Take = take };
     }
 
+    public async Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosPuntoEmisionResponse>>("api/facturacion/puntos-emision")
+            ?? Array.Empty<PosPuntoEmisionResponse>();
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage, FacturaEmissionResponse? Data)> EmitirFacturaAsync(EmitirFacturaRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/facturacion/facturas", request);

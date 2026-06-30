@@ -34,6 +34,11 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return facturacionRepository.SearchProductosAsync(term, skip, take, cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default)
+    {
+        return facturacionRepository.GetPuntosEmisionAsync(cancellationToken);
+    }
+
     public async Task<FacturaEmissionResponse> EmitirFacturaAsync(EmitirFacturaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateRequestAsync(request, cancellationToken);
@@ -42,10 +47,7 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             request,
             cancellationToken);
 
-        if (string.Equals(response.Estado, FacturaEstado.PENDIENTE.ToApiValue(), StringComparison.Ordinal))
-        {
-            facturaBackgroundQueue.Enqueue(response.FacturaId);
-        }
+        facturaBackgroundQueue.Enqueue(response.FacturaId);
 
         return response;
     }
@@ -60,6 +62,16 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         if (request.ClienteId == Guid.Empty)
         {
             throw new InvalidOperationException("Debe seleccionar un cliente para emitir la factura.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Establecimiento) || request.Establecimiento.Trim().Length != 3 || !request.Establecimiento.Trim().All(char.IsDigit))
+        {
+            throw new InvalidOperationException("Debe seleccionar un establecimiento valido para operar el POS.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PuntoEmision) || request.PuntoEmision.Trim().Length != 3 || !request.PuntoEmision.Trim().All(char.IsDigit))
+        {
+            throw new InvalidOperationException("Debe seleccionar un punto de emision valido para operar el POS.");
         }
 
         if (string.IsNullOrWhiteSpace(request.FormaPago))
@@ -77,7 +89,7 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             throw new InvalidOperationException("La factura debe tener al menos un producto.");
         }
 
-        if (request.Items.Any(item => item.ProductoId == Guid.Empty || item.Cantidad <= 0))
+        if (request.Items.Any(item => item.ProductoId == Guid.Empty || item.Cantidad <= 0 || item.Descuento < 0))
         {
             throw new InvalidOperationException("La factura contiene productos invalidos.");
         }

@@ -38,6 +38,7 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<KardexMovimientoEntity> KardexMovimientos => Set<KardexMovimientoEntity>();
 
     public DbSet<FacturaEntity> Facturas => Set<FacturaEntity>();
+    public DbSet<FacturaSecuencialEntity> FacturaSecuenciales => Set<FacturaSecuencialEntity>();
 
     public DbSet<FacturaDetalleEntity> FacturaDetalles => Set<FacturaDetalleEntity>();
 
@@ -63,6 +64,8 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<FacturaSriEventoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaSecuencialEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<SecurityUserEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||

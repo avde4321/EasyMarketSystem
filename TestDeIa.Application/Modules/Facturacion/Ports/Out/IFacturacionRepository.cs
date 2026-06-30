@@ -11,6 +11,8 @@ public interface IFacturacionRepository
 
     Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default);
+
     Task<FacturaEmissionResponse> CreatePendingFacturaAsync(
         EmitirFacturaRequest request,
         CancellationToken cancellationToken = default);
@@ -32,10 +34,18 @@ public interface IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 
+    Task MarkFacturaAsSignedPendingAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string xmlFirmado,
+        string mensaje,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default);
+
     Task MarkFacturaAsRejectedAsync(
         Guid facturaId,
         string mensaje,
-        string xmlFirmado,
+        string? xmlFirmado,
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 

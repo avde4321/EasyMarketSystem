@@ -12,7 +12,7 @@ public sealed class SriFacturaProcessingResult
 
     public string? XmlGenerado { get; set; }
 
-    public string XmlFirmado { get; set; } = string.Empty;
+    public string? XmlFirmado { get; set; }
 
     public DateTimeOffset FechaRespuesta { get; set; }
 }

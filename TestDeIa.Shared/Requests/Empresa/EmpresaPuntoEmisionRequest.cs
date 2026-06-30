@@ -4,6 +4,8 @@ namespace TestDeIa.Shared.Requests.Empresa;
 
 public sealed class EmpresaPuntoEmisionRequest
 {
+    public Guid? Id { get; set; }
+
     [StringLength(300, ErrorMessage = "La direccion del establecimiento no puede superar 300 caracteres.")]
     public string? DireccionEstablecimiento { get; set; }
 

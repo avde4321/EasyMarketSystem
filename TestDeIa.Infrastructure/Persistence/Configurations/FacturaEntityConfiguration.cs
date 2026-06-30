@@ -16,7 +16,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .IsRequired();
 
         builder.Property(factura => factura.Secuencial)
-            .UseIdentityColumn();
+            .IsRequired();
 
         builder.Property(factura => factura.Establecimiento)
             .HasMaxLength(3)

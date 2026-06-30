@@ -17,14 +17,17 @@ public partial class FacturacionPos : IDisposable
 
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
+    private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
     private readonly List<CatalogoItemResponse> formasPago = [];
     private readonly List<CartItemModel> cartItems = [];
     private string clienteSearchTerm = string.Empty;
     private string productoSearchTerm = string.Empty;
     private PosClienteResponse? selectedCliente;
+    private PosPuntoEmisionResponse? selectedPuntoEmision;
     private string formaPago = "Efectivo";
     private string? observacion;
     private bool isSubmitting;
+    private bool showOperationalContextModal;
     private string? errorMessage;
     private string? statusMessage;
     private const int SearchPageSize = 8;
@@ -36,10 +39,12 @@ public partial class FacturacionPos : IDisposable
     private bool CanGoNextClientes => clienteSkip + SearchPageSize < clienteTotalCount;
     private bool CanGoPreviousProductos => productoSkip > 0;
     private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
+    private bool HasOperationalContext => selectedPuntoEmision is not null;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
+        await LoadPuntosEmisionAsync();
     }
 
     private async Task LoadCatalogosAsync()
@@ -47,6 +52,23 @@ public partial class FacturacionPos : IDisposable
         formasPago.Clear();
         formasPago.AddRange(await CatalogosApiClient.GetItemsAsync("FORMA_PAGO_SRI", true));
         formaPago = formasPago.FirstOrDefault()?.Codigo ?? "Efectivo";
+    }
+
+    private async Task LoadPuntosEmisionAsync()
+    {
+        puntosEmision.Clear();
+        puntosEmision.AddRange(await FacturacionApiClient.GetPuntosEmisionAsync());
+
+        if (puntosEmision.Count == 0)
+        {
+            errorMessage = "La empresa activa no tiene puntos de emision configurados. Debes parametrizarlos antes de facturar.";
+            showOperationalContextModal = false;
+            selectedPuntoEmision = null;
+            return;
+        }
+
+        selectedPuntoEmision ??= puntosEmision.FirstOrDefault(current => current.IsDefault) ?? puntosEmision[0];
+        showOperationalContextModal = true;
     }
 
     private async Task SearchClientesAsync()
@@ -60,6 +82,11 @@ public partial class FacturacionPos : IDisposable
         errorMessage = null;
         statusMessage = null;
         clienteResults.Clear();
+
+        if (!EnsureOperationalContext())
+        {
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(clienteSearchTerm) || clienteSearchTerm.Trim().Length < 2)
         {
@@ -82,6 +109,11 @@ public partial class FacturacionPos : IDisposable
         errorMessage = null;
         statusMessage = null;
         productoResults.Clear();
+
+        if (!EnsureOperationalContext())
+        {
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(productoSearchTerm) || productoSearchTerm.Trim().Length < 2)
         {
@@ -149,6 +181,11 @@ public partial class FacturacionPos : IDisposable
         errorMessage = null;
         statusMessage = null;
 
+        if (!EnsureOperationalContext())
+        {
+            return;
+        }
+
         var existing = cartItems.FirstOrDefault(item => item.ProductoId == producto.ProductoId);
         if (existing is not null)
         {
@@ -187,6 +224,11 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        if (!EnsureOperationalContext())
+        {
+            return;
+        }
+
         if (cartItems.Count == 0)
         {
             errorMessage = "Agrega al menos un producto al carrito.";
@@ -206,6 +248,8 @@ public partial class FacturacionPos : IDisposable
             var result = await FacturacionApiClient.EmitirFacturaAsync(new EmitirFacturaRequest
             {
                 ClienteId = selectedCliente.ClienteId,
+                Establecimiento = selectedPuntoEmision!.Establecimiento,
+                PuntoEmision = selectedPuntoEmision.PuntoEmision,
                 FormaPago = formaPago,
                 Observacion = observacion,
                 Items = cartItems.Select(item => new EmitirFacturaDetalleRequest
@@ -244,6 +288,42 @@ public partial class FacturacionPos : IDisposable
 
     public void Dispose()
     {
+    }
+
+    private void OpenOperationalContextModal()
+    {
+        showOperationalContextModal = true;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private void CloseOperationalContextModal()
+    {
+        if (!HasOperationalContext)
+        {
+            return;
+        }
+
+        showOperationalContextModal = false;
+    }
+
+    private void SelectPuntoEmision(PosPuntoEmisionResponse punto)
+    {
+        selectedPuntoEmision = punto;
+    }
+
+    private bool EnsureOperationalContext()
+    {
+        if (HasOperationalContext)
+        {
+            return true;
+        }
+
+        errorMessage = puntosEmision.Count == 0
+            ? "La empresa activa no tiene puntos de emision configurados."
+            : "Debes seleccionar un establecimiento y punto de emision antes de operar el POS.";
+        showOperationalContextModal = puntosEmision.Count > 0;
+        return false;
     }
 
     private sealed class CartItemModel

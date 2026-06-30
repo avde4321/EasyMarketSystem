@@ -182,6 +182,7 @@ public partial class Empresa
             PuntosEmision = empresaActual.PuntosEmision
                 .Select(punto => new EmpresaPuntoEmisionRequest
                 {
+                    Id = punto.Id,
                     DireccionEstablecimiento = punto.DireccionEstablecimiento,
                     Establecimiento = punto.Establecimiento,
                     PuntoEmision = punto.PuntoEmision,
@@ -223,6 +224,7 @@ public partial class Empresa
         {
             empresaRequest.PuntosEmision[editingPuntoIndex.Value] = new EmpresaPuntoEmisionRequest
             {
+                Id = puntoEmisionDraft.Id,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
                 Establecimiento = puntoEmisionDraft.Establecimiento,
                 PuntoEmision = puntoEmisionDraft.PuntoEmision,
@@ -233,6 +235,7 @@ public partial class Empresa
         {
             empresaRequest.PuntosEmision.Add(new EmpresaPuntoEmisionRequest
             {
+                Id = puntoEmisionDraft.Id,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
                 Establecimiento = puntoEmisionDraft.Establecimiento,
                 PuntoEmision = puntoEmisionDraft.PuntoEmision,
@@ -292,6 +295,7 @@ public partial class Empresa
         editingPuntoIndex = index;
         puntoEmisionDraft = new EmpresaPuntoEmisionRequest
         {
+            Id = punto.Id,
             DireccionEstablecimiento = punto.DireccionEstablecimiento,
             Establecimiento = punto.Establecimiento,
             PuntoEmision = punto.PuntoEmision,

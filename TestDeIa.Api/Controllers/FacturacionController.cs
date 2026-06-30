@@ -35,6 +35,13 @@ public sealed class FacturacionController : ControllerBase
         return Ok(productos);
     }
 
+    [HttpGet("puntos-emision")]
+    public async Task<IActionResult> GetPuntosEmision(CancellationToken cancellationToken = default)
+    {
+        var puntos = await facturacionUseCase.GetPuntosEmisionAsync(cancellationToken);
+        return Ok(puntos);
+    }
+
     [HttpPost("facturas")]
     public async Task<IActionResult> EmitirFactura([FromBody] EmitirFacturaRequest request, CancellationToken cancellationToken)
     {

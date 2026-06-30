@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
@@ -57,8 +58,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
     public async Task<EmpresaEmisora> SaveAsync(EmpresaEmisora empresa, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
         var entity = await dbContext.EmpresasEmisoras
-            .Include(current => current.PuntosEmision)
             .FirstOrDefaultAsync(current => current.Id == empresa.Id, cancellationToken);
 
         if (entity is null)
@@ -93,20 +95,6 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         entity.IsActive = empresa.IsActive;
         entity.UpdatedAt = empresa.UpdatedAt;
 
-        entity.PuntosEmision.Clear();
-        foreach (var punto in empresa.PuntosEmision)
-        {
-            entity.PuntosEmision.Add(new EmpresaPuntoEmisionEntity
-            {
-                Id = punto.Id,
-                EmpresaEmisoraId = empresa.Id,
-                Establecimiento = punto.Establecimiento,
-                PuntoEmision = punto.PuntoEmision,
-                DireccionEstablecimiento = punto.DireccionEstablecimiento,
-                IsDefault = punto.IsDefault
-            });
-        }
-
         if (tenantContextAccessor.UserId.HasValue &&
             !await dbContext.SecurityUserEmpresas.AnyAsync(
                 current => current.SecurityUserId == tenantContextAccessor.UserId.Value && current.EmpresaId == entity.Id,
@@ -122,7 +110,37 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(entity);
+
+        await dbContext.EmpresaPuntosEmision
+            .Where(current => current.EmpresaEmisoraId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        if (empresa.PuntosEmision.Count > 0)
+        {
+            var points = empresa.PuntosEmision
+                .Select(punto => new EmpresaPuntoEmisionEntity
+                {
+                    Id = punto.Id == Guid.Empty ? Guid.NewGuid() : punto.Id,
+                    EmpresaEmisoraId = entity.Id,
+                    Establecimiento = punto.Establecimiento,
+                    PuntoEmision = punto.PuntoEmision,
+                    DireccionEstablecimiento = punto.DireccionEstablecimiento,
+                    IsDefault = punto.IsDefault
+                })
+                .ToArray();
+
+            dbContext.EmpresaPuntosEmision.AddRange(points);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        var persisted = await dbContext.EmpresasEmisoras
+            .AsNoTracking()
+            .Include(current => current.PuntosEmision)
+            .FirstAsync(current => current.Id == entity.Id, cancellationToken);
+
+        return Map(persisted);
     }
 
     private static EmpresaEmisora Map(EmpresaEmisoraEntity entity)

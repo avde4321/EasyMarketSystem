@@ -96,7 +96,20 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
                     factura.Id,
                     result.ClaveAcceso,
                     result.NumeroAutorizacion,
-                    result.XmlFirmado,
+                    result.XmlFirmado ?? throw new InvalidOperationException("El motor devolvio AUTORIZADO sin un XML firmado disponible."),
+                    result.Mensaje,
+                    result.FechaRespuesta,
+                    cancellationToken);
+
+                return;
+            }
+
+            if (result.EstadoFinal == FacturaEstado.PENDIENTE)
+            {
+                await facturacionRepository.MarkFacturaAsSignedPendingAsync(
+                    factura.Id,
+                    result.ClaveAcceso,
+                    result.XmlFirmado ?? throw new InvalidOperationException("El motor del SRI marco el comprobante como pendiente, pero no devolvio el XML firmado."),
                     result.Mensaje,
                     result.FechaRespuesta,
                     cancellationToken);

@@ -9,7 +9,6 @@ internal static class SriFacturaXmlBuilder
     private static readonly HashSet<decimal> SupportedIvaRates = [0m, 5m, 8m, 15m];
     private const string CodigoDocumentoFactura = "01";
     private const string CodigoNumerico = "12345678";
-    private const string CodigoImpuestoIva = "2";
     private const string MonedaDolar = "DOLAR";
 
     public static string GenerateClaveAcceso(Factura factura)
@@ -37,31 +36,33 @@ internal static class SriFacturaXmlBuilder
 
         var ambienteCode = GetAmbienteCode(factura.AmbienteSri);
         var tipoEmisionCode = GetTipoEmisionCode(factura.TipoEmision);
+        var totalesConImpuestos = SriTaxCatalog.BuildHeaderTotals(factura)
+            .Select(total => new XElement("totalImpuesto",
+                new XElement("codigo", total.CodigoImpuesto),
+                new XElement("codigoPorcentaje", total.CodigoPorcentaje),
+                new XElement("baseImponible", total.BaseImponible.ToString("0.00", CultureInfo.InvariantCulture)),
+                new XElement("valor", total.Valor.ToString("0.00", CultureInfo.InvariantCulture))))
+            .ToArray();
 
         var detalles = factura.Detalles.Select(detalle =>
-            new XElement("detalle",
+        {
+            var tax = SriTaxCatalog.ResolveDetalleTax(detalle);
+
+            return new XElement("detalle",
                 new XElement("codigoPrincipal", detalle.CodigoProducto),
                 new XElement("descripcion", detalle.NombreProducto),
-                new XElement("cantidad", detalle.Cantidad.ToString("0.####", CultureInfo.InvariantCulture)),
-                new XElement("precioUnitario", detalle.PrecioUnitario.ToString("0.00####", CultureInfo.InvariantCulture)),
-                new XElement("descuento", "0.00"),
+                new XElement("cantidad", detalle.Cantidad.ToString("0.######", CultureInfo.InvariantCulture)),
+                new XElement("precioUnitario", detalle.PrecioUnitario.ToString("0.######", CultureInfo.InvariantCulture)),
+                new XElement("descuento", detalle.Descuento.ToString("0.00", CultureInfo.InvariantCulture)),
                 new XElement("precioTotalSinImpuesto", detalle.Subtotal.ToString("0.00", CultureInfo.InvariantCulture)),
                 new XElement("impuestos",
                     new XElement("impuesto",
-                        new XElement("codigo", CodigoImpuestoIva),
-                        new XElement("codigoPorcentaje", detalle.CodigoIva),
-                        new XElement("tarifa", detalle.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture)),
+                        new XElement("codigo", tax.CodigoImpuesto),
+                        new XElement("codigoPorcentaje", tax.CodigoPorcentaje),
+                        new XElement("tarifa", tax.TarifaTexto),
                         new XElement("baseImponible", detalle.Subtotal.ToString("0.00", CultureInfo.InvariantCulture)),
-                        new XElement("valor", detalle.IvaValor.ToString("0.00", CultureInfo.InvariantCulture))))));
-
-        var totalesConImpuestos = factura.Detalles
-            .GroupBy(detalle => new { detalle.CodigoIva, detalle.PorcentajeIva })
-            .Select(group => new XElement("totalImpuesto",
-                new XElement("codigo", CodigoImpuestoIva),
-                new XElement("codigoPorcentaje", group.Key.CodigoIva),
-                new XElement("baseImponible", group.Sum(item => item.Subtotal).ToString("0.00", CultureInfo.InvariantCulture)),
-                new XElement("valor", group.Sum(item => item.IvaValor).ToString("0.00", CultureInfo.InvariantCulture))))
-            .ToArray();
+                        new XElement("valor", detalle.IvaValor.ToString("0.00", CultureInfo.InvariantCulture)))));
+        });
 
         var pagos = new XElement("pagos",
             new XElement("pago",
@@ -117,17 +118,6 @@ internal static class SriFacturaXmlBuilder
         return document.ToString(SaveOptions.DisableFormatting);
     }
 
-    public static string BuildSignedXml(string xmlGenerado, string? certificateName)
-    {
-        var document = XDocument.Parse(xmlGenerado);
-        document.Root!.Add(
-            new XElement("dsSignature",
-                new XElement("certificate", string.IsNullOrWhiteSpace(certificateName) ? "CERTIFICADO_LOCAL" : certificateName),
-                new XElement("signedAt", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture))));
-
-        return document.ToString(SaveOptions.DisableFormatting);
-    }
-
     public static void ValidateSriConfiguration(Factura factura)
     {
         _ = GetAmbienteCode(factura.AmbienteSri);
@@ -161,6 +151,11 @@ internal static class SriFacturaXmlBuilder
         if (factura.Detalles.Any(detalle => !SupportedIvaRates.Contains(detalle.PorcentajeIva)))
         {
             throw new InvalidOperationException("El comprobante contiene una tarifa de IVA no soportada por el motor SRI.");
+        }
+
+        foreach (var detalle in factura.Detalles)
+        {
+            _ = SriTaxCatalog.ResolveDetalleTax(detalle);
         }
     }
 

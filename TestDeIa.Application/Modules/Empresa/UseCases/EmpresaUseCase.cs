@@ -246,7 +246,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
     {
         return request.PuntosEmision
             .Select((punto, index) => new EmpresaPuntoEmision(
-                Guid.NewGuid(),
+                punto.Id ?? Guid.NewGuid(),
                 empresaId,
                 punto.Establecimiento.Trim(),
                 punto.PuntoEmision.Trim(),

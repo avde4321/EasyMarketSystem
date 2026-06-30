@@ -48,8 +48,10 @@ public static class DependencyInjection
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
+        services.AddSingleton<SriFacturaXmlSchemaValidator>();
+        services.AddSingleton<SriXadesBesSigner>();
         services.AddSingleton<IFacturaBackgroundQueue, FacturaBackgroundQueue>();
-        services.AddScoped<ISriFacturaProcessor, SimulatedSriFacturaProcessor>();
+        services.AddScoped<ISriFacturaProcessor, SriFacturaProcessor>();
         services.AddHostedService<FacturacionBackgroundWorker>();
 
         return services;
