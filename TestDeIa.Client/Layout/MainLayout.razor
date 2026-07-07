@@ -4,7 +4,12 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
 
-<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty) @(isMobileSidebarOpen ? "mobile-sidebar-open" : string.Empty)">
+    @if (isMobileSidebarOpen)
+    {
+        <button class="sidebar-backdrop" type="button" @onclick="CloseMobileSidebar" aria-label="Cerrar menu lateral"></button>
+    }
+
     <aside class="sidebar">
         <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" />
     </aside>
@@ -12,6 +17,11 @@
     <main>
         <header class="top-row">
             <div class="top-brand">
+                <button class="mobile-menu-button" type="button" @onclick="ToggleMobileSidebar" aria-label="Abrir menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
                 <img class="top-brand-image" src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
                 <div class="top-brand-copy">
                     <span class="top-title">Plataforma operativa</span>
@@ -47,6 +57,7 @@
 
 @code {
     private bool isSidebarCollapsed;
+    private bool isMobileSidebarOpen;
     private string? selectedEmpresaId;
     private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse> empresas = [];
 
@@ -62,6 +73,16 @@
     private void ToggleSidebar()
     {
         isSidebarCollapsed = !isSidebarCollapsed;
+    }
+
+    private void ToggleMobileSidebar()
+    {
+        isMobileSidebarOpen = !isMobileSidebarOpen;
+    }
+
+    private void CloseMobileSidebar()
+    {
+        isMobileSidebarOpen = false;
     }
 
     private async Task LoadEmpresasAsync()
@@ -97,6 +118,7 @@
             await EmpresaSessionService.ClearEmpresaIdAsync();
         }
 
+        isMobileSidebarOpen = false;
         NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
     }
 }

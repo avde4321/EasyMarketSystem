@@ -1,12 +1,14 @@
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Clientes.Ports.In;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
+using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Clientes.Entities;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Clientes;
-using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Clientes;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Application.Modules.Clientes.UseCases;
 
@@ -15,15 +17,18 @@ public sealed class ClienteUseCase : IClienteUseCase
     private readonly IClienteRepository clienteRepository;
     private readonly IPersonaRepository personaRepository;
     private readonly ICatalogoRepository catalogoRepository;
+    private readonly ICurrentUserAccessor currentUserAccessor;
 
     public ClienteUseCase(
         IClienteRepository clienteRepository,
         IPersonaRepository personaRepository,
-        ICatalogoRepository catalogoRepository)
+        ICatalogoRepository catalogoRepository,
+        ICurrentUserAccessor currentUserAccessor)
     {
         this.clienteRepository = clienteRepository;
         this.personaRepository = personaRepository;
         this.catalogoRepository = catalogoRepository;
+        this.currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<IReadOnlyCollection<ClienteResponse>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -53,7 +58,7 @@ public sealed class ClienteUseCase : IClienteUseCase
     public async Task<ClienteResponse> CreateAsync(ClienteRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el cliente");
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
         if (persona is not null)
@@ -73,18 +78,30 @@ public sealed class ClienteUseCase : IClienteUseCase
         }
 
         var cliente = new Cliente(
-            Guid.NewGuid(),
             persona.Id,
+            persona.Id,
+            currentUserAccessor.GetRequiredUserId(),
             persona.TipoIdentificacion,
             persona.Identificacion,
-            persona.Nombres,
-            persona.Apellidos,
-            persona.Email,
-            persona.Telefono,
-            persona.Direccion,
+            persona.RazonSocialONombresCompletos,
+            persona.NombreComercial,
+            persona.DireccionPrincipal,
+            persona.CorreoElectronicoPrincipal,
+            persona.TelefonoCelular,
+            persona.FechaNacimiento,
+            persona.Genero,
+            NormalizeOptional(request.CorreoFacturacionElectronica),
+            request.TipoCliente.Trim(),
+            request.ObligadoContabilidad,
+            request.EsContribuyenteEspecial,
+            request.PermiteCredito,
+            request.LimiteCredito,
+            request.DiasCreditoMaximo,
+            request.EstadoCredito.Trim(),
             persona.RolesPersona.Concat(["Cliente"]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             request.IsActive,
             DateTimeOffset.UtcNow,
+            currentUserAccessor.GetRequiredUserId(),
             null);
 
         return MapToResponse(await clienteRepository.CreateAsync(cliente, cancellationToken));
@@ -93,7 +110,7 @@ public sealed class ClienteUseCase : IClienteUseCase
     public async Task<ClienteResponse?> UpdateAsync(Guid id, ClienteRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el cliente");
 
         var current = await clienteRepository.GetByIdAsync(id, cancellationToken);
         if (current is null)
@@ -116,16 +133,28 @@ public sealed class ClienteUseCase : IClienteUseCase
         var cliente = new Cliente(
             id,
             current.PersonaId,
+            current.EmpresaId,
             updatedPersona.TipoIdentificacion,
             updatedPersona.Identificacion,
-            updatedPersona.Nombres,
-            updatedPersona.Apellidos,
-            updatedPersona.Email,
-            updatedPersona.Telefono,
-            updatedPersona.Direccion,
+            updatedPersona.RazonSocialONombresCompletos,
+            updatedPersona.NombreComercial,
+            updatedPersona.DireccionPrincipal,
+            updatedPersona.CorreoElectronicoPrincipal,
+            updatedPersona.TelefonoCelular,
+            updatedPersona.FechaNacimiento,
+            updatedPersona.Genero,
+            NormalizeOptional(request.CorreoFacturacionElectronica),
+            request.TipoCliente.Trim(),
+            request.ObligadoContabilidad,
+            request.EsContribuyenteEspecial,
+            request.PermiteCredito,
+            request.LimiteCredito,
+            request.DiasCreditoMaximo,
+            request.EstadoCredito.Trim(),
             updatedPersona.RolesPersona,
             request.IsActive,
             current.CreatedAt,
+            current.UsuarioCreacionId,
             DateTimeOffset.UtcNow);
 
         var updated = await clienteRepository.UpdateAsync(cliente, cancellationToken);
@@ -143,13 +172,13 @@ public sealed class ClienteUseCase : IClienteUseCase
             id,
             request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
-            request.Nombres.Trim(),
-            request.Apellidos.Trim(),
-            null,
-            null,
-            NormalizeOptional(request.Email),
-            NormalizeOptional(request.Telefono),
-            NormalizeOptional(request.Direccion),
+            request.RazonSocialONombresCompletos.Trim(),
+            NormalizeOptional(request.NombreComercial),
+            request.DireccionPrincipal.Trim(),
+            NormalizeOptional(request.TelefonoCelular),
+            NormalizeOptional(request.CorreoElectronicoPrincipal),
+            request.FechaNacimiento,
+            NormalizeOptional(request.Genero),
             [],
             request.IsActive,
             createdAt,
@@ -164,15 +193,27 @@ public sealed class ClienteUseCase : IClienteUseCase
             PersonaId = cliente.PersonaId,
             TipoIdentificacion = cliente.TipoIdentificacion,
             Identificacion = cliente.Identificacion,
-            Nombres = cliente.Nombres,
-            Apellidos = cliente.Apellidos,
-            Email = cliente.Email,
-            Telefono = cliente.Telefono,
-            Direccion = cliente.Direccion,
+            RazonSocialONombresCompletos = cliente.RazonSocialONombresCompletos,
+            NombreComercial = cliente.NombreComercial,
+            DireccionPrincipal = cliente.DireccionPrincipal,
+            CorreoElectronicoPrincipal = cliente.CorreoElectronicoPrincipal,
+            TelefonoCelular = cliente.TelefonoCelular,
+            FechaNacimiento = cliente.FechaNacimiento,
+            Genero = cliente.Genero,
+            CorreoFacturacionElectronica = cliente.CorreoFacturacionElectronica,
+            TipoCliente = cliente.TipoCliente,
+            ObligadoContabilidad = cliente.ObligadoContabilidad,
+            EsContribuyenteEspecial = cliente.EsContribuyenteEspecial,
+            PermiteCredito = cliente.PermiteCredito,
+            LimiteCredito = cliente.LimiteCredito,
+            DiasCreditoMaximo = cliente.DiasCreditoMaximo,
+            EstadoCredito = cliente.EstadoCredito,
             RolesPersona = cliente.RolesPersona,
             IsActive = cliente.IsActive,
             CreatedAt = cliente.CreatedAt,
-            UpdatedAt = cliente.UpdatedAt
+            UsuarioCreacionId = cliente.UsuarioCreacionId,
+            UpdatedAt = cliente.UpdatedAt,
+            UsuarioModificacionId = cliente.UsuarioModificacionId
         };
     }
 
@@ -185,30 +226,4 @@ public sealed class ClienteUseCase : IClienteUseCase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static void ValidateIdentificationByType(string tipoIdentificacion, string identificacion)
-    {
-        var normalizedType = tipoIdentificacion.Trim().ToUpperInvariant();
-        var normalizedIdentification = identificacion.Trim();
-
-        if (string.IsNullOrWhiteSpace(normalizedIdentification))
-        {
-            throw new InvalidOperationException("La identificacion del cliente es obligatoria.");
-        }
-
-        if (normalizedType == "CEDULA" && (normalizedIdentification.Length != 10 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("La cedula del cliente debe tener 10 digitos numericos.");
-        }
-
-        if (normalizedType == "RUC" && (normalizedIdentification.Length != 13 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("El RUC del cliente debe tener 13 digitos numericos.");
-        }
-
-        if (normalizedType == "CONSUMIDOR FINAL" && normalizedIdentification != "9999999999999")
-        {
-            throw new InvalidOperationException("Para consumidor final se debe usar la identificacion 9999999999999.");
-        }
-    }
 }

@@ -1,7 +1,9 @@
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empleados.Ports.In;
 using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
+using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Empleados.Entities;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Empleados;
@@ -15,15 +17,18 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     private readonly IEmpleadoRepository empleadoRepository;
     private readonly IPersonaRepository personaRepository;
     private readonly ICatalogoRepository catalogoRepository;
+    private readonly ICurrentUserAccessor currentUserAccessor;
 
     public EmpleadoUseCase(
         IEmpleadoRepository empleadoRepository,
         IPersonaRepository personaRepository,
-        ICatalogoRepository catalogoRepository)
+        ICatalogoRepository catalogoRepository,
+        ICurrentUserAccessor currentUserAccessor)
     {
         this.empleadoRepository = empleadoRepository;
         this.personaRepository = personaRepository;
         this.catalogoRepository = catalogoRepository;
+        this.currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<IReadOnlyCollection<EmpleadoResponse>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -53,7 +58,7 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     public async Task<EmpleadoResponse> CreateAsync(EmpleadoRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el empleado");
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
         if (persona is not null)
@@ -73,18 +78,33 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
         }
 
         var empleado = new Empleado(
-            Guid.NewGuid(),
             persona.Id,
+            persona.Id,
+            currentUserAccessor.GetRequiredUserId(),
             persona.TipoIdentificacion,
             persona.Identificacion,
-            persona.Nombres,
-            persona.Apellidos,
-            persona.Email,
-            persona.Telefono,
-            persona.Direccion,
+            persona.RazonSocialONombresCompletos,
+            persona.NombreComercial,
+            persona.DireccionPrincipal,
+            persona.CorreoElectronicoPrincipal,
+            persona.TelefonoCelular,
+            persona.FechaNacimiento,
+            persona.Genero,
+            NormalizeOptional(request.CodigoEmpleado),
+            NormalizeOptional(request.CodigoBiometrico),
+            request.FechaIngreso,
+            request.FechaSalida,
+            request.TipoContrato.Trim(),
+            NormalizeOptional(request.CargoPuesto),
+            request.SueldoBase,
+            request.PorcentajeComisionVentas,
+            request.EstadoLaboral.Trim(),
+            NormalizeOptional(request.NombreContactoEmergencia),
+            NormalizeOptional(request.TelefonoEmergencia),
             persona.RolesPersona.Concat(["Empleado"]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             request.IsActive,
             DateTimeOffset.UtcNow,
+            currentUserAccessor.GetRequiredUserId(),
             null);
 
         return MapToResponse(await empleadoRepository.CreateAsync(empleado, cancellationToken));
@@ -93,7 +113,7 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     public async Task<EmpleadoResponse?> UpdateAsync(Guid id, EmpleadoRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el empleado");
 
         var current = await empleadoRepository.GetByIdAsync(id, cancellationToken);
         if (current is null)
@@ -116,16 +136,31 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
         var empleado = new Empleado(
             id,
             current.PersonaId,
+            current.EmpresaId,
             updatedPersona.TipoIdentificacion,
             updatedPersona.Identificacion,
-            updatedPersona.Nombres,
-            updatedPersona.Apellidos,
-            updatedPersona.Email,
-            updatedPersona.Telefono,
-            updatedPersona.Direccion,
+            updatedPersona.RazonSocialONombresCompletos,
+            updatedPersona.NombreComercial,
+            updatedPersona.DireccionPrincipal,
+            updatedPersona.CorreoElectronicoPrincipal,
+            updatedPersona.TelefonoCelular,
+            updatedPersona.FechaNacimiento,
+            updatedPersona.Genero,
+            NormalizeOptional(request.CodigoEmpleado),
+            NormalizeOptional(request.CodigoBiometrico),
+            request.FechaIngreso,
+            request.FechaSalida,
+            request.TipoContrato.Trim(),
+            NormalizeOptional(request.CargoPuesto),
+            request.SueldoBase,
+            request.PorcentajeComisionVentas,
+            request.EstadoLaboral.Trim(),
+            NormalizeOptional(request.NombreContactoEmergencia),
+            NormalizeOptional(request.TelefonoEmergencia),
             updatedPersona.RolesPersona,
             request.IsActive,
             current.CreatedAt,
+            current.UsuarioCreacionId,
             DateTimeOffset.UtcNow);
 
         var updated = await empleadoRepository.UpdateAsync(empleado, cancellationToken);
@@ -143,13 +178,13 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             id,
             request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
-            request.Nombres.Trim(),
-            request.Apellidos.Trim(),
-            null,
-            null,
-            NormalizeOptional(request.Email),
-            NormalizeOptional(request.Telefono),
-            NormalizeOptional(request.Direccion),
+            request.RazonSocialONombresCompletos.Trim(),
+            NormalizeOptional(request.NombreComercial),
+            request.DireccionPrincipal.Trim(),
+            NormalizeOptional(request.TelefonoCelular),
+            NormalizeOptional(request.CorreoElectronicoPrincipal),
+            request.FechaNacimiento,
+            NormalizeOptional(request.Genero),
             [],
             request.IsActive,
             createdAt,
@@ -164,15 +199,30 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             PersonaId = empleado.PersonaId,
             TipoIdentificacion = empleado.TipoIdentificacion,
             Identificacion = empleado.Identificacion,
-            Nombres = empleado.Nombres,
-            Apellidos = empleado.Apellidos,
-            Email = empleado.Email,
-            Telefono = empleado.Telefono,
-            Direccion = empleado.Direccion,
+            RazonSocialONombresCompletos = empleado.RazonSocialONombresCompletos,
+            NombreComercial = empleado.NombreComercial,
+            DireccionPrincipal = empleado.DireccionPrincipal,
+            CorreoElectronicoPrincipal = empleado.CorreoElectronicoPrincipal,
+            TelefonoCelular = empleado.TelefonoCelular,
+            FechaNacimiento = empleado.FechaNacimiento,
+            Genero = empleado.Genero,
+            CodigoEmpleado = empleado.CodigoEmpleado,
+            CodigoBiometrico = empleado.CodigoBiometrico,
+            FechaIngreso = empleado.FechaIngreso,
+            FechaSalida = empleado.FechaSalida,
+            TipoContrato = empleado.TipoContrato,
+            CargoPuesto = empleado.CargoPuesto,
+            SueldoBase = empleado.SueldoBase,
+            PorcentajeComisionVentas = empleado.PorcentajeComisionVentas,
+            EstadoLaboral = empleado.EstadoLaboral,
+            NombreContactoEmergencia = empleado.NombreContactoEmergencia,
+            TelefonoEmergencia = empleado.TelefonoEmergencia,
             RolesPersona = empleado.RolesPersona,
             IsActive = empleado.IsActive,
             CreatedAt = empleado.CreatedAt,
-            UpdatedAt = empleado.UpdatedAt
+            UsuarioCreacionId = empleado.UsuarioCreacionId,
+            UpdatedAt = empleado.UpdatedAt,
+            UsuarioModificacionId = empleado.UsuarioModificacionId
         };
     }
 
@@ -185,25 +235,4 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static void ValidateIdentificationByType(string tipoIdentificacion, string identificacion)
-    {
-        var normalizedType = tipoIdentificacion.Trim().ToUpperInvariant();
-        var normalizedIdentification = identificacion.Trim();
-
-        if (string.IsNullOrWhiteSpace(normalizedIdentification))
-        {
-            throw new InvalidOperationException("La identificacion del empleado es obligatoria.");
-        }
-
-        if (normalizedType == "CEDULA" && (normalizedIdentification.Length != 10 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("La cedula del empleado debe tener 10 digitos numericos.");
-        }
-
-        if (normalizedType == "RUC" && (normalizedIdentification.Length != 13 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("El RUC del empleado debe tener 13 digitos numericos.");
-        }
-    }
 }

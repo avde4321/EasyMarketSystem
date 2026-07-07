@@ -22,8 +22,7 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
     public async Task<IReadOnlyCollection<Empleado>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var empleados = await BaseQuery()
-            .OrderBy(empleado => empleado.Persona.Apellidos)
-            .ThenBy(empleado => empleado.Persona.Nombres)
+            .OrderBy(empleado => empleado.Persona.RazonSocialONombresCompletos)
             .ToListAsync(cancellationToken);
 
         return empleados.Select(MapToDomain).ToArray();
@@ -34,8 +33,7 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
         var query = ApplyFilter(BaseQuery(), term);
         var totalCount = await query.CountAsync(cancellationToken);
         var empleados = await query
-            .OrderBy(empleado => empleado.Persona.Apellidos)
-            .ThenBy(empleado => empleado.Persona.Nombres)
+            .OrderBy(empleado => empleado.Persona.RazonSocialONombresCompletos)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -51,7 +49,7 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
 
     public async Task<Empleado?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var empleado = await BaseQuery().FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var empleado = await BaseQuery().FirstOrDefaultAsync(current => current.PersonaId == id, cancellationToken);
         return empleado is null ? null : MapToDomain(empleado);
     }
 
@@ -59,7 +57,7 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
     {
         var empleado = await BaseQuery()
             .FirstOrDefaultAsync(
-                current => current.PersonaId == personaId && (!excludedId.HasValue || current.Id != excludedId.Value),
+                current => current.PersonaId == personaId && (!excludedId.HasValue || current.PersonaId != excludedId.Value),
                 cancellationToken);
 
         return empleado is null ? null : MapToDomain(empleado);
@@ -69,38 +67,62 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
     {
         var entity = new EmpleadoEntity
         {
-            Id = empleado.Id,
-            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el empleado."),
             PersonaId = empleado.PersonaId,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el empleado."),
+            CodigoEmpleado = empleado.CodigoEmpleado,
+            CodigoBiometrico = empleado.CodigoBiometrico,
+            FechaIngreso = empleado.FechaIngreso,
+            FechaSalida = empleado.FechaSalida,
+            TipoContrato = empleado.TipoContrato,
+            CargoPuesto = empleado.CargoPuesto,
+            SueldoBase = empleado.SueldoBase,
+            PorcentajeComisionVentas = empleado.PorcentajeComisionVentas,
+            EstadoLaboral = empleado.EstadoLaboral,
+            NombreContactoEmergencia = empleado.NombreContactoEmergencia,
+            TelefonoEmergencia = empleado.TelefonoEmergencia,
             IsActive = empleado.IsActive,
             CreatedAt = empleado.CreatedAt,
-            UpdatedAt = empleado.UpdatedAt
+            UsuarioCreacionId = empleado.UsuarioCreacionId,
+            UpdatedAt = empleado.UpdatedAt,
+            UsuarioModificacionId = empleado.UsuarioModificacionId
         };
 
         dbContext.Empleados.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return await GetByIdAsync(entity.Id, cancellationToken) ?? empleado;
+        return await GetByIdAsync(entity.PersonaId, cancellationToken) ?? empleado;
     }
 
     public async Task<Empleado?> UpdateAsync(Empleado empleado, CancellationToken cancellationToken = default)
     {
-        var entity = await dbContext.Empleados.FirstOrDefaultAsync(current => current.Id == empleado.Id, cancellationToken);
+        var entity = await dbContext.Empleados.FirstOrDefaultAsync(current => current.PersonaId == empleado.Id, cancellationToken);
 
         if (entity is null)
         {
             return null;
         }
 
+        entity.CodigoEmpleado = empleado.CodigoEmpleado;
+        entity.CodigoBiometrico = empleado.CodigoBiometrico;
+        entity.FechaIngreso = empleado.FechaIngreso;
+        entity.FechaSalida = empleado.FechaSalida;
+        entity.TipoContrato = empleado.TipoContrato;
+        entity.CargoPuesto = empleado.CargoPuesto;
+        entity.SueldoBase = empleado.SueldoBase;
+        entity.PorcentajeComisionVentas = empleado.PorcentajeComisionVentas;
+        entity.EstadoLaboral = empleado.EstadoLaboral;
+        entity.NombreContactoEmergencia = empleado.NombreContactoEmergencia;
+        entity.TelefonoEmergencia = empleado.TelefonoEmergencia;
         entity.IsActive = empleado.IsActive;
         entity.UpdatedAt = empleado.UpdatedAt;
+        entity.UsuarioModificacionId = empleado.UsuarioModificacionId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return await GetByIdAsync(entity.Id, cancellationToken);
+        return await GetByIdAsync(entity.PersonaId, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var entity = await dbContext.Empleados.FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var entity = await dbContext.Empleados.FirstOrDefaultAsync(current => current.PersonaId == id, cancellationToken);
 
         if (entity is null)
         {
@@ -133,28 +155,47 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
         return query.Where(empleado =>
             empleado.Persona.TipoIdentificacion.Contains(normalizedTerm) ||
             empleado.Persona.Identificacion.Contains(normalizedTerm) ||
-            empleado.Persona.Nombres.Contains(normalizedTerm) ||
-            empleado.Persona.Apellidos.Contains(normalizedTerm) ||
-            (empleado.Persona.Email != null && empleado.Persona.Email.Contains(normalizedTerm)) ||
-            (empleado.Persona.Telefono != null && empleado.Persona.Telefono.Contains(normalizedTerm)) ||
-            (empleado.Persona.Direccion != null && empleado.Persona.Direccion.Contains(normalizedTerm)));
+            empleado.Persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+            (empleado.Persona.NombreComercial != null && empleado.Persona.NombreComercial.Contains(normalizedTerm)) ||
+            (empleado.Persona.CorreoElectronicoPrincipal != null && empleado.Persona.CorreoElectronicoPrincipal.Contains(normalizedTerm)) ||
+            (empleado.Persona.TelefonoCelular != null && empleado.Persona.TelefonoCelular.Contains(normalizedTerm)) ||
+            empleado.Persona.DireccionPrincipal.Contains(normalizedTerm) ||
+            (empleado.CodigoEmpleado != null && empleado.CodigoEmpleado.Contains(normalizedTerm)) ||
+            (empleado.CargoPuesto != null && empleado.CargoPuesto.Contains(normalizedTerm)) ||
+            empleado.TipoContrato.Contains(normalizedTerm) ||
+            empleado.EstadoLaboral.Contains(normalizedTerm));
     }
 
     private static Empleado MapToDomain(EmpleadoEntity entity)
     {
         return new Empleado(
-            entity.Id,
             entity.PersonaId,
+            entity.PersonaId,
+            entity.EmpresaId,
             entity.Persona.TipoIdentificacion,
             entity.Persona.Identificacion,
-            entity.Persona.Nombres,
-            entity.Persona.Apellidos,
-            entity.Persona.Email,
-            entity.Persona.Telefono,
-            entity.Persona.Direccion,
+            entity.Persona.RazonSocialONombresCompletos,
+            entity.Persona.NombreComercial,
+            entity.Persona.DireccionPrincipal,
+            entity.Persona.CorreoElectronicoPrincipal,
+            entity.Persona.TelefonoCelular,
+            entity.Persona.FechaNacimiento,
+            entity.Persona.Genero,
+            entity.CodigoEmpleado,
+            entity.CodigoBiometrico,
+            entity.FechaIngreso,
+            entity.FechaSalida,
+            entity.TipoContrato,
+            entity.CargoPuesto,
+            entity.SueldoBase,
+            entity.PorcentajeComisionVentas,
+            entity.EstadoLaboral,
+            entity.NombreContactoEmergencia,
+            entity.TelefonoEmergencia,
             ResolvePersonaRoles(entity.Persona),
             entity.IsActive,
             entity.CreatedAt,
+            entity.UsuarioCreacionId,
             entity.UpdatedAt);
     }
 

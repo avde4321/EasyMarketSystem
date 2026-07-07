@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707041729_AddEmpleadoLaborFields")]
+    partial class AddEmpleadoLaborFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -152,7 +155,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000001"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "04",
+                            Codigo = "RUC",
                             IsActive = true,
                             Nombre = "RUC",
                             Orden = 1
@@ -161,7 +164,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000002"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "05",
+                            Codigo = "Cedula",
                             IsActive = true,
                             Nombre = "Cedula",
                             Orden = 2
@@ -170,7 +173,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000003"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "06",
+                            Codigo = "Pasaporte",
                             IsActive = true,
                             Nombre = "Pasaporte",
                             Orden = 3
@@ -179,7 +182,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000004"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "07",
+                            Codigo = "Consumidor Final",
                             IsActive = true,
                             Nombre = "Consumidor final",
                             Orden = 4
@@ -188,7 +191,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000005"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "08",
+                            Codigo = "Identificacion del Exterior",
                             IsActive = true,
                             Nombre = "Identificacion del exterior",
                             Orden = 5
@@ -197,7 +200,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("71000000-0000-0000-0000-000000000006"),
                             CatalogoId = new Guid("70000000-0000-0000-0000-000000000001"),
-                            Codigo = "09",
+                            Codigo = "Placa",
                             IsActive = true,
                             Nombre = "Placa",
                             Orden = 6
@@ -433,58 +436,29 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ClienteEntity", b =>
                 {
-                    b.Property<Guid>("PersonaId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CorreoFacturacionElectronica")
-                        .HasMaxLength(180)
-                        .HasColumnType("nvarchar(180)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<int>("DiasCreditoMaximo")
-                        .HasColumnType("int");
-
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("EsContribuyenteEspecial")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("EstadoCredito")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<decimal>("LimiteCredito")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("ObligadoContabilidad")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("PermiteCredito")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("TipoCliente")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid>("UsuarioCreacionId")
-                        .HasColumnType("uniqueidentifier");
+                    b.HasKey("Id");
 
-                    b.Property<Guid?>("UsuarioModificacionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("PersonaId");
+                    b.HasIndex("PersonaId")
+                        .IsUnique();
 
                     b.HasIndex("EmpresaId", "PersonaId")
                         .IsUnique();
@@ -494,20 +468,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpleadoEntity", b =>
                 {
-                    b.Property<Guid>("PersonaId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CargoPuesto")
+                    b.Property<string>("Cargo")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("CodigoBiometrico")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("CodigoEmpleado")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -515,51 +482,26 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("EstadoLaboral")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
                     b.Property<DateOnly?>("FechaIngreso")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("FechaSalida")
                         .HasColumnType("date");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("NombreContactoEmergencia")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<string>("PerfilLaboral")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
-                    b.Property<decimal>("PorcentajeComisionVentas")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal>("SueldoBase")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("TelefonoEmergencia")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("TipoContrato")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid>("UsuarioCreacionId")
-                        .HasColumnType("uniqueidentifier");
+                    b.HasKey("Id");
 
-                    b.Property<Guid?>("UsuarioModificacionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("PersonaId");
+                    b.HasIndex("PersonaId")
+                        .IsUnique();
 
                     b.HasIndex("EmpresaId", "PersonaId")
                         .IsUnique();
@@ -1141,27 +1083,31 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CorreoElectronicoPrincipal")
-                        .HasMaxLength(180)
-                        .HasColumnType("nvarchar(180)");
+                    b.Property<string>("Apellidos")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("DireccionPrincipal")
-                        .IsRequired()
+                    b.Property<string>("Direccion")
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
 
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateOnly?>("FechaNacimiento")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Genero")
+                    b.Property<string>("EstadoCivil")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateOnly?>("FechaNacimiento")
+                        .HasColumnType("date");
 
                     b.Property<string>("Identificacion")
                         .IsRequired()
@@ -1176,23 +1122,19 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("NombreComercial")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("RazonSocialONombresCompletos")
+                    b.Property<string>("Nombres")
                         .IsRequired()
-                        .HasMaxLength(180)
-                        .HasColumnType("nvarchar(180)");
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
-                    b.Property<string>("TelefonoCelular")
+                    b.Property<string>("Telefono")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("TipoIdentificacion")
                         .IsRequired()
-                        .HasMaxLength(2)
-                        .HasColumnType("nvarchar(2)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1208,15 +1150,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            CorreoElectronicoPrincipal = "admin@testdeia.local",
+                            Apellidos = "Sistema",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            DireccionPrincipal = "Sistema",
+                            Email = "admin@testdeia.local",
                             EmpresaId = new Guid("22222222-2222-2222-2222-222222222222"),
                             Identificacion = "ADMIN",
                             IsActive = true,
                             IsSystemRecord = true,
-                            RazonSocialONombresCompletos = "Administrador Sistema",
-                            TipoIdentificacion = "05"
+                            Nombres = "Administrador",
+                            TipoIdentificacion = "Sistema"
                         });
                 });
 

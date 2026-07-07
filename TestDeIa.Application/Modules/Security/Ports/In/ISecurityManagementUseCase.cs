@@ -1,4 +1,5 @@
 using TestDeIa.Shared.Requests.Security;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Security;
 
 namespace TestDeIa.Application.Modules.Security.Ports.In;
@@ -6,6 +7,8 @@ namespace TestDeIa.Application.Modules.Security.Ports.In;
 public interface ISecurityManagementUseCase
 {
     Task<IReadOnlyCollection<SecurityUserResponse>> GetUsersAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResultResponse<SecurityUserResponse>> GetUsersPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<SecurityRoleResponse>> GetRolesAsync(CancellationToken cancellationToken = default);
 

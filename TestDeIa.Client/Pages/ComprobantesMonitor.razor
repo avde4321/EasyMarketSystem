@@ -10,7 +10,7 @@
             <h1>Monitor de Comprobantes</h1>
             <p>Seguimiento en tiempo real del estado de facturas ante el SRI.</p>
         </div>
-        <button class="secondary-action" @onclick="LoadMonitorAsync">Actualizar</button>
+        <button class="secondary-action" @onclick="() => LoadMonitorAsync()">Actualizar</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -26,10 +26,11 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por numero, cliente, identificacion, pago o estado..." />
-            <button class="secondary-action" type="button" @onclick="LoadMonitorAsync">Refrescar lista</button>
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+            <button class="ghost-button" type="button" @onclick="() => LoadMonitorAsync()">Refrescar lista</button>
         </div>
         <div class="monitor-summary">
-            <span class="summary-chip">Total: @facturas.Count</span>
+            <span class="summary-chip">Total: @totalCount</span>
             <span class="summary-chip summary-pending">Pendientes: @facturas.Count(factura => factura.Estado.Equals("Pendiente", StringComparison.OrdinalIgnoreCase))</span>
             <span class="summary-chip summary-success">Autorizadas: @facturas.Count(factura => factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase))</span>
         </div>
@@ -40,10 +41,6 @@
         else if (facturas.Count == 0)
         {
             <div class="empty-state">Todavia no hay facturas emitidas.</div>
-        }
-        else if (!FilteredFacturas.Any())
-        {
-            <div class="empty-state">No hay comprobantes que coincidan con la busqueda.</div>
         }
         else
         {
@@ -63,7 +60,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var factura in FilteredFacturas)
+                        @foreach (var factura in VisibleFacturas)
                         {
                             <tr>
                                 <td data-label="Numero">@factura.NumeroComprobante</td>
@@ -105,6 +102,15 @@
                     </tbody>
                 </table>
             </div>
+
+            <footer class="table-footer">
+                <span class="table-count">@totalCount comprobante(s) encontrados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
         }
     </section>
 </section>

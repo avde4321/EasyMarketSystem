@@ -10,17 +10,37 @@ public sealed class ClienteResponse
 
     public string Identificacion { get; set; } = string.Empty;
 
-    public string Nombres { get; set; } = string.Empty;
+    public string RazonSocialONombresCompletos { get; set; } = string.Empty;
 
-    public string Apellidos { get; set; } = string.Empty;
+    public string? NombreComercial { get; set; }
 
-    public string NombreCompleto => $"{Nombres} {Apellidos}".Trim();
+    public string NombreCompleto => RazonSocialONombresCompletos;
 
-    public string? Email { get; set; }
+    public string DireccionPrincipal { get; set; } = string.Empty;
 
-    public string? Telefono { get; set; }
+    public string? CorreoElectronicoPrincipal { get; set; }
 
-    public string? Direccion { get; set; }
+    public string? TelefonoCelular { get; set; }
+
+    public DateOnly? FechaNacimiento { get; set; }
+
+    public string? Genero { get; set; }
+
+    public string? CorreoFacturacionElectronica { get; set; }
+
+    public string TipoCliente { get; set; } = string.Empty;
+
+    public bool ObligadoContabilidad { get; set; }
+
+    public bool EsContribuyenteEspecial { get; set; }
+
+    public bool PermiteCredito { get; set; }
+
+    public decimal LimiteCredito { get; set; }
+
+    public int DiasCreditoMaximo { get; set; }
+
+    public string EstadoCredito { get; set; } = string.Empty;
 
     public IReadOnlyCollection<string> RolesPersona { get; set; } = [];
 
@@ -28,5 +48,9 @@ public sealed class ClienteResponse
 
     public DateTimeOffset CreatedAt { get; set; }
 
+    public Guid UsuarioCreacionId { get; set; }
+
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    public Guid? UsuarioModificacionId { get; set; }
 }

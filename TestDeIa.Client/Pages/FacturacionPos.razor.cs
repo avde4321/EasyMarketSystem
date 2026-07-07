@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Facturacion;
+using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Facturacion;
@@ -15,6 +17,9 @@ public partial class FacturacionPos : IDisposable
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
+    [Inject]
+    private ClientesApiClient ClientesApiClient { get; set; } = default!;
+
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
@@ -28,6 +33,7 @@ public partial class FacturacionPos : IDisposable
     private string? observacion;
     private bool isSubmitting;
     private bool showOperationalContextModal;
+    private bool isCreatingClienteExtension;
     private string? errorMessage;
     private string? statusMessage;
     private const int SearchPageSize = 8;
@@ -224,6 +230,12 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        if (!selectedCliente.HasClienteExtension || !selectedCliente.ClienteId.HasValue)
+        {
+            errorMessage = "La persona seleccionada aun no tiene el rol de cliente en esta empresa. Activalo antes de facturar.";
+            return;
+        }
+
         if (!EnsureOperationalContext())
         {
             return;
@@ -247,7 +259,7 @@ public partial class FacturacionPos : IDisposable
         {
             var result = await FacturacionApiClient.EmitirFacturaAsync(new EmitirFacturaRequest
             {
-                ClienteId = selectedCliente.ClienteId,
+                ClienteId = selectedCliente.ClienteId.Value,
                 Establecimiento = selectedPuntoEmision!.Establecimiento,
                 PuntoEmision = selectedPuntoEmision.PuntoEmision,
                 FormaPago = formaPago,
@@ -277,6 +289,63 @@ public partial class FacturacionPos : IDisposable
         finally
         {
             isSubmitting = false;
+        }
+    }
+
+    private async Task ActivarClienteExtensionAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (selectedCliente is null)
+        {
+            errorMessage = "Selecciona una persona antes de crear la extension de cliente.";
+            return;
+        }
+
+        isCreatingClienteExtension = true;
+
+        try
+        {
+            var request = new ClienteRequest
+            {
+                TipoIdentificacion = selectedCliente.TipoIdentificacion,
+                Identificacion = selectedCliente.Identificacion,
+                RazonSocialONombresCompletos = selectedCliente.NombreCompleto,
+                NombreComercial = selectedCliente.NombreComercial,
+                DireccionPrincipal = string.IsNullOrWhiteSpace(selectedCliente.Direccion) ? "Sin direccion registrada" : selectedCliente.Direccion,
+                CorreoElectronicoPrincipal = selectedCliente.Email,
+                CorreoFacturacionElectronica = selectedCliente.Email,
+                TelefonoCelular = selectedCliente.Telefono,
+                TipoCliente = selectedCliente.TipoIdentificacion == "04" ? "Juridico" : "Natural",
+                EstadoCredito = "Normal",
+                IsActive = true
+            };
+
+            var result = await ClientesApiClient.CreateAsync(request);
+            if (!result.Succeeded)
+            {
+                errorMessage = result.ErrorMessage ?? "No se pudo crear la extension comercial del cliente.";
+                return;
+            }
+
+            statusMessage = "La persona ahora quedo habilitada como cliente para la empresa activa.";
+            clienteSearchTerm = selectedCliente.Identificacion;
+            await SearchClientesAsync();
+
+            var refreshed = clienteResults.FirstOrDefault(current => current.PersonaId == selectedCliente.PersonaId);
+            if (refreshed is not null)
+            {
+                SelectCliente(refreshed);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo activar la extension de cliente.";
+        }
+        finally
+        {
+            isCreatingClienteExtension = false;
         }
     }
 

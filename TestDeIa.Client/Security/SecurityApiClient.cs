@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Security;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Security;
 
 namespace TestDeIa.Client.Security;
@@ -36,10 +37,11 @@ public sealed class SecurityApiClient
             };
     }
 
-    public async Task<IReadOnlyCollection<SecurityUserResponse>> GetUsersAsync()
+    public async Task<PagedResultResponse<SecurityUserResponse>> GetUsersAsync(string? term, int skip, int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<SecurityUserResponse>>("api/security/users")
-            ?? Array.Empty<SecurityUserResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<SecurityUserResponse>>($"api/security/users?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<SecurityUserResponse> { Skip = skip, Take = take };
     }
 
     public async Task<IReadOnlyCollection<SecurityRoleResponse>> GetRolesAsync()

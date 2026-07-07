@@ -1,8 +1,10 @@
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Personas.Ports.In;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
+using TestDeIa.Application.Common;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Personas;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Personas;
 
 namespace TestDeIa.Application.Modules.Personas.UseCases;
@@ -22,6 +24,18 @@ public sealed class PersonaUseCase : IPersonaUseCase
     {
         var personas = await personaRepository.GetAllAsync(cancellationToken);
         return personas.Select(MapToResponse).ToArray();
+    }
+
+    public async Task<PagedResultResponse<PersonaResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await personaRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<PersonaResponse>
+        {
+            Items = page.Items.Select(MapToResponse).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<PersonaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -44,7 +58,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
     public async Task<PersonaResponse> CreateAsync(PersonaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "la persona");
 
         if (await personaRepository.ExistsByIdentificacionAsync(request.Identificacion, cancellationToken: cancellationToken))
         {
@@ -55,13 +69,13 @@ public sealed class PersonaUseCase : IPersonaUseCase
             Guid.NewGuid(),
             request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
-            request.Nombres.Trim(),
-            request.Apellidos.Trim(),
-            NormalizeOptional(request.EstadoCivil),
+            request.RazonSocialONombresCompletos.Trim(),
+            NormalizeOptional(request.NombreComercial),
+            request.DireccionPrincipal.Trim(),
+            NormalizeOptional(request.TelefonoCelular),
+            NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
-            NormalizeOptional(request.Email),
-            NormalizeOptional(request.Telefono),
-            NormalizeOptional(request.Direccion),
+            NormalizeOptional(request.Genero),
             [],
             request.IsActive,
             DateTimeOffset.UtcNow,
@@ -73,7 +87,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
     public async Task<PersonaResponse?> UpdateAsync(Guid id, PersonaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "la persona");
 
         if (await personaRepository.ExistsByIdentificacionAsync(request.Identificacion, id, cancellationToken))
         {
@@ -90,13 +104,13 @@ public sealed class PersonaUseCase : IPersonaUseCase
             id,
             request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
-            request.Nombres.Trim(),
-            request.Apellidos.Trim(),
-            NormalizeOptional(request.EstadoCivil),
+            request.RazonSocialONombresCompletos.Trim(),
+            NormalizeOptional(request.NombreComercial),
+            request.DireccionPrincipal.Trim(),
+            NormalizeOptional(request.TelefonoCelular),
+            NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
-            NormalizeOptional(request.Email),
-            NormalizeOptional(request.Telefono),
-            NormalizeOptional(request.Direccion),
+            NormalizeOptional(request.Genero),
             current.RolesPersona,
             request.IsActive,
             current.CreatedAt,
@@ -113,13 +127,13 @@ public sealed class PersonaUseCase : IPersonaUseCase
             Id = persona.Id,
             TipoIdentificacion = persona.TipoIdentificacion,
             Identificacion = persona.Identificacion,
-            Nombres = persona.Nombres,
-            Apellidos = persona.Apellidos,
-            EstadoCivil = persona.EstadoCivil,
+            RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
+            NombreComercial = persona.NombreComercial,
+            DireccionPrincipal = persona.DireccionPrincipal,
             FechaNacimiento = persona.FechaNacimiento,
-            Email = persona.Email,
-            Telefono = persona.Telefono,
-            Direccion = persona.Direccion,
+            CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
+            TelefonoCelular = persona.TelefonoCelular,
+            Genero = persona.Genero,
             RolesPersona = persona.RolesPersona,
             IsActive = persona.IsActive,
             CreatedAt = persona.CreatedAt,
@@ -134,41 +148,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
             throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.EstadoCivil) &&
-            !await catalogoRepository.ExistsActiveItemAsync("ESTADO_CIVIL", request.EstadoCivil.Trim(), cancellationToken))
-        {
-            throw new InvalidOperationException("El estado civil no coincide con el catalogo parametrizado.");
-        }
     }
 
-    private static string? NormalizeOptional(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    }
-
-    private static void ValidateIdentificationByType(string tipoIdentificacion, string identificacion)
-    {
-        var normalizedType = tipoIdentificacion.Trim().ToUpperInvariant();
-        var normalizedIdentification = identificacion.Trim();
-
-        if (string.IsNullOrWhiteSpace(normalizedIdentification))
-        {
-            throw new InvalidOperationException("La identificacion de la persona es obligatoria.");
-        }
-
-        if (normalizedType == "CEDULA" && (normalizedIdentification.Length != 10 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("La cedula de la persona debe tener 10 digitos numericos.");
-        }
-
-        if (normalizedType == "RUC" && (normalizedIdentification.Length != 13 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("El RUC de la persona debe tener 13 digitos numericos.");
-        }
-
-        if (normalizedType == "CONSUMIDOR FINAL" && normalizedIdentification != "9999999999999")
-        {
-            throw new InvalidOperationException("Para consumidor final se debe usar la identificacion 9999999999999.");
-        }
-    }
+    private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

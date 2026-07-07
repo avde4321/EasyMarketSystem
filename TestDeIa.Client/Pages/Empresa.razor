@@ -25,9 +25,10 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razon social, ambiente o puntos de emision..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         <div class="table-scroll">
-            <table class="data-table">
+            <table class="data-table responsive-table">
                 <thead>
                     <tr>
                         <th>RUC</th>
@@ -45,31 +46,27 @@
                             <td colspan="6" class="empty-state-cell">Todavia no tienes empresas registradas.</td>
                         </tr>
                     }
-                    else if (!FilteredEmpresas.Any())
-                    {
-                        <tr>
-                            <td colspan="6" class="empty-state-cell">No hay empresas que coincidan con la busqueda.</td>
-                        </tr>
-                    }
                     else
                     {
-                        @foreach (var empresa in FilteredEmpresas)
+                        @foreach (var empresa in VisibleEmpresas)
                         {
                             <tr class="@(selectedEmpresaId == empresa.Id ? "is-selected-row" : string.Empty)">
-                                <td>@empresa.Ruc</td>
-                                <td>@empresa.RazonSocial</td>
-                                <td>@empresa.AmbienteSri</td>
-                                <td>
+                                <td data-label="RUC">@empresa.Ruc</td>
+                                <td data-label="Razon social">@empresa.RazonSocial</td>
+                                <td data-label="Ambiente">@empresa.AmbienteSri</td>
+                                <td data-label="Emision">
                                     @GetPuntosResumen(empresa)
                                     <small>@($"{empresa.PuntosEmision.Count} punto(s) configurado(s)")</small>
                                 </td>
-                                <td>
+                                <td data-label="Estado">
                                     <span class="status-pill @(empresa.IsActive ? "is-active" : "is-inactive")">
                                         @(empresa.IsActive ? "Activa" : "Inactiva")
                                     </span>
                                 </td>
-                                <td>
-                                    <button class="ghost-button" type="button" @onclick="() => SelectEmpresaAsync(empresa.Id)">Editar</button>
+                                <td data-label="Acciones">
+                                    <div class="row-actions">
+                                        <button class="ghost-button" type="button" @onclick="() => SelectEmpresaAsync(empresa.Id)">Editar</button>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -77,6 +74,17 @@
                 </tbody>
             </table>
         </div>
+        @if (empresas.Count > 0)
+        {
+            <footer class="table-footer">
+                <span class="table-count">@totalCount empresa(s) registradas</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
+        }
     </section>
 
     <section class="table-card">

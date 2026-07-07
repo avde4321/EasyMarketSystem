@@ -17,7 +17,6 @@ public partial class Personas
 
     private readonly List<PersonaResponse> personas = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
-    private readonly List<CatalogoItemResponse> estadosCiviles = [];
     private PersonaRequest personaRequest = new();
     private Guid? editingPersonaId;
     private bool isLoading = true;
@@ -25,39 +24,43 @@ public partial class Personas
     private bool isEditorOpen;
     private string? errorMessage;
     private string searchTerm = string.Empty;
-
-    private IEnumerable<PersonaResponse> FilteredPersonas => personas.Where(persona =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        persona.TipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        persona.Identificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        persona.NombreCompleto.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (persona.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        (persona.Telefono?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        persona.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<PersonaResponse> VisiblePersonas => personas;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
-        await LoadPersonasAsync();
+        await LoadPersonasAsync(resetPaging: true);
     }
 
     private async Task LoadCatalogosAsync()
     {
         tiposIdentificacion.Clear();
-        estadosCiviles.Clear();
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
-        estadosCiviles.AddRange(await CatalogosApiClient.GetItemsAsync("ESTADO_CIVIL", true));
     }
 
-    private async Task LoadPersonasAsync()
+    private async Task LoadPersonasAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await PersonasApiClient.GetPagedAsync(searchTerm, currentSkip, PageSize);
             personas.Clear();
-            personas.AddRange(await PersonasApiClient.GetAllAsync());
+            personas.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -72,7 +75,10 @@ public partial class Personas
     private void OpenCreateModal()
     {
         editingPersonaId = null;
-        personaRequest = new PersonaRequest();
+        personaRequest = new PersonaRequest
+        {
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05"
+        };
         errorMessage = null;
         isEditorOpen = true;
     }
@@ -85,13 +91,13 @@ public partial class Personas
         {
             TipoIdentificacion = persona.TipoIdentificacion,
             Identificacion = persona.Identificacion,
-            Nombres = persona.Nombres,
-            Apellidos = persona.Apellidos,
-            EstadoCivil = persona.EstadoCivil,
+            RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
+            NombreComercial = persona.NombreComercial,
             FechaNacimiento = persona.FechaNacimiento,
-            Email = persona.Email,
-            Telefono = persona.Telefono,
-            Direccion = persona.Direccion,
+            CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
+            TelefonoCelular = persona.TelefonoCelular,
+            DireccionPrincipal = persona.DireccionPrincipal,
+            Genero = persona.Genero,
             IsActive = persona.IsActive
         };
         isEditorOpen = true;
@@ -132,5 +138,29 @@ public partial class Personas
         {
             isSaving = false;
         }
+    }
+
+    private Task SearchAsync() => LoadPersonasAsync(resetPaging: true);
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadPersonasAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadPersonasAsync();
     }
 }

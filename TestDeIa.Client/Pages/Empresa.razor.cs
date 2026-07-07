@@ -29,22 +29,19 @@ public partial class Empresa
     private bool showPuntosEmisionModal;
     private EmpresaPuntoEmisionRequest puntoEmisionDraft = new() { Establecimiento = "001", PuntoEmision = "001" };
     private int? editingPuntoIndex;
-
-    private IEnumerable<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> FilteredEmpresas => empresas.Where(empresa =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        empresa.Ruc.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empresa.RazonSocial.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (empresa.NombreComercial?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-        empresa.AmbienteSri.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        empresa.PuntosEmision.Any(punto =>
-            punto.Establecimiento.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-            punto.PuntoEmision.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-            (punto.DireccionEstablecimiento?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)));
+    private const int PageSize = 8;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> VisibleEmpresas => empresas;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
-        await LoadAsync();
+        await LoadAsync(resetPaging: true);
     }
 
     private async Task LoadCatalogosAsync()
@@ -55,29 +52,21 @@ public partial class Empresa
         tiposEmision.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_EMISION", true));
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         errorMessage = null;
 
         try
         {
             empresas.Clear();
-            var opciones = await EmpresaApiClient.GetMineAsync();
-
-            foreach (var opcion in opciones)
-            {
-                var detalle = await EmpresaApiClient.GetByIdAsync(opcion.Id);
-                if (detalle is not null)
-                {
-                    empresas.Add(detalle);
-                }
-            }
-
-            if (selectedEmpresaId.HasValue)
-            {
-                await SelectEmpresaAsync(selectedEmpresaId.Value);
-                return;
-            }
+            var page = await EmpresaApiClient.GetPagedAsync(searchTerm, currentSkip, PageSize);
+            empresas.AddRange(page.Items);
+            totalCount = page.TotalCount;
 
             if (empresas.Count == 0)
             {
@@ -85,7 +74,11 @@ public partial class Empresa
                 return;
             }
 
-            await SelectEmpresaAsync(empresas[0].Id);
+            var targetEmpresaId = selectedEmpresaId.HasValue && empresas.Any(current => current.Id == selectedEmpresaId.Value)
+                ? selectedEmpresaId.Value
+                : empresas[0].Id;
+
+            await SelectEmpresaAsync(targetEmpresaId);
         }
         catch (HttpRequestException)
         {
@@ -115,7 +108,7 @@ public partial class Empresa
             statusMessage = selectedEmpresaId.HasValue
                 ? "La empresa fue guardada correctamente."
                 : "La empresa fue creada correctamente.";
-            await LoadAsync();
+            await LoadAsync(resetPaging: true);
         }
         catch (HttpRequestException)
         {
@@ -325,5 +318,29 @@ public partial class Empresa
         return empresa.PuntosEmision.Count == 1
             ? $"{principal.Establecimiento}-{principal.PuntoEmision}"
             : $"{principal.Establecimiento}-{principal.PuntoEmision} + {empresa.PuntosEmision.Count - 1}";
+    }
+
+    private Task SearchAsync() => LoadAsync(resetPaging: true);
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadAsync();
     }
 }

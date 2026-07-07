@@ -52,9 +52,9 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return response;
     }
 
-    public Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync(CancellationToken cancellationToken = default)
+    public Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
     {
-        return facturacionRepository.GetMonitorAsync(cancellationToken);
+        return facturacionRepository.GetMonitorAsync(term, skip, take, cancellationToken);
     }
 
     private async Task ValidateRequestAsync(EmitirFacturaRequest request, CancellationToken cancellationToken)

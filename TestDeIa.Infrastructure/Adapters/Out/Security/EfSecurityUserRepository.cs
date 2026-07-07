@@ -3,6 +3,7 @@ using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Security.Entities;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Security;
 
@@ -32,6 +33,39 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .ToListAsync(cancellationToken);
 
         return users.Select(MapUser).ToArray();
+    }
+
+    public async Task<PagedResultResponse<SecurityUser>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var normalizedTerm = term?.Trim();
+        var query = BaseQuery();
+
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(current =>
+                current.UserName.Contains(normalizedTerm) ||
+                current.DisplayName.Contains(normalizedTerm) ||
+                current.Email.Contains(normalizedTerm) ||
+                current.Persona.Identificacion.Contains(normalizedTerm) ||
+                current.Persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                (current.Persona.NombreComercial != null && current.Persona.NombreComercial.Contains(normalizedTerm)) ||
+                current.UserRoles.Any(userRole => userRole.Role.Name.Contains(normalizedTerm)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var users = await query
+            .OrderBy(current => current.DisplayName)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<SecurityUser>
+        {
+            Items = users.Select(MapUser).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<SecurityUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

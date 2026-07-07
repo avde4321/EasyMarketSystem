@@ -16,32 +16,32 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
             .IsRequired();
 
         builder.Property(persona => persona.TipoIdentificacion)
-            .HasMaxLength(30)
+            .HasMaxLength(2)
             .IsRequired();
 
         builder.Property(persona => persona.Identificacion)
             .HasMaxLength(30)
             .IsRequired();
 
-        builder.Property(persona => persona.Nombres)
-            .HasMaxLength(120)
+        builder.Property(persona => persona.RazonSocialONombresCompletos)
+            .HasMaxLength(180)
             .IsRequired();
 
-        builder.Property(persona => persona.Apellidos)
-            .HasMaxLength(120)
+        builder.Property(persona => persona.NombreComercial)
+            .HasMaxLength(150);
+
+        builder.Property(persona => persona.DireccionPrincipal)
+            .HasMaxLength(250)
             .IsRequired();
 
-        builder.Property(persona => persona.EstadoCivil)
-            .HasMaxLength(30);
-
-        builder.Property(persona => persona.Email)
+        builder.Property(persona => persona.CorreoElectronicoPrincipal)
             .HasMaxLength(180);
 
-        builder.Property(persona => persona.Telefono)
+        builder.Property(persona => persona.TelefonoCelular)
             .HasMaxLength(40);
 
-        builder.Property(persona => persona.Direccion)
-            .HasMaxLength(250);
+        builder.Property(persona => persona.Genero)
+            .HasMaxLength(30);
 
         builder.HasIndex(persona => new { persona.EmpresaId, persona.Identificacion })
             .IsUnique();
@@ -53,12 +53,12 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
         {
             Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
             EmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            TipoIdentificacion = "Sistema",
+            TipoIdentificacion = "05",
             Identificacion = "ADMIN",
-            Nombres = "Administrador",
-            Apellidos = "Sistema",
-            EstadoCivil = null,
-            Email = "admin@testdeia.local",
+            RazonSocialONombresCompletos = "Administrador Sistema",
+            NombreComercial = null,
+            DireccionPrincipal = "Sistema",
+            CorreoElectronicoPrincipal = "admin@testdeia.local",
             IsActive = true,
             IsSystemRecord = true,
             CreatedAt = new DateTimeOffset(2026, 6, 18, 0, 0, 0, TimeSpan.Zero)

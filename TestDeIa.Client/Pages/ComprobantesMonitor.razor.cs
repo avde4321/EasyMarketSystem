@@ -22,35 +22,40 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private Guid? busyFacturaId;
     private string? busyDocumentKind;
     private string? downloadStatusMessage;
-
-    private IEnumerable<FacturaMonitorResponse> FilteredFacturas => facturas.Where(factura =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        factura.NumeroComprobante.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        factura.ClienteNombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        factura.ClienteIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        factura.ClienteTipoIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        factura.FormaPago.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        factura.Estado.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        (factura.MensajeEstado?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<FacturaMonitorResponse> VisibleFacturas => facturas;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         cancellationTokenSource = new CancellationTokenSource();
         timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 
-        await LoadMonitorAsync();
+        await LoadMonitorAsync(resetPaging: true);
         _ = PollAsync(cancellationTokenSource.Token);
     }
 
-    private async Task LoadMonitorAsync()
+    private async Task LoadMonitorAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await FacturacionApiClient.GetMonitorAsync(searchTerm, currentSkip, PageSize);
             facturas.Clear();
-            facturas.AddRange(await FacturacionApiClient.GetMonitorAsync());
+            facturas.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -191,6 +196,30 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             "xml_firmado" => "el XML firmado",
             _ => "el documento"
         };
+    }
+
+    private Task SearchAsync() => LoadMonitorAsync(resetPaging: true);
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadMonitorAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadMonitorAsync();
     }
 
     public async ValueTask DisposeAsync()

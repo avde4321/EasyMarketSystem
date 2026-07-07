@@ -19,7 +19,7 @@
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o direccion..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, razon social, correo, telefono o tipo de cliente..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         <div class="soft-info-message compact-message">
@@ -47,8 +47,9 @@
                             <th>Identificacion</th>
                             <th>Nombre</th>
                             <th>Direccion</th>
-                            <th>Correo</th>
-                            <th>Telefono</th>
+                            <th>Correo principal</th>
+                            <th>Tipo cliente</th>
+                            <th>Credito</th>
                             <th>Roles</th>
                             <th>Estado</th>
                             <th></th>
@@ -61,9 +62,10 @@
                                 <td data-label="Tipo">@cliente.TipoIdentificacion</td>
                                 <td data-label="Identificacion">@cliente.Identificacion</td>
                                 <td data-label="Nombre">@cliente.NombreCompleto</td>
-                                <td data-label="Direccion">@cliente.Direccion</td>
-                                <td data-label="Correo">@cliente.Email</td>
-                                <td data-label="Telefono">@cliente.Telefono</td>
+                                <td data-label="Direccion">@cliente.DireccionPrincipal</td>
+                                <td data-label="Correo">@cliente.CorreoElectronicoPrincipal</td>
+                                <td data-label="Tipo cliente">@cliente.TipoCliente</td>
+                                <td data-label="Credito">@(cliente.PermiteCredito ? $"{cliente.LimiteCredito:n2} / {cliente.DiasCreditoMaximo} dias" : "No")</td>
                                 <td data-label="Roles">@string.Join(", ", cliente.RolesPersona)</td>
                                 <td data-label="Estado"><span class="status-pill">@((cliente.IsActive ? "Activo" : "Inactivo"))</span></td>
                                 <td data-label="Acciones" class="row-actions">
@@ -133,35 +135,95 @@
                         <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
                     </div>
 
-                    <div class="form-field">
-                        <label for="nombres">Nombres</label>
-                        <InputText id="nombres" class="form-control" @bind-Value="clienteRequest.Nombres" />
-                        <ValidationMessage For="@(() => clienteRequest.Nombres)" />
+                    <div class="form-field full">
+                        <label for="razonSocial">Razon social / nombres completos</label>
+                        <InputText id="razonSocial" class="form-control" @bind-Value="clienteRequest.RazonSocialONombresCompletos" />
+                        <ValidationMessage For="@(() => clienteRequest.RazonSocialONombresCompletos)" />
                     </div>
 
                     <div class="form-field">
-                        <label for="apellidos">Apellidos</label>
-                        <InputText id="apellidos" class="form-control" @bind-Value="clienteRequest.Apellidos" />
-                        <ValidationMessage For="@(() => clienteRequest.Apellidos)" />
+                        <label for="nombreComercial">Nombre comercial</label>
+                        <InputText id="nombreComercial" class="form-control" @bind-Value="clienteRequest.NombreComercial" />
+                        <ValidationMessage For="@(() => clienteRequest.NombreComercial)" />
                     </div>
 
                     <div class="form-field">
-                        <label for="email">Correo</label>
-                        <InputText id="email" class="form-control" @bind-Value="clienteRequest.Email" />
-                        <ValidationMessage For="@(() => clienteRequest.Email)" />
+                        <label for="email">Correo principal</label>
+                        <InputText id="email" class="form-control" @bind-Value="clienteRequest.CorreoElectronicoPrincipal" />
+                        <ValidationMessage For="@(() => clienteRequest.CorreoElectronicoPrincipal)" />
                     </div>
 
                     <div class="form-field">
-                        <label for="telefono">Telefono</label>
-                        <InputText id="telefono" class="form-control" @bind-Value="clienteRequest.Telefono" />
-                        <ValidationMessage For="@(() => clienteRequest.Telefono)" />
+                        <label for="correoFacturacion">Correo facturacion electronica</label>
+                        <InputText id="correoFacturacion" class="form-control" @bind-Value="clienteRequest.CorreoFacturacionElectronica" />
+                        <ValidationMessage For="@(() => clienteRequest.CorreoFacturacionElectronica)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="telefono">Celular</label>
+                        <InputText id="telefono" class="form-control" @bind-Value="clienteRequest.TelefonoCelular" />
+                        <ValidationMessage For="@(() => clienteRequest.TelefonoCelular)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="tipoCliente">Tipo cliente</label>
+                        <InputSelect id="tipoCliente" class="form-control" @bind-Value="clienteRequest.TipoCliente">
+                            <option value="Natural">Natural</option>
+                            <option value="Juridico">Juridico</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="genero">Genero</label>
+                        <InputText id="genero" class="form-control" @bind-Value="clienteRequest.Genero" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="fechaNacimiento">Fecha nacimiento</label>
+                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="clienteRequest.FechaNacimiento" />
                     </div>
 
                     <div class="form-field full">
                         <label for="direccion">Direccion</label>
-                        <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.Direccion" />
-                        <ValidationMessage For="@(() => clienteRequest.Direccion)" />
+                        <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.DireccionPrincipal" />
+                        <ValidationMessage For="@(() => clienteRequest.DireccionPrincipal)" />
                         <small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.ObligadoContabilidad" />
+                        <span class="form-check-label">Obligado a llevar contabilidad</span>
+                    </label>
+
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.EsContribuyenteEspecial" />
+                        <span class="form-check-label">Contribuyente especial</span>
+                    </label>
+
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.PermiteCredito" />
+                        <span class="form-check-label">Permite credito</span>
+                    </label>
+
+                    <div class="form-field">
+                        <label for="limiteCredito">Limite credito</label>
+                        <InputNumber id="limiteCredito" class="form-control" @bind-Value="clienteRequest.LimiteCredito" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="diasCredito">Dias credito maximo</label>
+                        <InputNumber id="diasCredito" class="form-control" @bind-Value="clienteRequest.DiasCreditoMaximo" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="estadoCredito">Estado credito</label>
+                        <InputSelect id="estadoCredito" class="form-control" @bind-Value="clienteRequest.EstadoCredito">
+                            <option value="AlDia">Al dia</option>
+                            <option value="Suspendido">Suspendido</option>
+                            <option value="Bloqueado">Bloqueado</option>
+                        </InputSelect>
                     </div>
                 </div>
 

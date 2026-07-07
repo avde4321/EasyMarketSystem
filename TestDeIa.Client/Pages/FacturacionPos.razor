@@ -66,9 +66,20 @@
                         <strong>@selectedCliente.NombreCompleto</strong>
                         <span>@selectedCliente.Identificacion</span>
                         <small>@selectedCliente.TipoIdentificacion</small>
+                        <small>@(selectedCliente.HasClienteExtension ? "Cliente habilitado" : "Persona sin rol cliente en esta empresa")</small>
                         <small>@selectedCliente.Email</small>
                         <small>@selectedCliente.Telefono</small>
                         <small>@selectedCliente.Direccion</small>
+
+                        @if (!selectedCliente.HasClienteExtension)
+                        {
+                            <div class="inline-pager">
+                                <span class="pager-meta">Puedes reutilizar la persona y activar solo los atributos comerciales.</span>
+                                <button class="secondary-action" type="button" @onclick="ActivarClienteExtensionAsync" disabled="@isCreatingClienteExtension">
+                                    @(isCreatingClienteExtension ? "Activando..." : "Activar como cliente")
+                                </button>
+                            </div>
+                        }
                     </div>
                 }
                 else if (clienteResults.Count > 0)
@@ -80,6 +91,7 @@
                                 <strong>@cliente.NombreCompleto</strong>
                                 <span>@cliente.Identificacion</span>
                                 <small>@cliente.TipoIdentificacion</small>
+                                <small>@(cliente.HasClienteExtension ? "Cliente disponible" : "Solo persona registrada")</small>
                             </button>
                         }
                     </div>

@@ -57,9 +57,10 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("monitor")]
-    public async Task<IActionResult> GetMonitor(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMonitor([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var facturas = await facturacionUseCase.GetMonitorAsync(cancellationToken);
-        return Ok(facturas);
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        return Ok(await facturacionUseCase.GetMonitorAsync(term, skip, take, cancellationToken));
     }
 }

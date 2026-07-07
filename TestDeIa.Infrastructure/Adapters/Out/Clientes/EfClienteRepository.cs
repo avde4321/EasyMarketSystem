@@ -22,8 +22,7 @@ public sealed class EfClienteRepository : IClienteRepository
     public async Task<IReadOnlyCollection<Cliente>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var clientes = await BaseQuery()
-            .OrderBy(cliente => cliente.Persona.Apellidos)
-            .ThenBy(cliente => cliente.Persona.Nombres)
+            .OrderBy(cliente => cliente.Persona.RazonSocialONombresCompletos)
             .ToListAsync(cancellationToken);
 
         return clientes.Select(MapToDomain).ToArray();
@@ -34,8 +33,7 @@ public sealed class EfClienteRepository : IClienteRepository
         var query = ApplyFilter(BaseQuery(), term);
         var totalCount = await query.CountAsync(cancellationToken);
         var clientes = await query
-            .OrderBy(cliente => cliente.Persona.Apellidos)
-            .ThenBy(cliente => cliente.Persona.Nombres)
+            .OrderBy(cliente => cliente.Persona.RazonSocialONombresCompletos)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -51,7 +49,7 @@ public sealed class EfClienteRepository : IClienteRepository
 
     public async Task<Cliente?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var cliente = await BaseQuery().FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var cliente = await BaseQuery().FirstOrDefaultAsync(current => current.PersonaId == id, cancellationToken);
         return cliente is null ? null : MapToDomain(cliente);
     }
 
@@ -59,7 +57,7 @@ public sealed class EfClienteRepository : IClienteRepository
     {
         var cliente = await BaseQuery()
             .FirstOrDefaultAsync(
-                current => current.PersonaId == personaId && (!excludedId.HasValue || current.Id != excludedId.Value),
+                current => current.PersonaId == personaId && (!excludedId.HasValue || current.PersonaId != excludedId.Value),
                 cancellationToken);
 
         return cliente is null ? null : MapToDomain(cliente);
@@ -69,39 +67,57 @@ public sealed class EfClienteRepository : IClienteRepository
     {
         var entity = new ClienteEntity
         {
-            Id = cliente.Id,
-            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el cliente."),
             PersonaId = cliente.PersonaId,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el cliente."),
+            CorreoFacturacionElectronica = cliente.CorreoFacturacionElectronica,
+            TipoCliente = cliente.TipoCliente,
+            ObligadoContabilidad = cliente.ObligadoContabilidad,
+            EsContribuyenteEspecial = cliente.EsContribuyenteEspecial,
+            PermiteCredito = cliente.PermiteCredito,
+            LimiteCredito = cliente.LimiteCredito,
+            DiasCreditoMaximo = cliente.DiasCreditoMaximo,
+            EstadoCredito = cliente.EstadoCredito,
             IsActive = cliente.IsActive,
             CreatedAt = cliente.CreatedAt,
-            UpdatedAt = cliente.UpdatedAt
+            UsuarioCreacionId = cliente.UsuarioCreacionId,
+            UpdatedAt = cliente.UpdatedAt,
+            UsuarioModificacionId = cliente.UsuarioModificacionId
         };
 
         dbContext.Clientes.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return await GetByIdAsync(entity.Id, cancellationToken) ?? cliente;
+        return await GetByIdAsync(entity.PersonaId, cancellationToken) ?? cliente;
     }
 
     public async Task<Cliente?> UpdateAsync(Cliente cliente, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Clientes
-            .FirstOrDefaultAsync(current => current.Id == cliente.Id, cancellationToken);
+            .FirstOrDefaultAsync(current => current.PersonaId == cliente.Id, cancellationToken);
 
         if (entity is null)
         {
             return null;
         }
 
+        entity.CorreoFacturacionElectronica = cliente.CorreoFacturacionElectronica;
+        entity.TipoCliente = cliente.TipoCliente;
+        entity.ObligadoContabilidad = cliente.ObligadoContabilidad;
+        entity.EsContribuyenteEspecial = cliente.EsContribuyenteEspecial;
+        entity.PermiteCredito = cliente.PermiteCredito;
+        entity.LimiteCredito = cliente.LimiteCredito;
+        entity.DiasCreditoMaximo = cliente.DiasCreditoMaximo;
+        entity.EstadoCredito = cliente.EstadoCredito;
         entity.IsActive = cliente.IsActive;
         entity.UpdatedAt = cliente.UpdatedAt;
+        entity.UsuarioModificacionId = cliente.UsuarioModificacionId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return await GetByIdAsync(entity.Id, cancellationToken);
+        return await GetByIdAsync(entity.PersonaId, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var entity = await dbContext.Clientes.FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        var entity = await dbContext.Clientes.FirstOrDefaultAsync(current => current.PersonaId == id, cancellationToken);
 
         if (entity is null)
         {
@@ -134,28 +150,42 @@ public sealed class EfClienteRepository : IClienteRepository
         return query.Where(cliente =>
             cliente.Persona.TipoIdentificacion.Contains(normalizedTerm) ||
             cliente.Persona.Identificacion.Contains(normalizedTerm) ||
-            cliente.Persona.Nombres.Contains(normalizedTerm) ||
-            cliente.Persona.Apellidos.Contains(normalizedTerm) ||
-            (cliente.Persona.Email != null && cliente.Persona.Email.Contains(normalizedTerm)) ||
-            (cliente.Persona.Telefono != null && cliente.Persona.Telefono.Contains(normalizedTerm)) ||
-            (cliente.Persona.Direccion != null && cliente.Persona.Direccion.Contains(normalizedTerm)));
+            cliente.Persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+            (cliente.Persona.NombreComercial != null && cliente.Persona.NombreComercial.Contains(normalizedTerm)) ||
+            (cliente.Persona.CorreoElectronicoPrincipal != null && cliente.Persona.CorreoElectronicoPrincipal.Contains(normalizedTerm)) ||
+            (cliente.Persona.TelefonoCelular != null && cliente.Persona.TelefonoCelular.Contains(normalizedTerm)) ||
+            (cliente.Persona.DireccionPrincipal.Contains(normalizedTerm)) ||
+            cliente.TipoCliente.Contains(normalizedTerm) ||
+            cliente.EstadoCredito.Contains(normalizedTerm));
     }
 
     private static Cliente MapToDomain(ClienteEntity entity)
     {
         return new Cliente(
-            entity.Id,
             entity.PersonaId,
+            entity.PersonaId,
+            entity.EmpresaId,
             entity.Persona.TipoIdentificacion,
             entity.Persona.Identificacion,
-            entity.Persona.Nombres,
-            entity.Persona.Apellidos,
-            entity.Persona.Email,
-            entity.Persona.Telefono,
-            entity.Persona.Direccion,
+            entity.Persona.RazonSocialONombresCompletos,
+            entity.Persona.NombreComercial,
+            entity.Persona.DireccionPrincipal,
+            entity.Persona.CorreoElectronicoPrincipal,
+            entity.Persona.TelefonoCelular,
+            entity.Persona.FechaNacimiento,
+            entity.Persona.Genero,
+            entity.CorreoFacturacionElectronica,
+            entity.TipoCliente,
+            entity.ObligadoContabilidad,
+            entity.EsContribuyenteEspecial,
+            entity.PermiteCredito,
+            entity.LimiteCredito,
+            entity.DiasCreditoMaximo,
+            entity.EstadoCredito,
             ResolvePersonaRoles(entity.Persona),
             entity.IsActive,
             entity.CreatedAt,
+            entity.UsuarioCreacionId,
             entity.UpdatedAt);
     }
 

@@ -30,6 +30,14 @@ public sealed class EmpresaController : ControllerBase
         return Ok(await empresaUseCase.GetMineAsync(cancellationToken));
     }
 
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetPaged([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        return Ok(await empresaUseCase.GetPagedAsync(term, skip, take, cancellationToken));
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {

@@ -10,10 +10,39 @@ public sealed class EmpleadoEntityConfiguration : IEntityTypeConfiguration<Emple
     {
         builder.ToTable("Empleados");
 
-        builder.HasKey(empleado => empleado.Id);
+        builder.HasKey(empleado => empleado.PersonaId);
 
         builder.Property(empleado => empleado.EmpresaId)
             .IsRequired();
+
+        builder.Property(empleado => empleado.CodigoEmpleado)
+            .HasMaxLength(50);
+
+        builder.Property(empleado => empleado.CodigoBiometrico)
+            .HasMaxLength(50);
+
+        builder.Property(empleado => empleado.TipoContrato)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(empleado => empleado.CargoPuesto)
+            .HasMaxLength(120);
+
+        builder.Property(empleado => empleado.SueldoBase)
+            .HasPrecision(18, 2);
+
+        builder.Property(empleado => empleado.PorcentajeComisionVentas)
+            .HasPrecision(5, 2);
+
+        builder.Property(empleado => empleado.EstadoLaboral)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(empleado => empleado.NombreContactoEmergencia)
+            .HasMaxLength(150);
+
+        builder.Property(empleado => empleado.TelefonoEmergencia)
+            .HasMaxLength(40);
 
         builder.HasIndex(empleado => new { empleado.EmpresaId, empleado.PersonaId })
             .IsUnique();

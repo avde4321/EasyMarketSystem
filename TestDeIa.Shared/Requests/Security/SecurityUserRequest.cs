@@ -6,7 +6,7 @@ public sealed class SecurityUserRequest
 {
     [Required(ErrorMessage = "El tipo de identificacion es obligatorio.")]
     [StringLength(30, ErrorMessage = "El tipo de identificacion no puede superar 30 caracteres.")]
-    public string TipoIdentificacion { get; set; } = "Cedula";
+    public string TipoIdentificacion { get; set; } = "05";
 
     [Required(ErrorMessage = "La identificacion es obligatoria.")]
     [StringLength(30, ErrorMessage = "La identificacion no puede superar 30 caracteres.")]

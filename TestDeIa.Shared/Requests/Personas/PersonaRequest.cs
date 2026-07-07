@@ -5,35 +5,35 @@ namespace TestDeIa.Shared.Requests.Personas;
 public sealed class PersonaRequest
 {
     [Required(ErrorMessage = "El tipo de identificacion es obligatorio.")]
-    [StringLength(30, ErrorMessage = "El tipo de identificacion no puede superar 30 caracteres.")]
-    public string TipoIdentificacion { get; set; } = "Cedula";
+    [StringLength(2, ErrorMessage = "El tipo de identificacion debe usar el codigo oficial SRI.")]
+    public string TipoIdentificacion { get; set; } = "05";
 
     [Required(ErrorMessage = "La identificacion es obligatoria.")]
     [StringLength(30, ErrorMessage = "La identificacion no puede superar 30 caracteres.")]
     public string Identificacion { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Los nombres son obligatorios.")]
-    [StringLength(120, ErrorMessage = "Los nombres no pueden superar 120 caracteres.")]
-    public string Nombres { get; set; } = string.Empty;
+    [Required(ErrorMessage = "La razon social o nombres completos son obligatorios.")]
+    [StringLength(180, ErrorMessage = "La razon social o nombres completos no pueden superar 180 caracteres.")]
+    public string RazonSocialONombresCompletos { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Los apellidos son obligatorios.")]
-    [StringLength(120, ErrorMessage = "Los apellidos no pueden superar 120 caracteres.")]
-    public string Apellidos { get; set; } = string.Empty;
+    [StringLength(150, ErrorMessage = "El nombre comercial no puede superar 150 caracteres.")]
+    public string? NombreComercial { get; set; }
 
-    [StringLength(30, ErrorMessage = "El estado civil no puede superar 30 caracteres.")]
-    public string? EstadoCivil { get; set; }
+    [Required(ErrorMessage = "La direccion principal es obligatoria.")]
+    [StringLength(250, ErrorMessage = "La direccion principal no puede superar 250 caracteres.")]
+    public string DireccionPrincipal { get; set; } = string.Empty;
 
     public DateOnly? FechaNacimiento { get; set; }
 
     [EmailAddress(ErrorMessage = "El correo no tiene un formato valido.")]
     [StringLength(180, ErrorMessage = "El correo no puede superar 180 caracteres.")]
-    public string? Email { get; set; }
+    public string? CorreoElectronicoPrincipal { get; set; }
 
-    [StringLength(40, ErrorMessage = "El telefono no puede superar 40 caracteres.")]
-    public string? Telefono { get; set; }
+    [StringLength(40, ErrorMessage = "El celular no puede superar 40 caracteres.")]
+    public string? TelefonoCelular { get; set; }
 
-    [StringLength(250, ErrorMessage = "La direccion no puede superar 250 caracteres.")]
-    public string? Direccion { get; set; }
+    [StringLength(30, ErrorMessage = "El genero no puede superar 30 caracteres.")]
+    public string? Genero { get; set; }
 
     public bool IsActive { get; set; } = true;
 }

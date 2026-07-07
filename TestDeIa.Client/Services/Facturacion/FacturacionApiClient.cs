@@ -53,10 +53,11 @@ public sealed class FacturacionApiClient
         return (false, "No se pudo emitir la factura.", null);
     }
 
-    public async Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync()
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<FacturaMonitorResponse>>("api/facturacion/monitor")
-            ?? Array.Empty<FacturaMonitorResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
     }
 
     public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetRidePdfAsync(Guid facturaId)

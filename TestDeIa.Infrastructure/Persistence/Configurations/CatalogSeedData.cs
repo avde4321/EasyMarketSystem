@@ -30,12 +30,12 @@ internal static class CatalogSeedData
     {
         return
         [
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000001"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "RUC", Nombre = "RUC", Orden = 1, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000002"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "Cedula", Nombre = "Cedula", Orden = 2, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000003"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "Pasaporte", Nombre = "Pasaporte", Orden = 3, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000004"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "Consumidor Final", Nombre = "Consumidor final", Orden = 4, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000005"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "Identificacion del Exterior", Nombre = "Identificacion del exterior", Orden = 5, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000006"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "Placa", Nombre = "Placa", Orden = 6, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000001"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "04", Nombre = "RUC", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000002"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "05", Nombre = "Cedula", Orden = 2, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000003"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "06", Nombre = "Pasaporte", Orden = 3, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000004"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "07", Nombre = "Consumidor final", Orden = 4, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000005"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "08", Nombre = "Identificacion del exterior", Orden = 5, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000006"), CatalogoId = TipoIdentificacionCatalogoId, Codigo = "09", Nombre = "Placa", Orden = 6, IsActive = true },
 
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000011"), CatalogoId = EstadoCivilCatalogoId, Codigo = "SOLTERO", Nombre = "Soltero", Orden = 1, IsActive = true },
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000012"), CatalogoId = EstadoCivilCatalogoId, Codigo = "CASADO", Nombre = "Casado", Orden = 2, IsActive = true },

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Empresa;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empresa;
 
 namespace TestDeIa.Client.Services.Empresa;
@@ -44,6 +45,13 @@ public sealed class EmpresaApiClient
     public async Task<EmpresaResponse?> GetByIdAsync(Guid id)
     {
         return await httpClient.GetFromJsonAsync<EmpresaResponse>($"api/empresa/{id}");
+    }
+
+    public async Task<PagedResultResponse<EmpresaResponse>> GetPagedAsync(string? term, int skip, int take)
+    {
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<EmpresaResponse>>($"api/empresa/paged?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<EmpresaResponse> { Skip = skip, Take = take };
     }
 
     public Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data)> CreateAsync(EmpresaRequest request)

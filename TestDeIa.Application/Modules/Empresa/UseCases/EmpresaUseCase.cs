@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
 using TestDeIa.Shared.Requests.Empresa;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empresa;
 
 namespace TestDeIa.Application.Modules.Empresa.UseCases;
@@ -34,6 +35,18 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
     {
         var empresas = await empresaRepository.GetMineAsync(cancellationToken);
         return empresas.Select(MapOption).ToArray();
+    }
+
+    public async Task<PagedResultResponse<EmpresaResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await empresaRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<EmpresaResponse>
+        {
+            Items = page.Items.Select(MapResponse).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<EmpresaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

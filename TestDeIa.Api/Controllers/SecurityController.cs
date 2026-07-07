@@ -39,9 +39,11 @@ public sealed class SecurityController : ControllerBase
 
     [HttpGet("users")]
     [Authorize(Roles = "Administrador")]
-    public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetUsers([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        return Ok(await securityManagementUseCase.GetUsersAsync(cancellationToken));
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        return Ok(await securityManagementUseCase.GetUsersPagedAsync(term, skip, take, cancellationToken));
     }
 
     [HttpGet("roles")]

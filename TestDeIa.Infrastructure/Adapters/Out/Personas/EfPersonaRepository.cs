@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Personas;
 
@@ -22,11 +23,46 @@ public sealed class EfPersonaRepository : IPersonaRepository
     {
         var personas = await BaseQuery()
             .Where(persona => !persona.IsSystemRecord)
-            .OrderBy(persona => persona.Apellidos)
-            .ThenBy(persona => persona.Nombres)
+            .OrderBy(persona => persona.RazonSocialONombresCompletos)
             .ToListAsync(cancellationToken);
 
         return personas.Select(MapToDomain).ToArray();
+    }
+
+    public async Task<PagedResultResponse<Persona>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var normalizedTerm = term?.Trim();
+        var query = BaseQuery()
+            .Where(persona => !persona.IsSystemRecord);
+
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(persona =>
+                persona.TipoIdentificacion.Contains(normalizedTerm) ||
+                persona.Identificacion.Contains(normalizedTerm) ||
+                persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                (persona.NombreComercial != null && persona.NombreComercial.Contains(normalizedTerm)) ||
+                (persona.CorreoElectronicoPrincipal != null && persona.CorreoElectronicoPrincipal.Contains(normalizedTerm)) ||
+                (persona.TelefonoCelular != null && persona.TelefonoCelular.Contains(normalizedTerm)) ||
+                (persona.Cliente != null && "Cliente".Contains(normalizedTerm)) ||
+                (persona.Empleado != null && "Empleado".Contains(normalizedTerm)) ||
+                (persona.SecurityUser != null && "Usuario".Contains(normalizedTerm)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var personas = await query
+            .OrderBy(persona => persona.RazonSocialONombresCompletos)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<Persona>
+        {
+            Items = personas.Select(MapToDomain).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<Persona?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -84,13 +120,13 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
         entity.TipoIdentificacion = persona.TipoIdentificacion;
         entity.Identificacion = persona.Identificacion;
-        entity.Nombres = persona.Nombres;
-        entity.Apellidos = persona.Apellidos;
-        entity.EstadoCivil = persona.EstadoCivil;
+        entity.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+        entity.NombreComercial = persona.NombreComercial;
+        entity.DireccionPrincipal = persona.DireccionPrincipal;
         entity.FechaNacimiento = persona.FechaNacimiento;
-        entity.Email = persona.Email;
-        entity.Telefono = persona.Telefono;
-        entity.Direccion = persona.Direccion;
+        entity.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+        entity.TelefonoCelular = persona.TelefonoCelular;
+        entity.Genero = persona.Genero;
         entity.IsActive = persona.IsActive;
         entity.UpdatedAt = persona.UpdatedAt;
 
@@ -113,13 +149,13 @@ public sealed class EfPersonaRepository : IPersonaRepository
             entity.Id,
             entity.TipoIdentificacion,
             entity.Identificacion,
-            entity.Nombres,
-            entity.Apellidos,
-            entity.EstadoCivil,
+            entity.RazonSocialONombresCompletos,
+            entity.NombreComercial,
+            entity.DireccionPrincipal,
+            entity.TelefonoCelular,
+            entity.CorreoElectronicoPrincipal,
             entity.FechaNacimiento,
-            entity.Email,
-            entity.Telefono,
-            entity.Direccion,
+            entity.Genero,
             ResolvePersonaRoles(entity),
             entity.IsActive,
             entity.CreatedAt,
@@ -134,13 +170,13 @@ public sealed class EfPersonaRepository : IPersonaRepository
             EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la persona."),
             TipoIdentificacion = persona.TipoIdentificacion,
             Identificacion = persona.Identificacion,
-            Nombres = persona.Nombres,
-            Apellidos = persona.Apellidos,
-            EstadoCivil = persona.EstadoCivil,
+            RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
+            NombreComercial = persona.NombreComercial,
+            DireccionPrincipal = persona.DireccionPrincipal,
             FechaNacimiento = persona.FechaNacimiento,
-            Email = persona.Email,
-            Telefono = persona.Telefono,
-            Direccion = persona.Direccion,
+            CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
+            TelefonoCelular = persona.TelefonoCelular,
+            Genero = persona.Genero,
             IsActive = persona.IsActive,
             CreatedAt = persona.CreatedAt,
             UpdatedAt = persona.UpdatedAt

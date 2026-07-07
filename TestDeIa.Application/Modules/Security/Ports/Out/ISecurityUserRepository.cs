@@ -1,4 +1,5 @@
 using TestDeIa.Domain.Modules.Security.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Application.Modules.Security.Ports.Out;
 
@@ -7,6 +8,8 @@ public interface ISecurityUserRepository
     Task<SecurityUser?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<SecurityUser>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResultResponse<SecurityUser>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<SecurityUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

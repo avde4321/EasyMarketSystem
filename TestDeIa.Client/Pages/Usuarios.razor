@@ -20,6 +20,7 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por usuario, persona, identificacion, correo o rol..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         @if (isLoading)
         {
@@ -29,44 +30,53 @@
         {
             <div class="empty-state">No hay usuarios registrados.</div>
         }
-        else if (!FilteredUsers.Any())
-        {
-            <div class="empty-state">No hay resultados para la busqueda actual.</div>
-        }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Usuario</th>
-                        <th>Persona</th>
-                        <th>Correo</th>
-                        <th>Rol sistema</th>
-                        <th>Roles persona</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var user in FilteredUsers)
-                    {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
                         <tr>
-                            <td>@user.UserName</td>
-                            <td>
-                                <strong>@user.PersonaNombre</strong>
-                                <small>@user.PersonaIdentificacion</small>
-                            </td>
-                            <td>@user.Email</td>
-                            <td>@string.Join(", ", user.Roles)</td>
-                            <td>@string.Join(", ", user.RolesPersona)</td>
-                            <td><span class="status-pill">@((user.IsActive ? "Activo" : "Inactivo"))</span></td>
-                            <td class="row-actions">
-                                <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
-                            </td>
+                            <th>Usuario</th>
+                            <th>Persona</th>
+                            <th>Correo</th>
+                            <th>Rol sistema</th>
+                            <th>Roles persona</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in VisibleUsers)
+                        {
+                            <tr>
+                                <td data-label="Usuario">@user.UserName</td>
+                                <td data-label="Persona">
+                                    <strong>@user.PersonaNombre</strong>
+                                    <small>@user.PersonaIdentificacion</small>
+                                </td>
+                                <td data-label="Correo">@user.Email</td>
+                                <td data-label="Rol sistema">@string.Join(", ", user.Roles)</td>
+                                <td data-label="Roles persona">@string.Join(", ", user.RolesPersona)</td>
+                                <td data-label="Estado"><span class="status-pill">@((user.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                <td data-label="Acciones">
+                                    <div class="row-actions">
+                                        <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="table-footer">
+                <span class="table-count">@totalCount usuario(s) registrados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
         }
     </section>
 </section>

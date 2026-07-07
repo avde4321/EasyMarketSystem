@@ -32,20 +32,19 @@ public partial class Usuarios
     private string? errorMessage;
     private string? statusMessage;
     private string searchTerm = string.Empty;
-
-    private IEnumerable<SecurityUserResponse> FilteredUsers => users.Where(user =>
-        string.IsNullOrWhiteSpace(searchTerm) ||
-        user.UserName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        user.PersonaNombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        user.PersonaIdentificacion.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        user.Email.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        user.Roles.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-        user.RolesPersona.Any(role => role.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+    private const int PageSize = 10;
+    private int totalCount;
+    private int currentSkip;
+    private IEnumerable<SecurityUserResponse> VisibleUsers => users;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadLookupsAsync();
-        await LoadUsersAsync();
+        await LoadUsersAsync(resetPaging: true);
     }
 
     private async Task LoadLookupsAsync()
@@ -56,15 +55,22 @@ public partial class Usuarios
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
     }
 
-    private async Task LoadUsersAsync()
+    private async Task LoadUsersAsync(bool resetPaging = false)
     {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
+            var page = await SecurityApiClient.GetUsersAsync(searchTerm, currentSkip, PageSize);
             users.Clear();
-            users.AddRange(await SecurityApiClient.GetUsersAsync());
+            users.AddRange(page.Items);
+            totalCount = page.TotalCount;
         }
         catch (HttpRequestException)
         {
@@ -81,7 +87,7 @@ public partial class Usuarios
         editingUserId = null;
         userRequest = new SecurityUserRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "Cedula",
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
             IsActive = true
         };
         selectedRoles.Clear();
@@ -100,7 +106,7 @@ public partial class Usuarios
 
         userRequest = new SecurityUserRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "Cedula",
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
             Identificacion = user.PersonaIdentificacion,
             Nombres = nombres,
             Apellidos = apellidos,
@@ -167,11 +173,11 @@ public partial class Usuarios
 
             userRequest.TipoIdentificacion = persona.TipoIdentificacion;
             userRequest.Identificacion = persona.Identificacion;
-            userRequest.Nombres = persona.Nombres;
-            userRequest.Apellidos = persona.Apellidos;
-            userRequest.Email = persona.Email;
-            userRequest.Telefono = persona.Telefono;
-            userRequest.Direccion = persona.Direccion;
+            userRequest.Nombres = persona.RazonSocialONombresCompletos;
+            userRequest.Apellidos = string.Empty;
+            userRequest.Email = persona.CorreoElectronicoPrincipal;
+            userRequest.Telefono = persona.TelefonoCelular;
+            userRequest.Direccion = persona.DireccionPrincipal;
             userRequest.IsActive = persona.IsActive;
 
             statusMessage = "Se cargo la informacion de la persona existente.";
@@ -215,5 +221,29 @@ public partial class Usuarios
         {
             isSaving = false;
         }
+    }
+
+    private Task SearchAsync() => LoadUsersAsync(resetPaging: true);
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadUsersAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadUsersAsync();
     }
 }

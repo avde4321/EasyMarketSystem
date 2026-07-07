@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Empleados;
+using TestDeIa.Client.Services.Personas;
 using TestDeIa.Shared.Requests.Empleados;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Empleados;
@@ -15,6 +16,9 @@ public partial class Empleados
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
+    [Inject]
+    private PersonasApiClient PersonasApiClient { get; set; } = default!;
+
     private readonly List<EmpleadoResponse> empleados = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
     private EmpleadoRequest empleadoRequest = new();
@@ -22,7 +26,9 @@ public partial class Empleados
     private bool isLoading = true;
     private bool isSaving;
     private bool isEditorOpen;
+    private bool isSearchingPersona;
     private string? errorMessage;
+    private string? statusMessage;
     private string searchTerm = string.Empty;
     private const int PageSize = 10;
     private int totalCount;
@@ -77,9 +83,12 @@ public partial class Empleados
         editingEmpleadoId = null;
         empleadoRequest = new EmpleadoRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "Cedula"
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
+            TipoContrato = "Indefinido",
+            EstadoLaboral = "Activo"
         };
         errorMessage = null;
+        statusMessage = null;
         isEditorOpen = true;
     }
 
@@ -90,14 +99,28 @@ public partial class Empleados
         {
             TipoIdentificacion = empleado.TipoIdentificacion,
             Identificacion = empleado.Identificacion,
-            Nombres = empleado.Nombres,
-            Apellidos = empleado.Apellidos,
-            Email = empleado.Email,
-            Telefono = empleado.Telefono,
-            Direccion = empleado.Direccion,
+            RazonSocialONombresCompletos = empleado.RazonSocialONombresCompletos,
+            NombreComercial = empleado.NombreComercial,
+            CorreoElectronicoPrincipal = empleado.CorreoElectronicoPrincipal,
+            TelefonoCelular = empleado.TelefonoCelular,
+            DireccionPrincipal = empleado.DireccionPrincipal,
+            FechaNacimiento = empleado.FechaNacimiento,
+            Genero = empleado.Genero,
+            CodigoEmpleado = empleado.CodigoEmpleado,
+            CodigoBiometrico = empleado.CodigoBiometrico,
+            FechaIngreso = empleado.FechaIngreso,
+            FechaSalida = empleado.FechaSalida,
+            TipoContrato = empleado.TipoContrato,
+            CargoPuesto = empleado.CargoPuesto,
+            SueldoBase = empleado.SueldoBase,
+            PorcentajeComisionVentas = empleado.PorcentajeComisionVentas,
+            EstadoLaboral = empleado.EstadoLaboral,
+            NombreContactoEmergencia = empleado.NombreContactoEmergencia,
+            TelefonoEmergencia = empleado.TelefonoEmergencia,
             IsActive = empleado.IsActive
         };
         errorMessage = null;
+        statusMessage = null;
         isEditorOpen = true;
     }
 
@@ -106,6 +129,52 @@ public partial class Empleados
         isEditorOpen = false;
         isSaving = false;
         errorMessage = null;
+        statusMessage = null;
+    }
+
+    private async Task BuscarPersonaAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (string.IsNullOrWhiteSpace(empleadoRequest.Identificacion))
+        {
+            errorMessage = "Ingresa una identificacion antes de buscar.";
+            return;
+        }
+
+        isSearchingPersona = true;
+
+        try
+        {
+            var persona = await PersonasApiClient.FindByIdentificacionAsync(empleadoRequest.Identificacion);
+            if (persona is null)
+            {
+                statusMessage = "No se encontro una persona registrada con esa identificacion.";
+                return;
+            }
+
+            empleadoRequest.TipoIdentificacion = persona.TipoIdentificacion;
+            empleadoRequest.Identificacion = persona.Identificacion;
+            empleadoRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+            empleadoRequest.NombreComercial = persona.NombreComercial;
+            empleadoRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+            empleadoRequest.TelefonoCelular = persona.TelefonoCelular;
+            empleadoRequest.DireccionPrincipal = persona.DireccionPrincipal;
+            empleadoRequest.FechaNacimiento = persona.FechaNacimiento;
+            empleadoRequest.Genero = persona.Genero;
+            empleadoRequest.IsActive = persona.IsActive;
+
+            statusMessage = "Se cargo la informacion de la persona existente.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar la persona.";
+        }
+        finally
+        {
+            isSearchingPersona = false;
+        }
     }
 
     private async Task SaveEmpleadoAsync()

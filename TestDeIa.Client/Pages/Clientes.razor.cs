@@ -83,7 +83,9 @@ public partial class Clientes
         editingClienteId = null;
         clienteRequest = new ClienteRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "Cedula"
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
+            TipoCliente = "Natural",
+            EstadoCredito = "AlDia"
         };
         errorMessage = null;
         statusMessage = null;
@@ -98,11 +100,21 @@ public partial class Clientes
         {
             TipoIdentificacion = cliente.TipoIdentificacion,
             Identificacion = cliente.Identificacion,
-            Nombres = cliente.Nombres,
-            Apellidos = cliente.Apellidos,
-            Email = cliente.Email,
-            Telefono = cliente.Telefono,
-            Direccion = cliente.Direccion,
+            RazonSocialONombresCompletos = cliente.RazonSocialONombresCompletos,
+            NombreComercial = cliente.NombreComercial,
+            CorreoElectronicoPrincipal = cliente.CorreoElectronicoPrincipal,
+            TelefonoCelular = cliente.TelefonoCelular,
+            DireccionPrincipal = cliente.DireccionPrincipal,
+            CorreoFacturacionElectronica = cliente.CorreoFacturacionElectronica,
+            TipoCliente = cliente.TipoCliente,
+            ObligadoContabilidad = cliente.ObligadoContabilidad,
+            EsContribuyenteEspecial = cliente.EsContribuyenteEspecial,
+            PermiteCredito = cliente.PermiteCredito,
+            LimiteCredito = cliente.LimiteCredito,
+            DiasCreditoMaximo = cliente.DiasCreditoMaximo,
+            EstadoCredito = cliente.EstadoCredito,
+            FechaNacimiento = cliente.FechaNacimiento,
+            Genero = cliente.Genero,
             IsActive = cliente.IsActive
         };
         isEditorOpen = true;
@@ -141,11 +153,13 @@ public partial class Clientes
 
             clienteRequest.TipoIdentificacion = persona.TipoIdentificacion;
             clienteRequest.Identificacion = persona.Identificacion;
-            clienteRequest.Nombres = persona.Nombres;
-            clienteRequest.Apellidos = persona.Apellidos;
-            clienteRequest.Email = persona.Email;
-            clienteRequest.Telefono = persona.Telefono;
-            clienteRequest.Direccion = persona.Direccion;
+            clienteRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+            clienteRequest.NombreComercial = persona.NombreComercial;
+            clienteRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+            clienteRequest.TelefonoCelular = persona.TelefonoCelular;
+            clienteRequest.DireccionPrincipal = persona.DireccionPrincipal;
+            clienteRequest.FechaNacimiento = persona.FechaNacimiento;
+            clienteRequest.Genero = persona.Genero;
             clienteRequest.IsActive = persona.IsActive;
 
             statusMessage = "Se cargo la informacion de la persona existente.";

@@ -59,7 +59,7 @@ internal static class SriFacturaXmlBuilder
                     new XElement("impuesto",
                         new XElement("codigo", tax.CodigoImpuesto),
                         new XElement("codigoPorcentaje", tax.CodigoPorcentaje),
-                        new XElement("tarifa", tax.TarifaTexto),
+                        new XElement("tarifa", detalle.PorcentajeIva.ToString("0.00", CultureInfo.InvariantCulture)),
                         new XElement("baseImponible", detalle.Subtotal.ToString("0.00", CultureInfo.InvariantCulture)),
                         new XElement("valor", detalle.IvaValor.ToString("0.00", CultureInfo.InvariantCulture)))));
         });
@@ -67,14 +67,9 @@ internal static class SriFacturaXmlBuilder
         var pagos = new XElement("pagos",
             new XElement("pago",
                 new XElement("formaPago", factura.FormaPagoSriCodigo),
-                new XElement("total", factura.Total.ToString("0.00", CultureInfo.InvariantCulture))));
-
-        if (RequiresPaymentTerm(factura.FormaPagoSriCodigo))
-        {
-            pagos.Element("pago")!.Add(
-                new XElement("plazo", "30"),
-                new XElement("unidadTiempo", "dias"));
-        }
+                new XElement("total", factura.Total.ToString("0.00", CultureInfo.InvariantCulture)),
+                new XElement("plazo", "0"),
+                new XElement("unidadTiempo", "dias")));
 
         var infoAdicional = BuildInfoAdicional(factura);
 
@@ -208,11 +203,6 @@ internal static class SriFacturaXmlBuilder
             10 => 1,
             _ => modulo
         };
-    }
-
-    private static bool RequiresPaymentTerm(string formaPagoSriCodigo)
-    {
-        return formaPagoSriCodigo is not "01";
     }
 
     private static object? BuildOptionalElement(string name, string? value)

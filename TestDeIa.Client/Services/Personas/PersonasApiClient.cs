@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Personas;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Personas;
 
 namespace TestDeIa.Client.Services.Personas;
@@ -14,10 +15,11 @@ public sealed class PersonasApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<IReadOnlyCollection<PersonaResponse>> GetAllAsync()
+    public async Task<PagedResultResponse<PersonaResponse>> GetPagedAsync(string? term, int skip, int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PersonaResponse>>("api/personas")
-            ?? Array.Empty<PersonaResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<PersonaResponse>>($"api/personas?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<PersonaResponse> { Skip = skip, Take = take };
     }
 
     public async Task<PersonaResponse?> FindByIdentificacionAsync(string identificacion)

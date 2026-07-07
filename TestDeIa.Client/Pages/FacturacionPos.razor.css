@@ -19,6 +19,7 @@
     justify-items: end;
     gap: 0.2rem;
     color: #58718a;
+    text-align: right;
 }
 
 .search-row {
@@ -94,6 +95,11 @@
     color: #23435f;
 }
 
+.totals-box strong {
+    color: #124a75;
+    font-size: 1.05rem;
+}
+
 .quantity-input {
     width: 6.5rem;
 }
@@ -107,6 +113,33 @@
 
     .pos-summary {
         justify-items: start;
+        text-align: left;
+    }
+
+    .pos-context-card {
+        align-items: flex-start;
+    }
+
+    .product-item .price-meta {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 820px) {
+    .pos-page .pos-grid {
+        gap: 1rem;
+    }
+
+    .pos-page .table-card {
+        padding: 1rem;
+    }
+
+    .checkout-panel {
+        gap: 1rem;
+    }
+
+    .totals-box {
+        position: static;
     }
 }
 
@@ -123,6 +156,11 @@
 
     .product-item .price-meta {
         text-align: left;
+    }
+
+    .selected-card,
+    .totals-box {
+        padding: 0.95rem;
     }
 
     .quantity-input {

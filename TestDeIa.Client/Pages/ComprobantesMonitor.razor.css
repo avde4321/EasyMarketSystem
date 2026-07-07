@@ -53,6 +53,21 @@
     color: #944246;
 }
 
+@media (max-width: 960px) {
+    .status-pill {
+        min-width: 0;
+    }
+
+    .monitor-summary {
+        gap: 0.55rem;
+    }
+
+    .summary-chip {
+        flex: 1 1 12rem;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 640px) {
     .monitor-summary {
         display: grid;

@@ -19,7 +19,7 @@
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo o telefono..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, cargo, contrato, correo o telefono..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         @if (isLoading)
@@ -45,6 +45,9 @@
                             <th>Nombre</th>
                             <th>Correo</th>
                             <th>Telefono</th>
+                            <th>Cargo</th>
+                            <th>Ingreso</th>
+                            <th>Contrato</th>
                             <th>Roles</th>
                             <th>Estado</th>
                             <th></th>
@@ -57,8 +60,11 @@
                                 <td data-label="Tipo">@empleado.TipoIdentificacion</td>
                                 <td data-label="Identificacion">@empleado.Identificacion</td>
                                 <td data-label="Nombre">@empleado.NombreCompleto</td>
-                                <td data-label="Correo">@empleado.Email</td>
-                                <td data-label="Telefono">@empleado.Telefono</td>
+                                <td data-label="Correo">@empleado.CorreoElectronicoPrincipal</td>
+                                <td data-label="Telefono">@empleado.TelefonoCelular</td>
+                                <td data-label="Cargo">@(string.IsNullOrWhiteSpace(empleado.CargoPuesto) ? "-" : empleado.CargoPuesto)</td>
+                                <td data-label="Ingreso">@(empleado.FechaIngreso?.ToString("yyyy-MM-dd") ?? "-")</td>
+                                <td data-label="Contrato">@empleado.TipoContrato</td>
                                 <td data-label="Roles">@string.Join(", ", empleado.RolesPersona)</td>
                                 <td data-label="Estado"><span class="status-pill">@((empleado.IsActive ? "Activo" : "Inactivo"))</span></td>
                                 <td data-label="Acciones" class="row-actions">
@@ -95,6 +101,11 @@
             <EditForm Model="empleadoRequest" OnValidSubmit="SaveEmpleadoAsync">
                 <DataAnnotationsValidator />
 
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="status-banner">@statusMessage</div>
+                }
+
                 <div class="status-banner">
                     Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de empleado sin duplicar sus datos base.
                 </div>
@@ -111,31 +122,83 @@
                     </div>
                     <div class="form-field">
                         <label>Identificacion</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.Identificacion" />
+                        <div class="input-action-row">
+                            <InputText class="form-control" @bind-Value="empleadoRequest.Identificacion" />
+                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                            </button>
+                        </div>
                         <ValidationMessage For="@(() => empleadoRequest.Identificacion)" />
                     </div>
-                    <div class="form-field">
-                        <label>Nombres</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.Nombres" />
-                        <ValidationMessage For="@(() => empleadoRequest.Nombres)" />
+                    <div class="form-field full">
+                        <label>Razon social / nombres completos</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.RazonSocialONombresCompletos" />
+                        <ValidationMessage For="@(() => empleadoRequest.RazonSocialONombresCompletos)" />
                     </div>
                     <div class="form-field">
-                        <label>Apellidos</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.Apellidos" />
-                        <ValidationMessage For="@(() => empleadoRequest.Apellidos)" />
+                        <label>Nombre comercial</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.NombreComercial" />
                     </div>
                     <div class="form-field">
                         <label>Correo</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.Email" />
-                        <ValidationMessage For="@(() => empleadoRequest.Email)" />
+                        <InputText class="form-control" @bind-Value="empleadoRequest.CorreoElectronicoPrincipal" />
+                        <ValidationMessage For="@(() => empleadoRequest.CorreoElectronicoPrincipal)" />
                     </div>
                     <div class="form-field">
                         <label>Celular</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.Telefono" />
+                        <InputText class="form-control" @bind-Value="empleadoRequest.TelefonoCelular" />
+                    </div>
+                    <div class="form-field">
+                        <label>Codigo empleado</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.CodigoEmpleado" />
+                    </div>
+                    <div class="form-field">
+                        <label>Codigo biometrico</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.CodigoBiometrico" />
+                    </div>
+                    <div class="form-field">
+                        <label>Fecha ingreso</label>
+                        <InputDate class="form-control" @bind-Value="empleadoRequest.FechaIngreso" />
+                    </div>
+                    <div class="form-field">
+                        <label>Fecha salida</label>
+                        <InputDate class="form-control" @bind-Value="empleadoRequest.FechaSalida" />
+                    </div>
+                    <div class="form-field">
+                        <label>Tipo contrato</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.TipoContrato" />
+                    </div>
+                    <div class="form-field">
+                        <label>Cargo / puesto</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.CargoPuesto" />
+                    </div>
+                    <div class="form-field">
+                        <label>Sueldo base</label>
+                        <InputNumber class="form-control" @bind-Value="empleadoRequest.SueldoBase" />
+                    </div>
+                    <div class="form-field">
+                        <label>% comision ventas</label>
+                        <InputNumber class="form-control" @bind-Value="empleadoRequest.PorcentajeComisionVentas" />
+                    </div>
+                    <div class="form-field">
+                        <label>Estado laboral</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.EstadoLaboral" />
+                    </div>
+                    <div class="form-field">
+                        <label>Fecha nacimiento</label>
+                        <InputDate class="form-control" @bind-Value="empleadoRequest.FechaNacimiento" />
                     </div>
                     <div class="form-field full">
                         <label>Direccion</label>
-                        <InputTextArea class="form-control" @bind-Value="empleadoRequest.Direccion" />
+                        <InputTextArea class="form-control" @bind-Value="empleadoRequest.DireccionPrincipal" />
+                    </div>
+                    <div class="form-field">
+                        <label>Contacto emergencia</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.NombreContactoEmergencia" />
+                    </div>
+                    <div class="form-field">
+                        <label>Telefono emergencia</label>
+                        <InputText class="form-control" @bind-Value="empleadoRequest.TelefonoEmergencia" />
                     </div>
                 </div>
 

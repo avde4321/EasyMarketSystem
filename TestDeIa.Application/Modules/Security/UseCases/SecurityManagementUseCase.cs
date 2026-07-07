@@ -1,3 +1,4 @@
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.In;
@@ -5,6 +6,7 @@ using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Domain.Modules.Security.Entities;
 using TestDeIa.Shared.Requests.Security;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Security;
 
 namespace TestDeIa.Application.Modules.Security.UseCases;
@@ -35,6 +37,20 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
         return users.Select(user => MapUser(user, personas)).ToArray();
     }
 
+    public async Task<PagedResultResponse<SecurityUserResponse>> GetUsersPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await securityUserRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        var personas = await personaRepository.GetAllAsync(cancellationToken);
+
+        return new PagedResultResponse<SecurityUserResponse>
+        {
+            Items = page.Items.Select(user => MapUser(user, personas)).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
+    }
+
     public async Task<IReadOnlyCollection<SecurityRoleResponse>> GetRolesAsync(CancellationToken cancellationToken = default)
     {
         var roles = await securityUserRepository.GetRolesAsync(cancellationToken);
@@ -48,7 +64,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     public async Task<SecurityUserResponse> CreateUserAsync(SecurityUserRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el usuario");
         ValidateRequest(request, true);
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
@@ -80,8 +96,8 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             Guid.Empty,
             persona.Id,
             request.UserName.Trim(),
-            $"{persona.Nombres} {persona.Apellidos}".Trim(),
-            persona.Email!.Trim(),
+            persona.RazonSocialONombresCompletos,
+            persona.CorreoElectronicoPrincipal!.Trim(),
             passwordHashService.Hash(request.Password!.Trim()),
             request.Roles.Select(role => role.Trim()).ToArray(),
             [],
@@ -96,7 +112,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     public async Task<SecurityUserResponse?> UpdateUserAsync(Guid id, SecurityUserRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        ValidateIdentificationByType(request.TipoIdentificacion, request.Identificacion);
+        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el usuario");
         ValidateRequest(request, false);
 
         var current = await securityUserRepository.GetByIdAsync(id, cancellationToken);
@@ -133,8 +149,8 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             current.EmpresaId,
             current.PersonaId,
             request.UserName.Trim(),
-            $"{updatedPersona.Nombres} {updatedPersona.Apellidos}".Trim(),
-            updatedPersona.Email!.Trim(),
+            updatedPersona.RazonSocialONombresCompletos,
+            updatedPersona.CorreoElectronicoPrincipal!.Trim(),
             passwordHash,
             request.Roles.Select(role => role.Trim()).ToArray(),
             current.EmpresasAcceso,
@@ -169,17 +185,20 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
 
     private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, SecurityUserRequest request)
     {
+        var nombresCompletos = string.Join(' ', new[] { request.Nombres?.Trim(), request.Apellidos?.Trim() }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
         return new Persona(
             id,
             request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
-            request.Nombres.Trim(),
-            request.Apellidos.Trim(),
+            nombresCompletos,
             null,
-            null,
-            NormalizeOptional(request.Email),
+            NormalizeOptional(request.Direccion) ?? "Sin direccion registrada",
             NormalizeOptional(request.Telefono),
-            NormalizeOptional(request.Direccion),
+            NormalizeOptional(request.Email),
+            null,
+            null,
             [],
             request.IsActive,
             createdAt,
@@ -218,7 +237,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             Id = user.Id,
             PersonaId = user.PersonaId,
             PersonaIdentificacion = persona?.Identificacion ?? user.UserName,
-            PersonaNombre = persona is null ? user.DisplayName : $"{persona.Nombres} {persona.Apellidos}".Trim(),
+            PersonaNombre = persona?.RazonSocialONombresCompletos ?? user.DisplayName,
             UserName = user.UserName,
             DisplayName = user.DisplayName,
             Email = user.Email,
@@ -230,25 +249,4 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static void ValidateIdentificationByType(string tipoIdentificacion, string identificacion)
-    {
-        var normalizedType = tipoIdentificacion.Trim().ToUpperInvariant();
-        var normalizedIdentification = identificacion.Trim();
-
-        if (string.IsNullOrWhiteSpace(normalizedIdentification))
-        {
-            throw new InvalidOperationException("La identificacion de la persona es obligatoria.");
-        }
-
-        if (normalizedType == "CEDULA" && (normalizedIdentification.Length != 10 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("La cedula debe tener 10 digitos numericos.");
-        }
-
-        if (normalizedType == "RUC" && (normalizedIdentification.Length != 13 || !normalizedIdentification.All(char.IsDigit)))
-        {
-            throw new InvalidOperationException("El RUC debe tener 13 digitos numericos.");
-        }
-    }
 }

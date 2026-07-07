@@ -5,6 +5,7 @@ using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Empresa;
 
@@ -44,6 +45,44 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             .ToListAsync(cancellationToken);
 
         return entities.Select(Map).ToArray();
+    }
+
+    public async Task<PagedResultResponse<EmpresaEmisora>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var normalizedTerm = term?.Trim();
+        var query = dbContext.EmpresasEmisoras
+            .AsNoTracking()
+            .Include(empresa => empresa.PuntosEmision)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(empresa =>
+                empresa.Ruc.Contains(normalizedTerm) ||
+                empresa.RazonSocial.Contains(normalizedTerm) ||
+                (empresa.NombreComercial != null && empresa.NombreComercial.Contains(normalizedTerm)) ||
+                empresa.AmbienteSri.Contains(normalizedTerm) ||
+                empresa.PuntosEmision.Any(punto =>
+                    punto.Establecimiento.Contains(normalizedTerm) ||
+                    punto.PuntoEmision.Contains(normalizedTerm) ||
+                    (punto.DireccionEstablecimiento != null && punto.DireccionEstablecimiento.Contains(normalizedTerm))));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var entities = await query
+            .OrderByDescending(empresa => empresa.IsActive)
+            .ThenBy(empresa => empresa.RazonSocial)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<EmpresaEmisora>
+        {
+            Items = entities.Select(Map).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<EmpresaEmisora?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

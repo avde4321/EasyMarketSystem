@@ -38,34 +38,36 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             return new PagedResultResponse<PosClienteResponse> { Items = Array.Empty<PosClienteResponse>(), Skip = skip, Take = take };
         }
 
-        var query = dbContext.Clientes
+        var query = dbContext.Personas
             .AsNoTracking()
-            .Include(cliente => cliente.Persona)
-            .Where(cliente =>
-                cliente.IsActive &&
-                cliente.Persona.IsActive &&
-                (cliente.Persona.Identificacion.Contains(normalizedTerm) ||
-                 cliente.Persona.Nombres.Contains(normalizedTerm) ||
-                 cliente.Persona.Apellidos.Contains(normalizedTerm)));
+            .Include(persona => persona.Cliente)
+            .Where(persona =>
+                !persona.IsSystemRecord &&
+                persona.IsActive &&
+                (persona.Identificacion.Contains(normalizedTerm) ||
+                 persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                 (persona.NombreComercial != null && persona.NombreComercial.Contains(normalizedTerm))));
         var totalCount = await query.CountAsync(cancellationToken);
-        var clientes = await query
-            .OrderBy(cliente => cliente.Persona.Identificacion)
+        var personas = await query
+            .OrderBy(persona => persona.Identificacion)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
 
         return new PagedResultResponse<PosClienteResponse>
         {
-            Items = clientes.Select(cliente => new PosClienteResponse
+            Items = personas.Select(persona => new PosClienteResponse
             {
-                ClienteId = cliente.Id,
-                PersonaId = cliente.PersonaId,
-                TipoIdentificacion = cliente.Persona.TipoIdentificacion,
-                Identificacion = cliente.Persona.Identificacion,
-                NombreCompleto = $"{cliente.Persona.Nombres} {cliente.Persona.Apellidos}".Trim(),
-                Email = cliente.Persona.Email,
-                Telefono = cliente.Persona.Telefono,
-                Direccion = cliente.Persona.Direccion
+                ClienteId = persona.Cliente?.PersonaId,
+                PersonaId = persona.Id,
+                TipoIdentificacion = persona.TipoIdentificacion,
+                Identificacion = persona.Identificacion,
+                NombreCompleto = persona.RazonSocialONombresCompletos,
+                NombreComercial = persona.NombreComercial,
+                Email = persona.CorreoElectronicoPrincipal,
+                Telefono = persona.TelefonoCelular,
+                Direccion = persona.DireccionPrincipal,
+                HasClienteExtension = persona.Cliente is not null && persona.Cliente.IsActive
             }).ToArray(),
             TotalCount = totalCount,
             Skip = skip,
@@ -149,7 +151,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         var cliente = await dbContext.Clientes
             .AsNoTracking()
             .Include(current => current.Persona)
-            .FirstOrDefaultAsync(current => current.Id == request.ClienteId, cancellationToken)
+            .FirstOrDefaultAsync(current => current.PersonaId == request.ClienteId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro el cliente seleccionado.");
 
         var empresaActivaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la factura.");
@@ -218,13 +220,13 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             ContribuyenteEspecial = empresa.ContribuyenteEspecial,
             RegimenRimpe = empresa.RegimenRimpe,
             AgenteRetencionResolucion = empresa.AgenteRetencionResolucion,
-            ClienteId = cliente.Id,
+            ClienteId = cliente.PersonaId,
             ClienteTipoIdentificacion = clienteTipoIdentificacion,
             ClienteIdentificacion = cliente.Persona.Identificacion,
-            ClienteNombre = $"{cliente.Persona.Nombres} {cliente.Persona.Apellidos}".Trim(),
-            ClienteDireccion = NormalizeOptional(cliente.Persona.Direccion),
-            ClienteEmail = NormalizeOptional(cliente.Persona.Email),
-            ClienteTelefono = NormalizeOptional(cliente.Persona.Telefono),
+            ClienteNombre = cliente.Persona.RazonSocialONombresCompletos,
+            ClienteDireccion = NormalizeOptional(cliente.Persona.DireccionPrincipal),
+            ClienteEmail = NormalizeOptional(cliente.Persona.CorreoElectronicoPrincipal),
+            ClienteTelefono = NormalizeOptional(cliente.Persona.TelefonoCelular),
             FormaPago = formaPago,
             FormaPagoSriCodigo = MapFormaPagoSriCodigo(formaPago),
             Estado = FacturaEstado.NO_FIRMADO,
@@ -350,15 +352,41 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         };
     }
 
-    public async Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
     {
-        var facturas = await dbContext.Set<FacturaEntity>()
+        var normalizedTerm = term?.Trim();
+        var query = dbContext.Set<FacturaEntity>()
             .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(factura =>
+                factura.Establecimiento.Contains(normalizedTerm) ||
+                factura.PuntoEmision.Contains(normalizedTerm) ||
+                factura.ClienteNombre.Contains(normalizedTerm) ||
+                factura.ClienteIdentificacion.Contains(normalizedTerm) ||
+                factura.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                factura.FormaPago.Contains(normalizedTerm) ||
+                factura.ClaveAcceso.Contains(normalizedTerm) ||
+                factura.Estado.ToString().Contains(normalizedTerm) ||
+                (factura.MensajeEstado != null && factura.MensajeEstado.Contains(normalizedTerm)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var facturas = await query
             .OrderByDescending(factura => factura.CreatedAt)
-            .Take(100)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync(cancellationToken);
 
-        return facturas.Select(MapMonitor).ToArray();
+        return new PagedResultResponse<FacturaMonitorResponse>
+        {
+            Items = facturas.Select(MapMonitor).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<IReadOnlyCollection<Guid>> GetPendingFacturaIdsAsync(int batchSize, DateTimeOffset now, CancellationToken cancellationToken = default)
