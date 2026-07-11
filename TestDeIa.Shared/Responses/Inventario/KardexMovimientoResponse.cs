@@ -6,6 +6,10 @@ public sealed class KardexMovimientoResponse
 
     public Guid ProductoId { get; set; }
 
+    public Guid BodegaId { get; set; }
+
+    public string? BodegaNombre { get; set; }
+
     public string TipoMovimiento { get; set; } = string.Empty;
 
     public string Concepto { get; set; } = string.Empty;

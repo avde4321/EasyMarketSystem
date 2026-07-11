@@ -13,6 +13,8 @@ public sealed class FacturaEntity
 
     public Guid ClienteId { get; set; }
 
+    public Guid BodegaId { get; set; }
+
     public Guid? EmpresaEmisoraId { get; set; }
 
     public string RucEmisor { get; set; } = string.Empty;

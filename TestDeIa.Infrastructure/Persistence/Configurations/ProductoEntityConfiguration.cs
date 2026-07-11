@@ -36,9 +36,6 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(producto => producto.PrecioVenta)
             .HasPrecision(18, 6);
 
-        builder.Property(producto => producto.StockActual)
-            .HasPrecision(18, 4);
-
         builder.Property(producto => producto.StockMinimo)
             .HasPrecision(18, 4);
 
@@ -47,9 +44,6 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
 
         builder.Property(producto => producto.ControlaStock)
             .HasDefaultValue(true);
-
-        builder.Property(producto => producto.RowVersion)
-            .IsRowVersion();
 
         builder.HasIndex(producto => new { producto.EmpresaId, producto.Codigo })
             .IsUnique();

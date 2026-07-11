@@ -44,11 +44,16 @@ public sealed class KardexMovimientoEntityConfiguration : IEntityTypeConfigurati
         builder.Property(movimiento => movimiento.SaldoValor)
             .HasPrecision(18, 6);
 
+        builder.HasOne(movimiento => movimiento.Bodega)
+            .WithMany(bodega => bodega.KardexMovimientos)
+            .HasForeignKey(movimiento => movimiento.BodegaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(movimiento => movimiento.Producto)
             .WithMany(producto => producto.KardexMovimientos)
             .HasForeignKey(movimiento => movimiento.ProductoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(movimiento => new { movimiento.ProductoId, movimiento.FechaMovimiento });
+        builder.HasIndex(movimiento => new { movimiento.ProductoId, movimiento.BodegaId, movimiento.FechaMovimiento });
     }
 }

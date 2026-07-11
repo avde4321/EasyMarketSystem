@@ -17,12 +17,53 @@ public sealed class InventarioController : ControllerBase
         this.inventarioUseCase = inventarioUseCase;
     }
 
+    [HttpGet("bodegas")]
+    public async Task<IActionResult> GetBodegas(CancellationToken cancellationToken = default)
+    {
+        return Ok(await inventarioUseCase.GetBodegasAsync(cancellationToken));
+    }
+
+    [HttpGet("bodegas/{id:guid}")]
+    public async Task<IActionResult> GetBodegaById(Guid id, CancellationToken cancellationToken = default)
+    {
+        var bodega = await inventarioUseCase.GetBodegaByIdAsync(id, cancellationToken);
+        return bodega is null ? NotFound() : Ok(bodega);
+    }
+
+    [HttpPost("bodegas")]
+    public async Task<IActionResult> CreateBodega([FromBody] BodegaRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var bodega = await inventarioUseCase.CreateBodegaAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetBodegaById), new { id = bodega.Id }, bodega);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPut("bodegas/{id:guid}")]
+    public async Task<IActionResult> UpdateBodega(Guid id, [FromBody] BodegaRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var bodega = await inventarioUseCase.UpdateBodegaAsync(id, request, cancellationToken);
+            return bodega is null ? NotFound() : Ok(bodega);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
     [HttpGet("productos")]
-    public async Task<IActionResult> GetProductos([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetProductos([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 50);
         skip = Math.Max(0, skip);
-        var productos = await inventarioUseCase.GetCatalogoPagedAsync(term, skip, take, cancellationToken);
+        var productos = await inventarioUseCase.GetCatalogoPagedAsync(term, skip, take, bodegaId, cancellationToken);
         return Ok(productos);
     }
 
@@ -67,9 +108,9 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("productos/{id:guid}/kardex")]
-    public async Task<IActionResult> GetKardex(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetKardex(Guid id, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var movimientos = await inventarioUseCase.GetKardexAsync(id, cancellationToken);
+        var movimientos = await inventarioUseCase.GetKardexAsync(id, bodegaId, cancellationToken);
         return Ok(movimientos);
     }
 
@@ -82,6 +123,48 @@ public sealed class InventarioController : ControllerBase
         try
         {
             var producto = await inventarioUseCase.AjustarStockAsync(id, request, cancellationToken);
+            return producto is null ? NotFound() : Ok(producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("movimientos/compra")]
+    public async Task<IActionResult> RegistrarCompra([FromBody] IngresoCompraRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.RegistrarCompraAsync(request, cancellationToken);
+            return producto is null ? NotFound() : Ok(producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("movimientos/merma")]
+    public async Task<IActionResult> RegistrarMerma([FromBody] EgresoMermaRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.RegistrarMermaAsync(request, cancellationToken);
+            return producto is null ? NotFound() : Ok(producto);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("movimientos/transferencia")]
+    public async Task<IActionResult> TransferirStock([FromBody] TransferenciaInventarioRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var producto = await inventarioUseCase.TransferirStockAsync(request, cancellationToken);
             return producto is null ? NotFound() : Ok(producto);
         }
         catch (InvalidOperationException exception)

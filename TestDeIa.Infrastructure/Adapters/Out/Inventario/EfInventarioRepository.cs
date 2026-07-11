@@ -12,6 +12,7 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Inventario;
 public sealed class EfInventarioRepository : IInventarioRepository
 {
     private const int MaxConcurrencyRetries = 3;
+    private const string PrincipalBodegaName = "Principal";
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
     private readonly ILogger<EfInventarioRepository> logger;
@@ -26,19 +27,92 @@ public sealed class EfInventarioRepository : IInventarioRepository
         this.logger = logger;
     }
 
-    public async Task<IReadOnlyCollection<Producto>> GetProductosAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<Bodega>> GetBodegasAsync(CancellationToken cancellationToken = default)
+    {
+        var bodegas = await dbContext.Bodegas
+            .AsNoTracking()
+            .OrderByDescending(bodega => bodega.Nombre == PrincipalBodegaName)
+            .ThenBy(bodega => bodega.Nombre)
+            .ToListAsync(cancellationToken);
+
+        return bodegas.Select(MapBodega).ToArray();
+    }
+
+    public async Task<Bodega?> GetBodegaByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var bodega = await dbContext.Bodegas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        return bodega is null ? null : MapBodega(bodega);
+    }
+
+    public Task<bool> ExistsBodegaNombreAsync(string nombre, Guid? excludedId = null, CancellationToken cancellationToken = default)
+    {
+        var normalizedNombre = nombre.Trim();
+
+        return dbContext.Bodegas.AnyAsync(
+            current => current.Nombre == normalizedNombre &&
+                       (!excludedId.HasValue || current.Id != excludedId.Value),
+            cancellationToken);
+    }
+
+    public async Task<Bodega> CreateBodegaAsync(Bodega bodega, CancellationToken cancellationToken = default)
+    {
+        var entity = new BodegaEntity
+        {
+            Id = bodega.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la bodega."),
+            Nombre = bodega.Nombre,
+            Direccion = bodega.Direccion,
+            IsActive = bodega.IsActive,
+            CreatedAt = bodega.CreatedAt,
+            UpdatedAt = bodega.UpdatedAt
+        };
+
+        dbContext.Bodegas.Add(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapBodega(entity);
+    }
+
+    public async Task<Bodega?> UpdateBodegaAsync(Bodega bodega, CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Bodegas
+            .FirstOrDefaultAsync(current => current.Id == bodega.Id, cancellationToken);
+
+        if (entity is null)
+        {
+            return null;
+        }
+
+        entity.Nombre = bodega.Nombre;
+        entity.Direccion = bodega.Direccion;
+        entity.IsActive = bodega.IsActive;
+        entity.UpdatedAt = bodega.UpdatedAt;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapBodega(entity);
+    }
+
+    public async Task<IReadOnlyCollection<Producto>> GetProductosAsync(Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         var productos = await dbContext.Productos
             .AsNoTracking()
+            .Include(producto => producto.ProductosBodega)
             .OrderBy(producto => producto.Nombre)
             .ToListAsync(cancellationToken);
 
-        return productos.Select(MapProducto).ToArray();
+        return productos.Select(producto => MapProducto(producto, bodegaId)).ToArray();
     }
 
-    public async Task<PagedResultResponse<Producto>> GetProductosPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<Producto>> GetProductosPagedAsync(string? term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var query = ApplyFilter(dbContext.Productos.AsNoTracking(), term);
+        var query = ApplyFilter(
+            dbContext.Productos
+                .AsNoTracking()
+                .Include(producto => producto.ProductosBodega),
+            term);
+
         var totalCount = await query.CountAsync(cancellationToken);
         var productos = await query
             .OrderBy(producto => producto.Nombre)
@@ -48,7 +122,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
 
         return new PagedResultResponse<Producto>
         {
-            Items = productos.Select(MapProducto).ToArray(),
+            Items = productos.Select(producto => MapProducto(producto, bodegaId)).ToArray(),
             TotalCount = totalCount,
             Skip = skip,
             Take = take
@@ -59,6 +133,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
     {
         var producto = await dbContext.Productos
             .AsNoTracking()
+            .Include(current => current.ProductosBodega)
             .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
 
         return producto is null ? null : MapProducto(producto);
@@ -90,22 +165,30 @@ public sealed class EfInventarioRepository : IInventarioRepository
         dbContext.Productos.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        if (stockInicial > 0)
+        if (producto.ControlaStock)
         {
-            RegistrarMovimientoInternalAsync(
-                entity,
-                "Entrada",
-                "Stock inicial",
-                "INICIAL",
-                stockInicial,
-                costoInicial,
-                cancellationToken);
+            var principalBodega = await GetOrCreatePrincipalBodegaAsync(cancellationToken);
+            var existenciaPrincipal = await GetOrCreateProductoBodegaAsync(entity, principalBodega, cancellationToken);
 
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (stockInicial > 0)
+            {
+                RegistrarMovimientoInternal(
+                    entity,
+                    existenciaPrincipal,
+                    principalBodega,
+                    "Entrada",
+                    "Stock inicial",
+                    "INICIAL",
+                    stockInicial,
+                    costoInicial,
+                    recalcularCostoPromedioEnEntrada: true);
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return MapProducto(entity);
+        return await GetProductoByIdAsync(entity.Id, cancellationToken) ?? MapProducto(entity);
     }
 
     public async Task<Producto?> UpdateProductoAsync(Producto producto, CancellationToken cancellationToken = default)
@@ -130,14 +213,22 @@ public sealed class EfInventarioRepository : IInventarioRepository
         entity.UpdatedAt = producto.UpdatedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return MapProducto(entity);
+        return await GetProductoByIdAsync(entity.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyCollection<KardexMovimiento>> GetKardexAsync(Guid productoId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<KardexMovimiento>> GetKardexAsync(Guid productoId, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var movimientos = await dbContext.KardexMovimientos
+        var query = dbContext.KardexMovimientos
             .AsNoTracking()
-            .Where(movimiento => movimiento.ProductoId == productoId)
+            .Include(movimiento => movimiento.Bodega)
+            .Where(movimiento => movimiento.ProductoId == productoId);
+
+        if (bodegaId.HasValue && bodegaId.Value != Guid.Empty)
+        {
+            query = query.Where(movimiento => movimiento.BodegaId == bodegaId.Value);
+        }
+
+        var movimientos = await query
             .OrderByDescending(movimiento => movimiento.FechaMovimiento)
             .ToListAsync(cancellationToken);
 
@@ -146,6 +237,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
 
     public async Task<Producto?> RegistrarMovimientoAsync(
         Guid productoId,
+        Guid? bodegaId,
         string tipoMovimiento,
         string concepto,
         string? referencia,
@@ -158,6 +250,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
             async token =>
             {
                 var producto = await dbContext.Productos
+                    .Include(current => current.ProductosBodega)
                     .FirstOrDefaultAsync(current => current.Id == productoId, token);
 
                 if (producto is null)
@@ -166,14 +259,20 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     return;
                 }
 
-                RegistrarMovimientoInternalAsync(
+                var operationalBodega = await GetBodegaByIdOrPrincipalAsync(bodegaId, token);
+                var existenciaPrincipal = await GetOrCreateProductoBodegaAsync(producto, operationalBodega, token);
+
+                RegistrarMovimientoInternal(
                     producto,
+                    existenciaPrincipal,
+                    operationalBodega,
                     tipoMovimiento,
                     concepto,
                     referencia,
                     cantidad,
                     costoUnitario,
-                    token);
+                    recalcularCostoPromedioEnEntrada: true,
+                    stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {operationalBodega.Nombre} para registrar la salida.");
 
                 productoActualizado = MapProducto(producto);
             },
@@ -183,8 +282,165 @@ public sealed class EfInventarioRepository : IInventarioRepository
         return productoActualizado;
     }
 
+    public async Task<Producto?> RegistrarCompraAsync(
+        Guid productoId,
+        Guid bodegaId,
+        decimal cantidad,
+        decimal costoUnitarioCompra,
+        string? referencia,
+        CancellationToken cancellationToken = default)
+    {
+        Producto? productoActualizado = null;
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                var producto = await dbContext.Productos
+                    .Include(current => current.ProductosBodega)
+                    .FirstOrDefaultAsync(current => current.Id == productoId, token);
+
+                if (producto is null)
+                {
+                    productoActualizado = null;
+                    return;
+                }
+
+                EnsureProductoControlaStock(producto, "registrar una compra");
+
+                var bodega = await GetBodegaEntityByIdAsync(bodegaId, token);
+                var existencia = await GetOrCreateProductoBodegaAsync(producto, bodega, token);
+
+                RegistrarMovimientoInternal(
+                    producto,
+                    existencia,
+                    bodega,
+                    "Entrada",
+                    "INGRESO_COMPRA",
+                    referencia,
+                    cantidad,
+                    costoUnitarioCompra,
+                    recalcularCostoPromedioEnEntrada: true);
+
+                productoActualizado = MapProducto(producto);
+            },
+            $"ingreso por compra del producto {productoId} en bodega {bodegaId}",
+            cancellationToken);
+
+        return productoActualizado;
+    }
+
+    public async Task<Producto?> RegistrarMermaAsync(
+        Guid productoId,
+        Guid bodegaId,
+        decimal cantidad,
+        string motivo,
+        string? referencia,
+        CancellationToken cancellationToken = default)
+    {
+        Producto? productoActualizado = null;
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                var producto = await dbContext.Productos
+                    .Include(current => current.ProductosBodega)
+                    .FirstOrDefaultAsync(current => current.Id == productoId, token);
+
+                if (producto is null)
+                {
+                    productoActualizado = null;
+                    return;
+                }
+
+                EnsureProductoControlaStock(producto, "registrar una merma");
+
+                var bodega = await GetBodegaEntityByIdAsync(bodegaId, token);
+                var existencia = await GetOrCreateProductoBodegaAsync(producto, bodega, token);
+
+                RegistrarMovimientoInternal(
+                    producto,
+                    existencia,
+                    bodega,
+                    "Salida",
+                    "EGRESO_MERMA",
+                    string.IsNullOrWhiteSpace(referencia) ? motivo : $"{motivo} | {referencia}",
+                    cantidad,
+                    producto.CostoPromedio,
+                    recalcularCostoPromedioEnEntrada: false,
+                    stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {bodega.Nombre} para registrar la merma.");
+
+                productoActualizado = MapProducto(producto);
+            },
+            $"egreso por merma del producto {productoId} en bodega {bodegaId}",
+            cancellationToken);
+
+        return productoActualizado;
+    }
+
+    public async Task<Producto?> TransferirStockAsync(
+        Guid productoId,
+        Guid bodegaOrigenId,
+        Guid bodegaDestinoId,
+        decimal cantidad,
+        string? referencia,
+        CancellationToken cancellationToken = default)
+    {
+        Producto? productoActualizado = null;
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                var producto = await dbContext.Productos
+                    .Include(current => current.ProductosBodega)
+                    .FirstOrDefaultAsync(current => current.Id == productoId, token);
+
+                if (producto is null)
+                {
+                    productoActualizado = null;
+                    return;
+                }
+
+                EnsureProductoControlaStock(producto, "transferir inventario");
+
+                var bodegaOrigen = await GetBodegaEntityByIdAsync(bodegaOrigenId, token);
+                var bodegaDestino = await GetBodegaEntityByIdAsync(bodegaDestinoId, token);
+                var existenciaOrigen = await GetOrCreateProductoBodegaAsync(producto, bodegaOrigen, token);
+                var existenciaDestino = await GetOrCreateProductoBodegaAsync(producto, bodegaDestino, token);
+                var referenciaTransferencia = string.IsNullOrWhiteSpace(referencia)
+                    ? $"TRANSFERENCIA:{bodegaOrigen.Nombre}->{bodegaDestino.Nombre}"
+                    : referencia;
+
+                RegistrarMovimientoInternal(
+                    producto,
+                    existenciaOrigen,
+                    bodegaOrigen,
+                    "Salida",
+                    "TRANSFERENCIA_SALIDA",
+                    referenciaTransferencia,
+                    cantidad,
+                    producto.CostoPromedio,
+                    recalcularCostoPromedioEnEntrada: false,
+                    stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {bodegaOrigen.Nombre} para transferir.");
+
+                RegistrarMovimientoInternal(
+                    producto,
+                    existenciaDestino,
+                    bodegaDestino,
+                    "Entrada",
+                    "TRANSFERENCIA_ENTRADA",
+                    referenciaTransferencia,
+                    cantidad,
+                    producto.CostoPromedio,
+                    recalcularCostoPromedioEnEntrada: false);
+
+                productoActualizado = MapProducto(producto);
+            },
+            $"transferencia del producto {productoId} desde {bodegaOrigenId} hacia {bodegaDestinoId}",
+            cancellationToken);
+
+        return productoActualizado;
+    }
+
     public async Task DescontarStockPorFacturaAsync(
         Guid facturaId,
+        Guid? bodegaId,
         string referenciaFactura,
         string concepto,
         IReadOnlyCollection<(Guid ProductoId, decimal Cantidad)> items,
@@ -193,9 +449,12 @@ public sealed class EfInventarioRepository : IInventarioRepository
         await ExecuteWithConcurrencyRetryAsync(
             async token =>
             {
+                var operationalBodega = await GetBodegaByIdOrPrincipalAsync(bodegaId, token);
+
                 foreach (var item in items)
                 {
                     var producto = await dbContext.Productos
+                        .Include(current => current.ProductosBodega)
                         .FirstOrDefaultAsync(current => current.Id == item.ProductoId, token)
                         ?? throw new InvalidOperationException("No se encontro uno de los productos de la factura.");
 
@@ -208,34 +467,43 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         continue;
                     }
 
-                    RegistrarMovimientoInternalAsync(
+                    var existenciaPrincipal = await GetOrCreateProductoBodegaAsync(producto, operationalBodega, token);
+
+                    RegistrarMovimientoInternal(
                         producto,
+                        existenciaPrincipal,
+                        operationalBodega,
                         "Salida",
                         concepto,
                         referenciaFactura,
                         item.Cantidad,
                         producto.CostoPromedio,
-                        token);
+                        recalcularCostoPromedioEnEntrada: false,
+                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {operationalBodega.Nombre} para facturar.");
                 }
 
                 logger.LogInformation(
-                    "Kardex de salida aplicado para factura {FacturaId} con referencia {ReferenciaFactura} y {TotalItems} items.",
+                    "Kardex de salida aplicado para factura {FacturaId} con referencia {ReferenciaFactura} y {TotalItems} items sobre bodega {BodegaNombre}.",
                     facturaId,
                     referenciaFactura,
-                    items.Count);
+                    items.Count,
+                    operationalBodega.Nombre);
             },
             $"descuento de stock por factura {referenciaFactura}",
             cancellationToken);
     }
 
-    private void RegistrarMovimientoInternalAsync(
+    private void RegistrarMovimientoInternal(
         ProductoEntity producto,
+        ProductoBodegaEntity productoBodega,
+        BodegaEntity bodega,
         string tipoMovimiento,
         string concepto,
         string? referencia,
         decimal cantidad,
         decimal costoUnitario,
-        CancellationToken cancellationToken)
+        bool recalcularCostoPromedioEnEntrada,
+        string? stockInsuficienteMensaje = null)
     {
         var isEntrada = string.Equals(tipoMovimiento, "Entrada", StringComparison.OrdinalIgnoreCase);
         var isSalida = string.Equals(tipoMovimiento, "Salida", StringComparison.OrdinalIgnoreCase);
@@ -255,23 +523,25 @@ public sealed class EfInventarioRepository : IInventarioRepository
             throw new InvalidOperationException("El costo unitario no puede ser negativo.");
         }
 
-        if (isSalida && producto.StockActual < cantidad)
+        if (isSalida && productoBodega.StockActual < cantidad)
         {
-            throw new InvalidOperationException("No existe stock suficiente para registrar la salida.");
+            throw new InvalidOperationException(stockInsuficienteMensaje ?? $"No existe stock suficiente en la bodega {bodega.Nombre} para registrar la salida.");
         }
 
-        var stockAnterior = producto.StockActual;
+        var stockAnteriorBodega = productoBodega.StockActual;
+        var stockGlobalAnterior = producto.ProductosBodega.Sum(current => current.StockActual);
         var costoAnterior = producto.CostoPromedio;
-        var nuevoStock = isEntrada ? stockAnterior + cantidad : stockAnterior - cantidad;
-        var nuevoCostoPromedio = CalculateCostoPromedio(
-            isEntrada,
-            stockAnterior,
-            costoAnterior,
-            cantidad,
-            costoUnitario);
+        var nuevoStockBodega = isEntrada ? stockAnteriorBodega + cantidad : stockAnteriorBodega - cantidad;
+        var nuevoCostoPromedio = recalcularCostoPromedioEnEntrada && isEntrada
+            ? CalculateCostoPromedioEntrada(
+                stockGlobalAnterior,
+                costoAnterior,
+                cantidad,
+                costoUnitario)
+            : costoAnterior;
 
-        producto.StockActual = nuevoStock;
-        producto.CostoPromedio = nuevoStock == 0 ? 0 : nuevoCostoPromedio;
+        productoBodega.StockActual = nuevoStockBodega;
+        producto.CostoPromedio = isEntrada && recalcularCostoPromedioEnEntrada ? nuevoCostoPromedio : costoAnterior;
         producto.UpdatedAt = DateTimeOffset.UtcNow;
 
         dbContext.KardexMovimientos.Add(new KardexMovimientoEntity
@@ -279,15 +549,16 @@ public sealed class EfInventarioRepository : IInventarioRepository
             Id = Guid.NewGuid(),
             EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el movimiento de inventario."),
             ProductoId = producto.Id,
+            BodegaId = bodega.Id,
             TipoMovimiento = isEntrada ? "Entrada" : "Salida",
             Concepto = concepto,
             Referencia = referencia,
             CantidadEntrada = isEntrada ? cantidad : 0,
             CantidadSalida = isSalida ? cantidad : 0,
-            SaldoCantidad = producto.StockActual,
+            SaldoCantidad = productoBodega.StockActual,
             CostoUnitario = costoUnitario,
             CostoPromedio = producto.CostoPromedio,
-            SaldoValor = producto.StockActual * producto.CostoPromedio,
+            SaldoValor = productoBodega.StockActual * producto.CostoPromedio,
             FechaMovimiento = DateTimeOffset.UtcNow
         });
     }
@@ -348,6 +619,91 @@ public sealed class EfInventarioRepository : IInventarioRepository
         throw new InvalidOperationException($"No se pudo completar {operationName} por concurrencia luego de {MaxConcurrencyRetries} intentos.");
     }
 
+    private async Task<BodegaEntity> GetOrCreatePrincipalBodegaAsync(CancellationToken cancellationToken)
+    {
+        var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para inventario.");
+
+        var principal = await dbContext.Bodegas
+            .FirstOrDefaultAsync(current => current.EmpresaId == empresaId && current.Nombre == PrincipalBodegaName, cancellationToken);
+
+        if (principal is not null)
+        {
+            return principal;
+        }
+
+        principal = new BodegaEntity
+        {
+            Id = Guid.NewGuid(),
+            EmpresaId = empresaId,
+            Nombre = PrincipalBodegaName,
+            Direccion = null,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        dbContext.Bodegas.Add(principal);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return principal;
+    }
+
+    private async Task<BodegaEntity> GetBodegaByIdOrPrincipalAsync(Guid? bodegaId, CancellationToken cancellationToken)
+    {
+        if (bodegaId.HasValue && bodegaId.Value != Guid.Empty)
+        {
+            return await GetBodegaEntityByIdAsync(bodegaId.Value, cancellationToken);
+        }
+
+        return await GetOrCreatePrincipalBodegaAsync(cancellationToken);
+    }
+
+    private async Task<BodegaEntity> GetBodegaEntityByIdAsync(Guid bodegaId, CancellationToken cancellationToken)
+    {
+        var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para inventario.");
+        var bodega = await dbContext.Bodegas
+            .FirstOrDefaultAsync(current => current.Id == bodegaId && current.EmpresaId == empresaId, cancellationToken)
+            ?? throw new InvalidOperationException("La bodega seleccionada no pertenece a la empresa activa.");
+
+        if (!bodega.IsActive)
+        {
+            throw new InvalidOperationException($"La bodega {bodega.Nombre} no se encuentra activa.");
+        }
+
+        return bodega;
+    }
+
+    private async Task<ProductoBodegaEntity> GetOrCreateProductoBodegaAsync(
+        ProductoEntity producto,
+        BodegaEntity bodega,
+        CancellationToken cancellationToken)
+    {
+        var existencia = producto.ProductosBodega.FirstOrDefault(current => current.BodegaId == bodega.Id);
+        if (existencia is not null)
+        {
+            return existencia;
+        }
+
+        existencia = await dbContext.ProductosBodega
+            .FirstOrDefaultAsync(current => current.ProductoId == producto.Id && current.BodegaId == bodega.Id, cancellationToken);
+
+        if (existencia is not null)
+        {
+            producto.ProductosBodega.Add(existencia);
+            return existencia;
+        }
+
+        existencia = new ProductoBodegaEntity
+        {
+            ProductoId = producto.Id,
+            BodegaId = bodega.Id,
+            EmpresaId = bodega.EmpresaId,
+            StockActual = 0
+        };
+
+        dbContext.ProductosBodega.Add(existencia);
+        producto.ProductosBodega.Add(existencia);
+        return existencia;
+    }
+
     private static IQueryable<ProductoEntity> ApplyFilter(IQueryable<ProductoEntity> query, string? term)
     {
         var normalizedTerm = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
@@ -363,32 +719,33 @@ public sealed class EfInventarioRepository : IInventarioRepository
             producto.CodigoIva.Contains(normalizedTerm));
     }
 
-    private static decimal CalculateCostoPromedio(
-        bool isEntrada,
-        decimal stockAnterior,
+    private static decimal CalculateCostoPromedioEntrada(
+        decimal stockGlobalAnterior,
         decimal costoAnterior,
-        decimal cantidad,
-        decimal costoUnitario)
+        decimal cantidadEntrada,
+        decimal costoUnitarioEntrada)
     {
-        if (!isEntrada)
-        {
-            return costoAnterior;
-        }
-
-        var nuevoStock = stockAnterior + cantidad;
+        var nuevoStock = stockGlobalAnterior + cantidadEntrada;
         if (nuevoStock == 0)
         {
             return 0;
         }
 
-        var valorAnterior = stockAnterior * costoAnterior;
-        var valorEntrada = cantidad * costoUnitario;
+        var valorAnterior = stockGlobalAnterior * costoAnterior;
+        var valorEntrada = cantidadEntrada * costoUnitarioEntrada;
 
         return Math.Round((valorAnterior + valorEntrada) / nuevoStock, 6);
     }
 
-    private static Producto MapProducto(ProductoEntity entity)
+    private static Producto MapProducto(ProductoEntity entity, Guid? bodegaId = null)
     {
+        var stockActual = bodegaId.HasValue && bodegaId.Value != Guid.Empty
+            ? entity.ProductosBodega
+                .Where(current => current.BodegaId == bodegaId.Value)
+                .Select(current => current.StockActual)
+                .FirstOrDefault()
+            : entity.ProductosBodega.Sum(current => current.StockActual);
+
         return new Producto(
             entity.Id,
             entity.Codigo,
@@ -397,7 +754,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.CodigoIva,
             entity.PorcentajeIva,
             entity.PrecioVenta,
-            entity.StockActual,
+            stockActual,
             entity.StockMinimo,
             entity.CostoPromedio,
             entity.ControlaStock,
@@ -418,7 +775,6 @@ public sealed class EfInventarioRepository : IInventarioRepository
             CodigoIva = producto.CodigoIva,
             PorcentajeIva = producto.PorcentajeIva,
             PrecioVenta = producto.PrecioVenta,
-            StockActual = producto.StockActual,
             StockMinimo = producto.StockMinimo,
             CostoPromedio = producto.CostoPromedio,
             ControlaStock = producto.ControlaStock,
@@ -433,6 +789,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
         return new KardexMovimiento(
             entity.Id,
             entity.ProductoId,
+            entity.BodegaId,
+            entity.Bodega.Nombre,
             entity.TipoMovimiento,
             entity.Concepto,
             entity.Referencia,
@@ -443,5 +801,25 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.CostoPromedio,
             entity.SaldoValor,
             entity.FechaMovimiento);
+    }
+
+    private static void EnsureProductoControlaStock(ProductoEntity producto, string operation)
+    {
+        if (!producto.ControlaStock)
+        {
+            throw new InvalidOperationException($"El producto {producto.Nombre} no controla stock, por lo que no puede {operation}.");
+        }
+    }
+
+    private static Bodega MapBodega(BodegaEntity entity)
+    {
+        return new Bodega(
+            entity.Id,
+            entity.EmpresaId,
+            entity.Nombre,
+            entity.Direccion,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.UpdatedAt);
     }
 }

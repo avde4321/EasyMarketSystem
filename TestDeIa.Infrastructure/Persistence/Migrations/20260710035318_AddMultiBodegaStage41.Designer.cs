@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710035318_AddMultiBodegaStage41")]
+    partial class AddMultiBodegaStage41
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -841,9 +844,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<Guid>("BodegaId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("ClaveAcceso")
                         .IsRequired()
                         .HasMaxLength(49)
@@ -1036,8 +1036,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BodegaId");
 
                     b.HasIndex("ClaveAcceso")
                         .IsUnique();
@@ -1583,15 +1581,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Factura");
-                });
-
-            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaEntity", b =>
-                {
-                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.BodegaEntity", null)
-                        .WithMany()
-                        .HasForeignKey("BodegaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaSriEventoEntity", b =>

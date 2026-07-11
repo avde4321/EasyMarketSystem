@@ -100,7 +100,6 @@ public partial class Empleados
             TipoIdentificacion = empleado.TipoIdentificacion,
             Identificacion = empleado.Identificacion,
             RazonSocialONombresCompletos = empleado.RazonSocialONombresCompletos,
-            NombreComercial = empleado.NombreComercial,
             CorreoElectronicoPrincipal = empleado.CorreoElectronicoPrincipal,
             TelefonoCelular = empleado.TelefonoCelular,
             DireccionPrincipal = empleado.DireccionPrincipal,
@@ -157,7 +156,6 @@ public partial class Empleados
             empleadoRequest.TipoIdentificacion = persona.TipoIdentificacion;
             empleadoRequest.Identificacion = persona.Identificacion;
             empleadoRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
-            empleadoRequest.NombreComercial = persona.NombreComercial;
             empleadoRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
             empleadoRequest.TelefonoCelular = persona.TelefonoCelular;
             empleadoRequest.DireccionPrincipal = persona.DireccionPrincipal;
@@ -181,6 +179,7 @@ public partial class Empleados
     {
         isSaving = true;
         errorMessage = null;
+        empleadoRequest.NombreComercial = null;
 
         try
         {

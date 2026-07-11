@@ -7,6 +7,8 @@ public sealed class EmitirFacturaRequest
     [Required]
     public Guid ClienteId { get; set; }
 
+    public Guid? BodegaId { get; set; }
+
     [Required(ErrorMessage = "El establecimiento es obligatorio.")]
     [StringLength(3, MinimumLength = 3, ErrorMessage = "El establecimiento debe tener 3 digitos.")]
     public string Establecimiento { get; set; } = string.Empty;

@@ -34,6 +34,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
 
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
+    public DbSet<BodegaEntity> Bodegas => Set<BodegaEntity>();
+    public DbSet<ProductoBodegaEntity> ProductosBodega => Set<ProductoBodegaEntity>();
 
     public DbSet<KardexMovimientoEntity> KardexMovimientos => Set<KardexMovimientoEntity>();
 
@@ -55,6 +57,10 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<EmpleadoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProductoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<BodegaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ProductoBodegaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<KardexMovimientoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);

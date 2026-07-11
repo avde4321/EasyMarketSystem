@@ -9,6 +9,10 @@ public sealed class KardexMovimientoEntity
 
     public ProductoEntity Producto { get; set; } = default!;
 
+    public Guid BodegaId { get; set; }
+
+    public BodegaEntity Bodega { get; set; } = default!;
+
     public string TipoMovimiento { get; set; } = string.Empty;
 
     public string Concepto { get; set; } = string.Empty;

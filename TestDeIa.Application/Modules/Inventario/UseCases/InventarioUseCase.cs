@@ -16,15 +16,76 @@ public sealed class InventarioUseCase : IInventarioUseCase
         this.inventarioRepository = inventarioRepository;
     }
 
-    public async Task<IReadOnlyCollection<ProductoResponse>> GetCatalogoAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<BodegaResponse>> GetBodegasAsync(CancellationToken cancellationToken = default)
     {
-        var productos = await inventarioRepository.GetProductosAsync(cancellationToken);
+        var bodegas = await inventarioRepository.GetBodegasAsync(cancellationToken);
+        return bodegas.Select(MapBodega).ToArray();
+    }
+
+    public async Task<BodegaResponse?> GetBodegaByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var bodega = await inventarioRepository.GetBodegaByIdAsync(id, cancellationToken);
+        return bodega is null ? null : MapBodega(bodega);
+    }
+
+    public async Task<BodegaResponse> CreateBodegaAsync(BodegaRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBodegaRequest(request);
+
+        if (await inventarioRepository.ExistsBodegaNombreAsync(request.Nombre, cancellationToken: cancellationToken))
+        {
+            throw new InvalidOperationException("Ya existe una bodega con ese nombre.");
+        }
+
+        var bodega = new Bodega(
+            Guid.NewGuid(),
+            Guid.Empty,
+            request.Nombre.Trim(),
+            NormalizeOptional(request.Direccion),
+            request.IsActive,
+            DateTimeOffset.UtcNow,
+            null);
+
+        return MapBodega(await inventarioRepository.CreateBodegaAsync(bodega, cancellationToken));
+    }
+
+    public async Task<BodegaResponse?> UpdateBodegaAsync(Guid id, BodegaRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBodegaRequest(request);
+
+        if (await inventarioRepository.ExistsBodegaNombreAsync(request.Nombre, id, cancellationToken))
+        {
+            throw new InvalidOperationException("Ya existe otra bodega con ese nombre.");
+        }
+
+        var current = await inventarioRepository.GetBodegaByIdAsync(id, cancellationToken);
+        if (current is null)
+        {
+            return null;
+        }
+
+        var bodega = new Bodega(
+            id,
+            current.EmpresaId,
+            request.Nombre.Trim(),
+            NormalizeOptional(request.Direccion),
+            request.IsActive,
+            current.CreatedAt,
+            DateTimeOffset.UtcNow);
+
+        var updated = await inventarioRepository.UpdateBodegaAsync(bodega, cancellationToken);
+        return updated is null ? null : MapBodega(updated);
+    }
+
+    public async Task<IReadOnlyCollection<ProductoResponse>> GetCatalogoAsync(Guid? bodegaId = null, CancellationToken cancellationToken = default)
+    {
+        var productos = await inventarioRepository.GetProductosAsync(bodegaId, cancellationToken);
         return productos.Select(MapProducto).ToArray();
     }
 
-    public async Task<PagedResultResponse<ProductoResponse>> GetCatalogoPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<ProductoResponse>> GetCatalogoPagedAsync(string? term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var page = await inventarioRepository.GetProductosPagedAsync(term, skip, take, cancellationToken);
+        var page = await inventarioRepository.GetProductosPagedAsync(term, skip, take, bodegaId, cancellationToken);
         return new PagedResultResponse<ProductoResponse>
         {
             Items = page.Items.Select(MapProducto).ToArray(),
@@ -107,9 +168,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return updated is null ? null : MapProducto(updated);
     }
 
-    public async Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var movimientos = await inventarioRepository.GetKardexAsync(productoId, cancellationToken);
+        var movimientos = await inventarioRepository.GetKardexAsync(productoId, bodegaId, cancellationToken);
         return movimientos.Select(MapKardex).ToArray();
     }
 
@@ -120,11 +181,79 @@ public sealed class InventarioUseCase : IInventarioUseCase
 
         var producto = await inventarioRepository.RegistrarMovimientoAsync(
             productoId,
+            request.BodegaId,
             request.TipoMovimiento.Trim(),
             request.Concepto.Trim(),
             NormalizeOptional(request.Referencia),
             request.Cantidad,
             request.CostoUnitario,
+            cancellationToken);
+
+        return producto is null ? null : MapProducto(producto);
+    }
+
+    public async Task<ProductoResponse?> RegistrarCompraAsync(IngresoCompraRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBodegaMovimientoIds(request.ProductoId, request.BodegaId);
+        ValidateCantidad(request.Cantidad);
+
+        if (request.CostoUnitarioCompra <= 0)
+        {
+            throw new InvalidOperationException("El costo unitario de compra debe ser mayor a cero.");
+        }
+
+        var producto = await inventarioRepository.RegistrarCompraAsync(
+            request.ProductoId,
+            request.BodegaId,
+            request.Cantidad,
+            request.CostoUnitarioCompra,
+            NormalizeOptional(request.Referencia),
+            cancellationToken);
+
+        return producto is null ? null : MapProducto(producto);
+    }
+
+    public async Task<ProductoResponse?> RegistrarMermaAsync(EgresoMermaRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBodegaMovimientoIds(request.ProductoId, request.BodegaId);
+        ValidateCantidad(request.Cantidad);
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+        {
+            throw new InvalidOperationException("El motivo de merma es obligatorio.");
+        }
+
+        var producto = await inventarioRepository.RegistrarMermaAsync(
+            request.ProductoId,
+            request.BodegaId,
+            request.Cantidad,
+            request.Motivo.Trim(),
+            NormalizeOptional(request.Referencia),
+            cancellationToken);
+
+        return producto is null ? null : MapProducto(producto);
+    }
+
+    public async Task<ProductoResponse?> TransferirStockAsync(TransferenciaInventarioRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.ProductoId == Guid.Empty || request.BodegaOrigenId == Guid.Empty || request.BodegaDestinoId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Producto, bodega origen y bodega destino son obligatorios.");
+        }
+
+        if (request.BodegaOrigenId == request.BodegaDestinoId)
+        {
+            throw new InvalidOperationException("La bodega origen y la bodega destino deben ser diferentes.");
+        }
+
+        ValidateCantidad(request.Cantidad);
+
+        var producto = await inventarioRepository.TransferirStockAsync(
+            request.ProductoId,
+            request.BodegaOrigenId,
+            request.BodegaDestinoId,
+            request.Cantidad,
+            NormalizeOptional(request.Referencia),
             cancellationToken);
 
         return producto is null ? null : MapProducto(producto);
@@ -149,6 +278,7 @@ public sealed class InventarioUseCase : IInventarioUseCase
 
         return inventarioRepository.DescontarStockPorFacturaAsync(
             Guid.NewGuid(),
+            request.BodegaId,
             request.ReferenciaFactura.Trim(),
             "Factura",
             request.Items.Select(item => (item.ProductoId, item.Cantidad)).ToArray(),
@@ -174,12 +304,27 @@ public sealed class InventarioUseCase : IInventarioUseCase
         };
     }
 
+    private static BodegaResponse MapBodega(Bodega bodega)
+    {
+        return new BodegaResponse
+        {
+            Id = bodega.Id,
+            Nombre = bodega.Nombre,
+            Direccion = bodega.Direccion,
+            IsActive = bodega.IsActive,
+            CreatedAt = bodega.CreatedAt,
+            UpdatedAt = bodega.UpdatedAt
+        };
+    }
+
     private static KardexMovimientoResponse MapKardex(KardexMovimiento movimiento)
     {
         return new KardexMovimientoResponse
         {
             Id = movimiento.Id,
             ProductoId = movimiento.ProductoId,
+            BodegaId = movimiento.BodegaId,
+            BodegaNombre = movimiento.BodegaNombre,
             TipoMovimiento = movimiento.TipoMovimiento,
             Concepto = movimiento.Concepto,
             Referencia = movimiento.Referencia,
@@ -230,6 +375,14 @@ public sealed class InventarioUseCase : IInventarioUseCase
         }
     }
 
+    private static void ValidateBodegaRequest(BodegaRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Nombre))
+        {
+            throw new InvalidOperationException("El nombre de la bodega es obligatorio.");
+        }
+    }
+
     private static void ValidateMovimiento(string concepto, decimal cantidad, decimal costoUnitario)
     {
         if (string.IsNullOrWhiteSpace(concepto))
@@ -245,6 +398,22 @@ public sealed class InventarioUseCase : IInventarioUseCase
         if (costoUnitario < 0)
         {
             throw new InvalidOperationException("El costo unitario no puede ser negativo.");
+        }
+    }
+
+    private static void ValidateBodegaMovimientoIds(Guid productoId, Guid bodegaId)
+    {
+        if (productoId == Guid.Empty || bodegaId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Producto y bodega son obligatorios.");
+        }
+    }
+
+    private static void ValidateCantidad(decimal cantidad)
+    {
+        if (cantidad <= 0)
+        {
+            throw new InvalidOperationException("La cantidad debe ser mayor a cero.");
         }
     }
 

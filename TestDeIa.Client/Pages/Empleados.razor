@@ -131,13 +131,9 @@
                         <ValidationMessage For="@(() => empleadoRequest.Identificacion)" />
                     </div>
                     <div class="form-field full">
-                        <label>Razon social / nombres completos</label>
+                        <label>Nombre completo</label>
                         <InputText class="form-control" @bind-Value="empleadoRequest.RazonSocialONombresCompletos" />
                         <ValidationMessage For="@(() => empleadoRequest.RazonSocialONombresCompletos)" />
-                    </div>
-                    <div class="form-field">
-                        <label>Nombre comercial</label>
-                        <InputText class="form-control" @bind-Value="empleadoRequest.NombreComercial" />
                     </div>
                     <div class="form-field">
                         <label>Correo</label>

@@ -15,6 +15,7 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 public sealed class EfFacturacionRepository : IFacturacionRepository
 {
     private static readonly HashSet<decimal> SupportedIvaRates = [0m, 5m, 8m, 15m];
+    private const string PrincipalBodegaName = "Principal";
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
     private readonly IInventarioRepository inventarioRepository;
@@ -84,8 +85,11 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             return new PagedResultResponse<PosProductoResponse> { Items = Array.Empty<PosProductoResponse>(), Skip = skip, Take = take };
         }
 
+        var principalBodegaId = await ResolvePrincipalBodegaIdAsync(cancellationToken);
+
         var query = dbContext.Productos
             .AsNoTracking()
+            .Include(producto => producto.ProductosBodega)
             .Where(producto =>
                 producto.IsActive &&
                 (producto.Codigo.Contains(normalizedTerm) ||
@@ -110,7 +114,10 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 CodigoIva = producto.CodigoIva,
                 PorcentajeIva = producto.PorcentajeIva,
                 PrecioVenta = producto.PrecioVenta,
-                StockActual = producto.StockActual,
+                StockActual = producto.ProductosBodega
+                    .Where(current => current.BodegaId == principalBodegaId)
+                    .Select(current => current.StockActual)
+                    .FirstOrDefault(),
                 ControlaStock = producto.ControlaStock
             }).ToArray(),
             TotalCount = totalCount,
@@ -181,7 +188,9 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .ToArray();
 
         var productIds = itemsByProduct.Select(item => item.ProductoId).ToArray();
+        var operationalBodegaId = await ResolveOperationalBodegaIdAsync(request.BodegaId, cancellationToken);
         var productos = await dbContext.Productos
+            .Include(producto => producto.ProductosBodega)
             .Where(producto => productIds.Contains(producto.Id) && producto.IsActive)
             .ToListAsync(cancellationToken);
 
@@ -206,6 +215,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             Id = Guid.NewGuid(),
             EmpresaId = empresa.Id,
             EmpresaEmisoraId = empresa.Id,
+            BodegaId = operationalBodegaId,
             Secuencial = secuencial,
             Establecimiento = puntoEmision.Establecimiento,
             PuntoEmision = puntoEmision.PuntoEmision,
@@ -247,7 +257,12 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 throw new InvalidOperationException($"El producto {producto.Nombre} tiene una tarifa de IVA no soportada.");
             }
 
-            if (producto.ControlaStock && producto.StockActual < item.Cantidad)
+            var stockDespacho = producto.ProductosBodega
+                .Where(current => current.BodegaId == operationalBodegaId)
+                .Select(current => current.StockActual)
+                .FirstOrDefault();
+
+            if (producto.ControlaStock && stockDespacho < item.Cantidad)
             {
                 throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre}.");
             }
@@ -668,6 +683,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         await inventarioRepository.DescontarStockPorFacturaAsync(
             factura.Id,
+            factura.BodegaId,
             $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
             concepto,
             factura.Detalles.Select(detalle => (detalle.ProductoId, detalle.Cantidad)).ToArray(),
@@ -887,5 +903,44 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return record.UltimoSecuencial;
+    }
+
+    private async Task<Guid> ResolvePrincipalBodegaIdAsync(CancellationToken cancellationToken)
+    {
+        var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para resolver la bodega principal.");
+
+        var bodegaId = await dbContext.Bodegas
+            .AsNoTracking()
+            .Where(current => current.EmpresaId == empresaId && current.Nombre == PrincipalBodegaName && current.IsActive)
+            .Select(current => current.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (bodegaId == Guid.Empty)
+        {
+            throw new InvalidOperationException("No existe una bodega principal configurada para la empresa activa.");
+        }
+
+        return bodegaId;
+    }
+
+    private async Task<Guid> ResolveOperationalBodegaIdAsync(Guid? requestedBodegaId, CancellationToken cancellationToken)
+    {
+        if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)
+        {
+            var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para resolver la bodega operativa.");
+            var bodega = await dbContext.Bodegas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(current => current.Id == requestedBodegaId.Value && current.EmpresaId == empresaId, cancellationToken)
+                ?? throw new InvalidOperationException("La bodega seleccionada no pertenece a la empresa activa.");
+
+            if (!bodega.IsActive)
+            {
+                throw new InvalidOperationException("La bodega seleccionada no se encuentra activa.");
+            }
+
+            return bodega.Id;
+        }
+
+        return await ResolvePrincipalBodegaIdAsync(cancellationToken);
     }
 }

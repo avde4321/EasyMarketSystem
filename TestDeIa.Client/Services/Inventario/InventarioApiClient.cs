@@ -15,17 +15,25 @@ public sealed class InventarioApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<PagedResultResponse<ProductoResponse>> GetProductosAsync(string? term, int skip, int take)
+    public async Task<IReadOnlyCollection<BodegaResponse>> GetBodegasAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<BodegaResponse>>("api/inventario/bodegas")
+            ?? Array.Empty<BodegaResponse>();
+    }
+
+    public async Task<PagedResultResponse<ProductoResponse>> GetProductosAsync(string? term, int skip, int take, Guid? bodegaId = null)
     {
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
-        return await httpClient.GetFromJsonAsync<PagedResultResponse<ProductoResponse>>($"api/inventario/productos?term={encodedTerm}&skip={skip}&take={take}")
+        var bodegaQuery = bodegaId.HasValue && bodegaId.Value != Guid.Empty ? $"&bodegaId={bodegaId.Value}" : string.Empty;
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<ProductoResponse>>($"api/inventario/productos?term={encodedTerm}&skip={skip}&take={take}{bodegaQuery}")
             ?? new PagedResultResponse<ProductoResponse> { Skip = skip, Take = take };
     }
 
-    public async Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId)
+    public async Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId, Guid? bodegaId = null)
     {
+        var bodegaQuery = bodegaId.HasValue && bodegaId.Value != Guid.Empty ? $"?bodegaId={bodegaId.Value}" : string.Empty;
         return await httpClient.GetFromJsonAsync<IReadOnlyCollection<KardexMovimientoResponse>>(
-            $"api/inventario/productos/{productoId}/kardex") ?? Array.Empty<KardexMovimientoResponse>();
+            $"api/inventario/productos/{productoId}/kardex{bodegaQuery}") ?? Array.Empty<KardexMovimientoResponse>();
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateProductoAsync(ProductoRequest request)
@@ -43,6 +51,18 @@ public sealed class InventarioApiClient
     public async Task<(bool Succeeded, string? ErrorMessage)> AjustarStockAsync(Guid productoId, AjusteStockRequest request)
     {
         var response = await httpClient.PostAsJsonAsync($"api/inventario/productos/{productoId}/ajustes", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> RegistrarMermaAsync(EgresoMermaRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/inventario/movimientos/merma", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> TransferirStockAsync(TransferenciaInventarioRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/inventario/movimientos/transferencia", request);
         return await BuildResultAsync(response);
     }
 
