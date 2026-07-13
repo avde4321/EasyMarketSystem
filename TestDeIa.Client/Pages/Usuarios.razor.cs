@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Security;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Personas;
+using TestDeIa.Client.Services.Security;
 using TestDeIa.Shared.Requests.Security;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Security;
@@ -15,17 +16,24 @@ public partial class Usuarios
     private SecurityApiClient SecurityApiClient { get; set; } = default!;
 
     [Inject]
+    private HttpClient HttpClient { get; set; } = default!;
+
+    [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
     [Inject]
     private PersonasApiClient PersonasApiClient { get; set; } = default!;
 
+    private SecurityUserAdminApiClient UserAdminApiClient => new(HttpClient);
+
     private readonly List<SecurityUserResponse> users = [];
     private readonly List<SecurityRoleResponse> roles = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
+    private readonly List<SecurityPointEmissionResponse> puntosEmisionDisponibles = [];
     private readonly HashSet<string> selectedRoles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> profileSelectedRoles = new(StringComparer.OrdinalIgnoreCase);
-    private SecurityUserRequest userRequest = new();
+    private readonly HashSet<Guid> selectedPuntoEmisionIds = [];
+    private SecurityUserAdminRequest userRequest = new();
     private ResetPasswordRequest resetPasswordRequest = new();
     private Guid? editingUserId;
     private Guid? resetUserId;
@@ -62,6 +70,7 @@ public partial class Usuarios
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+    private bool RequiresPuntosEmision => selectedRoles.Contains(SecurityRoleNames.Cajero);
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,8 +82,11 @@ public partial class Usuarios
     {
         roles.Clear();
         tiposIdentificacion.Clear();
+        puntosEmisionDisponibles.Clear();
+
         roles.AddRange(await SecurityApiClient.GetRolesAsync());
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
+        puntosEmisionDisponibles.AddRange(await UserAdminApiClient.GetPuntosEmisionAsync());
     }
 
     private async Task LoadUsersAsync(bool resetPaging = false)
@@ -107,34 +119,41 @@ public partial class Usuarios
     private void OpenCreateModal()
     {
         editingUserId = null;
-        userRequest = new SecurityUserRequest
+        userRequest = new SecurityUserAdminRequest
         {
             TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
             IsActive = true
         };
         selectedRoles.Clear();
+        selectedPuntoEmisionIds.Clear();
         errorMessage = null;
         statusMessage = null;
         isEditorOpen = true;
     }
 
-    private void OpenEditModal(SecurityUserResponse user)
+    private async Task OpenEditModalAsync(SecurityUserResponse user)
     {
         editingUserId = user.Id;
+        var persona = await PersonasApiClient.FindByIdentificacionAsync(user.PersonaIdentificacion);
+        var tipoIdentificacion = persona?.TipoIdentificacion ?? tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05";
+        var identificacion = persona?.Identificacion ?? user.PersonaIdentificacion;
+        var nombres = persona?.RazonSocialONombresCompletos ?? user.PersonaNombre;
+        var email = persona?.CorreoElectronicoPrincipal ?? user.Email;
+        var telefono = persona?.TelefonoCelular;
+        var direccion = persona?.DireccionPrincipal;
+        var isActive = persona?.IsActive ?? user.IsActive;
 
-        var names = user.PersonaNombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var nombres = names.Length > 0 ? names[0] : user.PersonaNombre;
-        var apellidos = names.Length > 1 ? string.Join(' ', names.Skip(1)) : string.Empty;
-
-        userRequest = new SecurityUserRequest
+        userRequest = new SecurityUserAdminRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
-            Identificacion = user.PersonaIdentificacion,
+            TipoIdentificacion = tipoIdentificacion,
+            Identificacion = identificacion,
             Nombres = nombres,
-            Apellidos = apellidos,
-            Email = user.Email,
+            Apellidos = string.Empty,
+            Email = email,
+            Telefono = telefono,
+            Direccion = direccion,
             UserName = user.UserName,
-            IsActive = user.IsActive,
+            IsActive = isActive,
             Roles = user.Roles.ToArray()
         };
 
@@ -142,6 +161,12 @@ public partial class Usuarios
         foreach (var role in user.Roles)
         {
             selectedRoles.Add(role);
+        }
+
+        selectedPuntoEmisionIds.Clear();
+        foreach (var puntoEmisionId in await UserAdminApiClient.GetPuntosEmisionByUserAsync(user.Id))
+        {
+            selectedPuntoEmisionIds.Add(puntoEmisionId);
         }
 
         errorMessage = null;
@@ -190,6 +215,24 @@ public partial class Usuarios
         else
         {
             selectedRoles.Remove(roleName);
+            if (string.Equals(roleName, SecurityRoleNames.Cajero, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedPuntoEmisionIds.Clear();
+            }
+        }
+    }
+
+    private void TogglePuntoEmision(Guid puntoEmisionId, object? value)
+    {
+        var isChecked = value as bool? == true;
+
+        if (isChecked)
+        {
+            selectedPuntoEmisionIds.Add(puntoEmisionId);
+        }
+        else
+        {
+            selectedPuntoEmisionIds.Remove(puntoEmisionId);
         }
     }
 
@@ -199,6 +242,7 @@ public partial class Usuarios
         isSaving = false;
         errorMessage = null;
         statusMessage = null;
+        selectedPuntoEmisionIds.Clear();
     }
 
     private void CloseResetModal()
@@ -280,12 +324,20 @@ public partial class Usuarios
         isSaving = true;
         errorMessage = null;
         userRequest.Roles = selectedRoles.ToArray();
+        userRequest.PuntoEmisionIds = selectedPuntoEmisionIds.ToArray();
+
+        if (RequiresPuntosEmision && userRequest.PuntoEmisionIds.Count == 0)
+        {
+            errorMessage = "Si el usuario tiene el rol Cajero debes asignar al menos un punto de emision.";
+            isSaving = false;
+            return;
+        }
 
         try
         {
             var result = editingUserId.HasValue
-                ? await SecurityApiClient.UpdateUserAsync(editingUserId.Value, userRequest)
-                : await SecurityApiClient.CreateUserAsync(userRequest);
+                ? await UserAdminApiClient.UpdateAsync(editingUserId.Value, userRequest)
+                : await UserAdminApiClient.CreateAsync(userRequest);
 
             if (!result.Succeeded)
             {
@@ -516,3 +568,5 @@ public partial class Usuarios
             _ => "status-pill soft-pill"
         };
 }
+
+

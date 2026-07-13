@@ -8,9 +8,9 @@
             <header class="modal-header">
                 <div>
                     <h2>Detalle de acceso</h2>
-                    <p class="detail-subtitle">@User.DisplayName · @User.UserName</p>
+                    <p class="detail-subtitle">@User.DisplayName | @User.UserName</p>
                 </div>
-                <button class="icon-button" type="button" @onclick="OnClose">x</button>
+                <button class="icon-button" type="button" @onclick="OnClose" aria-label="Cerrar modal">x</button>
             </header>
 
             @if (!string.IsNullOrWhiteSpace(ErrorMessage))
@@ -138,3 +138,4 @@
     [Parameter]
     public EventCallback<string> OnChangeEstado { get; set; }
 }
+

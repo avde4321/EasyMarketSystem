@@ -325,6 +325,11 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
 
     private static void ValidateRequest(SecurityUserRequest request, bool requirePassword)
     {
+        if (string.IsNullOrWhiteSpace(request.Nombres))
+        {
+            throw new InvalidOperationException("Los nombres o razon social son obligatorios.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.UserName))
         {
             throw new InvalidOperationException("El usuario es obligatorio.");
@@ -391,3 +396,5 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
         return SecurityUserEstados.Activo;
     }
 }
+
+

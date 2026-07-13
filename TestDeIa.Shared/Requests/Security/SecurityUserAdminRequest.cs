@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TestDeIa.Shared.Requests.Security;
 
-public sealed class SecurityUserRequest
+public sealed class SecurityUserAdminRequest
 {
     [Required(ErrorMessage = "El tipo de identificacion es obligatorio.")]
     [StringLength(30, ErrorMessage = "El tipo de identificacion no puede superar 30 caracteres.")]
@@ -39,6 +39,8 @@ public sealed class SecurityUserRequest
 
     [Required(ErrorMessage = "Debe seleccionar al menos un rol.")]
     public IReadOnlyCollection<string> Roles { get; set; } = [];
+
+    public IReadOnlyCollection<Guid> PuntoEmisionIds { get; set; } = [];
 
     public bool IsActive { get; set; } = true;
 }

@@ -53,33 +53,33 @@
                             <tr>
                                 <td data-label="Usuario">@user.UserName</td>
                                 <td data-label="Persona">
-                                        <strong>@user.PersonaNombre</strong>
-                                        <small>@user.PersonaIdentificacion</small>
-                                    </td>
-                                    <td data-label="Rol principal">
-                                        <strong>@user.RolPrincipal</strong>
-                                        <small>@string.Join(", ", user.RolesPersona)</small>
-                                    </td>
-                                    <td data-label="Estado"><span class="@GetStatusClass(user)">@user.Estado</span></td>
-                                    <td data-label="Ultimo acceso">
-                                        @if (user.UltimoAcceso.HasValue)
-                                        {
-                                            <span>@user.UltimoAcceso.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="muted-text">Sin ingresos</span>
-                                        }
-                                    </td>
-                                    <td data-label="Acciones">
-                                        <div class="row-actions">
-                                            <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
-                                            <button class="ghost-button" @onclick="() => OpenProfileModal(user)">Perfil</button>
-                                            <button class="ghost-button" @onclick="() => OpenResetPasswordModal(user)">Resetear clave</button>
-                                            <button class="ghost-button" @onclick="() => OpenUnlockModal(user)">Desbloquear</button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                    <strong>@user.PersonaNombre</strong>
+                                    <small>@user.PersonaIdentificacion</small>
+                                </td>
+                                <td data-label="Rol principal">
+                                    <strong>@user.RolPrincipal</strong>
+                                    <small>@string.Join(", ", user.RolesPersona)</small>
+                                </td>
+                                <td data-label="Estado"><span class="@GetStatusClass(user)">@user.Estado</span></td>
+                                <td data-label="Ultimo acceso">
+                                    @if (user.UltimoAcceso.HasValue)
+                                    {
+                                        <span>@user.UltimoAcceso.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted-text">Sin ingresos</span>
+                                    }
+                                </td>
+                                <td data-label="Acciones">
+                                    <div class="row-actions">
+                                        <button class="ghost-button" @onclick="() => OpenEditModalAsync(user)">Editar</button>
+                                        <button class="ghost-button" @onclick="() => OpenProfileModal(user)">Perfil</button>
+                                        <button class="ghost-button" @onclick="() => OpenResetPasswordModal(user)">Resetear clave</button>
+                                        <button class="ghost-button" @onclick="() => OpenUnlockModal(user)">Desbloquear</button>
+                                    </div>
+                                </td>
+                            </tr>
                         }
                     </tbody>
                 </table>
@@ -114,7 +114,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>@(editingUserId.HasValue ? "Actualizar usuario" : "Crear usuario")</h2>
-                <button class="icon-button" @onclick="CloseModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <EditForm Model="userRequest" OnValidSubmit="SaveUserAsync">
@@ -202,6 +202,32 @@
                             }
                         </div>
                     </div>
+
+                    @if (RequiresPuntosEmision)
+                    {
+                        <div class="form-field full">
+                            <label>Puntos de emision asignados</label>
+                            @if (puntosEmisionDisponibles.Count == 0)
+                            {
+                                <div class="soft-info-message compact-message">
+                                    No hay puntos de emision activos disponibles para asignar.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="checkbox-grid">
+                                    @foreach (var punto in puntosEmisionDisponibles)
+                                    {
+                                        <label class="form-check soft-check">
+                                            <input class="form-check-input" type="checkbox" checked="@selectedPuntoEmisionIds.Contains(punto.Id)" @onchange="args => TogglePuntoEmision(punto.Id, args.Value)" />
+                                            <span class="form-check-label">@punto.DisplayName</span>
+                                        </label>
+                                    }
+                                </div>
+                                <small class="muted-text">Selecciona uno o mas puntos de emision para el usuario cajero.</small>
+                            }
+                        </div>
+                    }
                 </div>
 
                 <label class="form-check soft-check">
@@ -226,7 +252,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>Resetear clave</h2>
-                <button class="icon-button" @onclick="CloseResetModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseResetModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <EditForm Model="resetPasswordRequest" OnValidSubmit="ConfirmResetPasswordAsync">
@@ -259,7 +285,7 @@
         <section class="modal-card state-modal-card">
             <header class="modal-header">
                 <h2>Confirmar cambio de estado</h2>
-                <button class="icon-button" @onclick="CloseStateModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseStateModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <div class="status-banner">
@@ -282,7 +308,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>Desbloquear usuario</h2>
-                <button class="icon-button" @onclick="CloseUnlockModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseUnlockModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <div class="status-banner">
