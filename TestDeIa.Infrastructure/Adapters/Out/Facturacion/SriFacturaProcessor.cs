@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Facturacion.Models;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
@@ -119,7 +120,10 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
                             ClaveAcceso = factura.ClaveAcceso,
                             NumeroAutorizacion = autorizacionResponse.NumeroAutorizacion,
                             XmlGenerado = factura.XmlGenerado,
-                            XmlFirmado = xmlFirmado,
+                            XmlFirmado = BuildAuthorizedXmlPackage(
+                                autorizacionResponse,
+                                factura.AmbienteSri,
+                                xmlFirmado),
                             Mensaje = string.IsNullOrWhiteSpace(mensajesAutorizacion)
                                 ? "Comprobante autorizado por el SRI."
                                 : $"Comprobante autorizado por el SRI. {mensajesAutorizacion}",
@@ -275,7 +279,10 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
                     ClaveAcceso = factura.ClaveAcceso ?? string.Empty,
                     NumeroAutorizacion = autorizacionResponse.NumeroAutorizacion,
                     XmlGenerado = factura.XmlGenerado,
-                    XmlFirmado = factura.XmlFirmado,
+                    XmlFirmado = BuildAuthorizedXmlPackage(
+                        autorizacionResponse,
+                        factura.AmbienteSri,
+                        factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty),
                     Mensaje = string.IsNullOrWhiteSpace(mensajesAutorizacion)
                         ? "Comprobante autorizado por el SRI."
                         : $"Comprobante autorizado por el SRI. {mensajesAutorizacion}",
@@ -336,5 +343,37 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         return value
             .Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
+    }
+
+    private static string BuildAuthorizedXmlPackage(
+        SriAutorizacionSoapResponse autorizacionResponse,
+        string ambienteSri,
+        string xmlFirmadoFallback)
+    {
+        var comprobanteXml = string.IsNullOrWhiteSpace(autorizacionResponse.ComprobanteXml)
+            ? xmlFirmadoFallback
+            : autorizacionResponse.ComprobanteXml;
+
+        var ambienteCodigo = SriFacturaXmlBuilder.GetAmbienteCode(ambienteSri);
+        var autorizacion = new XElement("autorizacion",
+            new XElement("estado", string.IsNullOrWhiteSpace(autorizacionResponse.Estado) ? "AUTORIZADO" : autorizacionResponse.Estado),
+            new XElement("numeroAutorizacion", autorizacionResponse.NumeroAutorizacion ?? string.Empty),
+            new XElement("fechaAutorizacion", autorizacionResponse.FechaAutorizacion?.ToString("yyyy-MM-ddTHH:mm:ssK") ?? string.Empty),
+            new XElement("ambiente", ambienteCodigo),
+            new XElement("comprobante", new XCData(comprobanteXml)));
+
+        if (autorizacionResponse.Mensajes.Count > 0)
+        {
+            autorizacion.Add(new XElement("mensajes",
+                autorizacionResponse.Mensajes.Select(current => new XElement("mensaje",
+                    new XElement("identificador", current.Identificador ?? string.Empty),
+                    new XElement("mensaje", current.Mensaje ?? string.Empty),
+                    new XElement("informacionAdicional", current.InformacionAdicional ?? string.Empty),
+                    new XElement("tipo", current.Tipo ?? string.Empty)))));
+        }
+
+        return new XDocument(
+            new XDeclaration("1.0", "utf-8", null),
+            new XElement("autorizacionComprobante", autorizacion)).ToString(SaveOptions.DisableFormatting);
     }
 }

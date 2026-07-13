@@ -12,6 +12,9 @@ public sealed class FacturaRideRdlcRenderer
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var watermarkText = string.Equals(model.Estado, "AUTORIZADO", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : model.WatermarkText;
 
             string? logoPath = null;
             string? temporaryLogoFilePath = null;
@@ -52,7 +55,7 @@ public sealed class FacturaRideRdlcRenderer
                 CreateParameter("IvaTotal", model.IvaTotal.ToString("0.00")),
                 CreateParameter("Total", model.Total.ToString("0.00")),
                 CreateParameter("Observacion", model.Observacion),
-                CreateParameter("WatermarkText", model.WatermarkText),
+                CreateParameter("WatermarkText", watermarkText),
                 CreateParameter("ValorTotalSinSubsidio", model.TotalSinSubsidio.ToString("0.00")),
                 CreateParameter("AhorroSubsidio", model.TotalSubsidio.ToString("0.00"))
             ]);

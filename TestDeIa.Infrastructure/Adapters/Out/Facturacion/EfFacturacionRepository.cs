@@ -825,7 +825,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
     private static string ToAuditMessage(string mensaje, string? auditoriaJson)
     {
-        return string.IsNullOrWhiteSpace(auditoriaJson) ? mensaje : auditoriaJson;
+        var value = string.IsNullOrWhiteSpace(auditoriaJson) ? mensaje : auditoriaJson;
+        return value.Length <= 380 ? value : value[..380];
     }
 
     private static TimeSpan ComputeRetryDelay(int retryCount)

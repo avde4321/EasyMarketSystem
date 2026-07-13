@@ -110,7 +110,9 @@ public sealed class FacturaDocumentQueryService
             ClaveAcceso = factura.ClaveAcceso,
             NumeroAutorizacion = string.IsNullOrWhiteSpace(factura.NumeroAutorizacion) ? "-" : factura.NumeroAutorizacion,
             FechaEmision = factura.FechaEmision.LocalDateTime.ToString("dd/MM/yyyy"),
-            FechaAutorizacion = factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-",
+            FechaAutorizacion = factura.Estado == FacturaEstado.AUTORIZADO
+                ? factura.FechaAutorizacion?.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss") ?? "-"
+                : "-",
             EmisorRazonSocial = razonSocialEmisor,
             EmisorNombreComercial = nombreComercialEmisor,
             EmisorRuc = string.IsNullOrWhiteSpace(empresa?.Ruc) ? factura.RucEmisor : empresa.Ruc,
@@ -150,6 +152,37 @@ public sealed class FacturaDocumentQueryService
         };
     }
 
+    public async Task<FacturaEmailNotificationDocument?> GetFacturaEmailNotificationDocumentAsync(Guid facturaId, CancellationToken cancellationToken)
+    {
+        var factura = await dbContext.Facturas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
+
+        if (factura is null || factura.Estado != FacturaEstado.AUTORIZADO)
+        {
+            return null;
+        }
+
+        var ride = await GetFacturaRideAsync(facturaId, cancellationToken);
+        if (ride is null || string.IsNullOrWhiteSpace(factura.ClienteEmail) || string.IsNullOrWhiteSpace(factura.XmlFirmado))
+        {
+            return null;
+        }
+
+        return new FacturaEmailNotificationDocument
+        {
+            FacturaId = factura.Id,
+            EmpresaId = factura.EmpresaId,
+            DestinatarioEmail = factura.ClienteEmail,
+            DestinatarioNombre = factura.ClienteNombre,
+            NumeroComprobante = $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
+            FechaEmision = factura.FechaEmision,
+            Total = factura.Total,
+            Ride = ride,
+            XmlAutorizado = factura.XmlFirmado
+        };
+    }
+
     private static string ResolveWatermark(FacturaEstado estado)
     {
         return estado switch
@@ -165,4 +198,17 @@ public sealed class FacturaDocumentQueryService
         return percentage.ToString(percentage == decimal.Truncate(percentage) ? "0" : "0.##") + "%";
     }
 
+}
+
+public sealed class FacturaEmailNotificationDocument
+{
+    public Guid FacturaId { get; init; }
+    public Guid EmpresaId { get; init; }
+    public string DestinatarioEmail { get; init; } = string.Empty;
+    public string DestinatarioNombre { get; init; } = string.Empty;
+    public string NumeroComprobante { get; init; } = string.Empty;
+    public DateTimeOffset FechaEmision { get; init; }
+    public decimal Total { get; init; }
+    public string XmlAutorizado { get; init; } = string.Empty;
+    public FacturaRideReportModel Ride { get; init; } = default!;
 }
