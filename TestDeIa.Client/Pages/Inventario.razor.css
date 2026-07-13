@@ -2,6 +2,13 @@
     overflow: visible;
 }
 
+.header-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .inventory-context-bar {
     display: grid;
     grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr);
@@ -59,6 +66,10 @@
     min-width: 6.75rem;
 }
 
+.compact-input {
+    min-width: 7rem;
+}
+
 .field-hint {
     margin-top: 0.35rem;
     display: block;
@@ -77,6 +88,11 @@
     .inventory-context-bar,
     .kardex-toolbar {
         grid-template-columns: 1fr;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: stretch;
     }
 
     .context-summary {

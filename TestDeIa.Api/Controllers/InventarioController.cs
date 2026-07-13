@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TestDeIa.Application.Modules.Inventario.Ports.In;
 using TestDeIa.Shared.Requests.Inventario;
+using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Api.Controllers;
 
@@ -18,12 +19,14 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("bodegas")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetBodegas(CancellationToken cancellationToken = default)
     {
         return Ok(await inventarioUseCase.GetBodegasAsync(cancellationToken));
     }
 
     [HttpGet("bodegas/{id:guid}")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetBodegaById(Guid id, CancellationToken cancellationToken = default)
     {
         var bodega = await inventarioUseCase.GetBodegaByIdAsync(id, cancellationToken);
@@ -31,6 +34,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPost("bodegas")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> CreateBodega([FromBody] BodegaRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -45,6 +49,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPut("bodegas/{id:guid}")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> UpdateBodega(Guid id, [FromBody] BodegaRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -59,6 +64,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("productos")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetProductos([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 50);
@@ -68,6 +74,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("productos/{id:guid}")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetProductoById(Guid id, CancellationToken cancellationToken)
     {
         var producto = await inventarioUseCase.GetProductoByIdAsync(id, cancellationToken);
@@ -75,6 +82,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPost("productos")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> CreateProducto(
         [FromBody] ProductoRequest request,
         CancellationToken cancellationToken)
@@ -91,6 +99,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPut("productos/{id:guid}")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> UpdateProducto(
         Guid id,
         [FromBody] ProductoRequest request,
@@ -108,13 +117,22 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpGet("productos/{id:guid}/kardex")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetKardex(Guid id, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         var movimientos = await inventarioUseCase.GetKardexAsync(id, bodegaId, cancellationToken);
         return Ok(movimientos);
     }
 
+    [HttpGet("alertas-stock")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+    public async Task<IActionResult> GetAlertasStock(CancellationToken cancellationToken = default)
+    {
+        return Ok(await inventarioUseCase.GetAlertasStockAsync(cancellationToken));
+    }
+
     [HttpPost("productos/{id:guid}/ajustes")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> AjustarStock(
         Guid id,
         [FromBody] AjusteStockRequest request,
@@ -132,6 +150,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPost("movimientos/compra")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> RegistrarCompra([FromBody] IngresoCompraRequest request, CancellationToken cancellationToken)
     {
         try
@@ -146,6 +165,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPost("movimientos/merma")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> RegistrarMerma([FromBody] EgresoMermaRequest request, CancellationToken cancellationToken)
     {
         try
@@ -160,6 +180,7 @@ public sealed class InventarioController : ControllerBase
     }
 
     [HttpPost("movimientos/transferencia")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> TransferirStock([FromBody] TransferenciaInventarioRequest request, CancellationToken cancellationToken)
     {
         try
@@ -173,7 +194,22 @@ public sealed class InventarioController : ControllerBase
         }
     }
 
+    [HttpPost("tomas-fisicas")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
+    public async Task<IActionResult> ProcesarTomaFisica([FromBody] TomaFisicaInventarioRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await inventarioUseCase.ProcesarTomaFisicaAsync(request, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
     [HttpPost("facturas/descontar-stock")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> DescontarStockPorFactura(
         [FromBody] DescontarStockFacturaRequest request,
         CancellationToken cancellationToken)

@@ -22,4 +22,10 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
         return tenantContextAccessor.UserId
             ?? throw new InvalidOperationException("No existe un usuario autenticado en el contexto actual.");
     }
+
+    public Guid GetRequiredEmpresaId()
+    {
+        return tenantContextAccessor.EmpresaId
+            ?? throw new InvalidOperationException("No existe una empresa activa en el contexto actual.");
+    }
 }

@@ -1,0 +1,309 @@
+@page "/compras/registrar"
+@page "/compras/liquidaciones"
+@attribute [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+
+<PageTitle>@(IsLiquidacion ? "Liquidaciones de compra" : "Registro de compras")</PageTitle>
+
+<section class="module-page compras-page">
+    <header class="module-header">
+        <div>
+            <h1>@(IsLiquidacion ? "Liquidaciones de compra" : "Registro de compras")</h1>
+            <p>@(IsLiquidacion
+                ? "Emision de liquidaciones electronicas con impacto directo en bodega, Kardex y costo promedio."
+                : "Ingreso operativo de documentos de proveedor con impacto directo en bodega, Kardex y costo promedio.")</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="SaveAsync" disabled="@(!CanSave || isSaving)">
+            @(isSaving ? "Registrando..." : IsLiquidacion ? "Emitir liquidacion" : "Registrar compra")
+        </button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="success-message">@successMessage</div>
+    }
+
+    <section class="table-card">
+        <div class="soft-info-message compact-message">
+            @(IsLiquidacion
+                ? "La liquidacion de compra genera el comprobante electronico y deja el documento listo para firma en segundo plano mientras la mercaderia ingresa a bodega."
+                : "La compra registra el documento del proveedor y, en la misma transaccion, ingresa mercaderia a la bodega seleccionada usando el costo unitario de cada linea.")
+        </div>
+
+        <EditForm Model="request">
+            <DataAnnotationsValidator />
+
+            <div class="form-grid compras-grid">
+                @if (!isLiquidacionRoute)
+                {
+                    <div class="form-field">
+                        <label>Tipo documento</label>
+                        <InputSelect class="form-control"
+                                     @bind-Value="request.TipoDocumentoCodigo"
+                                     @bind-Value:after="OnTipoDocumentoChangedAfterAsync">
+                            <option value="01">Factura</option>
+                            <option value="02">Nota de venta</option>
+                        </InputSelect>
+                    </div>
+                }
+
+                <div class="form-field">
+                    <label>Proveedor</label>
+                    <InputSelect class="form-control" @bind-Value="request.ProveedorId" @bind-Value:after="OnProveedorChangedAsync">
+                        <option value="@Guid.Empty">Selecciona un proveedor</option>
+                        @foreach (var proveedor in proveedores)
+                        {
+                            <option value="@proveedor.Id">@proveedor.Identificacion - @proveedor.NombreCompleto</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => request.ProveedorId)" />
+                </div>
+
+                <div class="form-field">
+                    <label>Bodega destino</label>
+                    <InputSelect class="form-control" @bind-Value="request.BodegaId" @bind-Value:after="OnBodegaChangedAsync">
+                        <option value="@Guid.Empty">Selecciona una bodega</option>
+                        @foreach (var bodega in bodegas)
+                        {
+                            <option value="@bodega.Id">@BuildBodegaLabel(bodega)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => request.BodegaId)" />
+                </div>
+
+                @if (IsLiquidacion)
+                {
+                    <div class="form-field">
+                        <label>Establecimiento</label>
+                        <InputSelect class="form-control" @bind-Value="request.Establecimiento">
+                            <option value="">Selecciona</option>
+                            @foreach (var punto in puntosEmision)
+                            {
+                                <option value="@punto.Establecimiento">@punto.Establecimiento</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Punto emision</label>
+                        <InputSelect class="form-control" @bind-Value="request.PuntoEmision">
+                            <option value="">Selecciona</option>
+                            @foreach (var punto in puntosEmision.Where(current => string.IsNullOrWhiteSpace(request.Establecimiento) || current.Establecimiento == request.Establecimiento))
+                            {
+                                <option value="@punto.PuntoEmision">@punto.DisplayName</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-field">
+                        <label>Numero comprobante</label>
+                        <InputText class="form-control"
+                                   Value="request.NumeroComprobante"
+                                   ValueChanged="OnNumeroComprobanteChanged"
+                                   ValueExpression="@(() => request.NumeroComprobante)"
+                                   placeholder="001-001-000000001" />
+                        <ValidationMessage For="@(() => request.NumeroComprobante)" />
+                    </div>
+                }
+
+                <div class="form-field">
+                    <label>Fecha emision</label>
+                    <InputDate class="form-control" @bind-Value="fechaEmisionLocal" />
+                </div>
+
+                <div class="form-field">
+                    <label>Forma de pago</label>
+                    <InputSelect class="form-control" @bind-Value="request.FormaPago">
+                        @foreach (var forma in formasPago)
+                        {
+                            <option value="@forma.Codigo">@forma.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-field">
+                    <label>Dias de credito</label>
+                    <InputNumber class="form-control" @bind-Value="request.DiasCredito" />
+                </div>
+
+                <div class="form-field full">
+                    <label>@(IsLiquidacion ? "Observacion" : "Clave acceso proveedor")</label>
+                    @if (IsLiquidacion)
+                    {
+                        <InputText class="form-control" @bind-Value="request.Observacion" placeholder="Observacion operativa o referencia interna" />
+                    }
+                    else
+                    {
+                        <InputText class="form-control" @bind-Value="request.ClaveAccesoProveedor" placeholder="Opcional - 49 digitos del documento del proveedor" />
+                    }
+                </div>
+
+                @if (!IsLiquidacion)
+                {
+                    <div class="form-field full">
+                        <label>Observacion</label>
+                        <InputText class="form-control" @bind-Value="request.Observacion" placeholder="Comentario interno opcional" />
+                    </div>
+
+                    <div class="form-field full">
+                        <ValidationMessage For="@(() => request.ClaveAccesoProveedor)" />
+                    </div>
+                }
+            </div>
+        </EditForm>
+    </section>
+
+    <section class="table-card">
+        <header class="section-header">
+            <div>
+                <h2>Agregar productos</h2>
+                <p>@(IsLiquidacion ? "Busca productos activos y arma el detalle que alimentara la liquidacion electronica." : "Busca productos activos de la empresa y arma el detalle de la compra antes de confirmar.")</p>
+            </div>
+        </header>
+
+        <div class="table-toolbar compras-toolbar">
+            <InputText class="form-control search-control" @bind-Value="productSearchTerm" placeholder="Buscar por codigo, producto, descripcion o IVA..." />
+            <button class="secondary-action" type="button" @onclick="SearchProductsAsync">Buscar</button>
+        </div>
+
+        @if (isLoadingProducts)
+        {
+            <p><em>Cargando productos...</em></p>
+        }
+        else if (!productSearchResults.Any())
+        {
+            <div class="empty-state">No hay productos disponibles para el filtro actual.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Producto</th>
+                            <th>IVA</th>
+                            <th>Costo prom.</th>
+                            <th>Stock</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var producto in productSearchResults)
+                        {
+                            <tr>
+                                <td data-label="Codigo">@producto.Codigo</td>
+                                <td data-label="Producto">
+                                    <strong>@producto.Nombre</strong>
+                                    <small>@producto.Descripcion</small>
+                                </td>
+                                <td data-label="IVA">@(IsNotaVenta ? "0%" : producto.PorcentajeIva.ToString("0.##") + "%")</td>
+                                <td data-label="Costo prom.">@producto.CostoPromedio.ToString("0.######")</td>
+                                <td data-label="Stock">@(producto.ControlaStock ? producto.StockActual.ToString("0.####") : "Servicio")</td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" type="button" @onclick="() => AddProduct(producto)">Agregar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="table-card">
+        <header class="section-header">
+            <div>
+                <h2>Detalle de compra</h2>
+                <p>@(IsLiquidacion ? "El total se recalcula en vivo y el XML quedara listo para firma mientras el stock ingresa a la bodega elegida." : "El total se recalcula en vivo y el stock ingresara a la bodega elegida apenas registremos el documento.")</p>
+            </div>
+        </header>
+
+        @if (!detailRows.Any())
+        {
+            <div class="empty-state">Todavia no has agregado productos al detalle.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cant.</th>
+                            <th>Costo unit.</th>
+                            <th>Desc.</th>
+                            <th>IVA</th>
+                            <th>Subtotal</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in detailRows)
+                        {
+                            <tr>
+                                <td data-label="Producto">
+                                    <strong>@row.ProductoNombre</strong>
+                                    <small>@row.ProductoCodigo</small>
+                                </td>
+                                <td data-label="Cant.">
+                                    <InputNumber class="form-control compact-input" @bind-Value="row.Cantidad" @bind-Value:after="StateHasChanged" />
+                                </td>
+                                <td data-label="Costo unit.">
+                                    <InputNumber class="form-control compact-input" @bind-Value="row.CostoUnitario" @bind-Value:after="StateHasChanged" />
+                                </td>
+                                <td data-label="Desc.">
+                                    <InputNumber class="form-control compact-input" @bind-Value="row.Descuento" @bind-Value:after="StateHasChanged" />
+                                </td>
+                                <td data-label="IVA">@row.PorcentajeIva.ToString("0.##")%</td>
+                                <td data-label="Subtotal">@row.SubtotalSinImpuesto.ToString("0.00")</td>
+                                <td data-label="Total">@row.TotalLinea.ToString("0.00")</td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="danger-button" type="button" @onclick="() => RemoveProduct(row.ProductoId)">Quitar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="totals-grid">
+            <div class="totals-box">
+                <span>Subtotal IVA 0%</span>
+                <strong>@SubtotalIva0.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box">
+                <span>Subtotal IVA 5%</span>
+                <strong>@SubtotalIva5.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box">
+                <span>Subtotal IVA 8%</span>
+                <strong>@SubtotalIva8.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box">
+                <span>Subtotal IVA 15%</span>
+                <strong>@SubtotalIva15.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box">
+                <span>Descuento total</span>
+                <strong>@TotalDescuento.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box">
+                <span>Impuestos</span>
+                <strong>@TotalImpuestos.ToString("0.00")</strong>
+            </div>
+            <div class="totals-box totals-box-accent">
+                <span>Total compra</span>
+                <strong>@ImporteTotal.ToString("0.00")</strong>
+            </div>
+        </div>
+    </section>
+</section>

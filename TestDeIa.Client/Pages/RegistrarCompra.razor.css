@@ -1,0 +1,62 @@
+.compras-page .table-card {
+    overflow: visible;
+}
+
+.compras-grid {
+    align-items: end;
+}
+
+.compras-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.compact-message {
+    margin-bottom: 1rem;
+}
+
+.totals-grid {
+    margin-top: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.85rem;
+}
+
+.totals-box {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.95rem 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(73, 194, 211, 0.2);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(236, 247, 252, 0.9));
+    color: #1b4b6d;
+}
+
+.totals-box span {
+    font-size: 0.82rem;
+    color: #53718c;
+}
+
+.totals-box strong {
+    font-size: 1.15rem;
+}
+
+.totals-box-accent {
+    border-color: rgba(31, 150, 145, 0.32);
+    background: linear-gradient(180deg, rgba(216, 247, 245, 0.95), rgba(236, 247, 252, 0.94));
+}
+
+.success-message {
+    margin-bottom: 1rem;
+    padding: 0.95rem 1.1rem;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(216, 247, 245, 0.92), rgba(236, 247, 252, 0.92));
+    border: 1px solid rgba(31, 150, 145, 0.22);
+    color: #1f6966;
+    font-weight: 600;
+}
+
+@media (max-width: 860px) {
+    .compras-toolbar {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,134 @@
+.iva-page {
+    display: grid;
+    gap: 1.35rem;
+}
+
+.iva-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 16rem));
+}
+
+.iva-panels-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+.iva-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.iva-summary-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.iva-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(7rem, 1fr) minmax(7rem, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid rgba(73, 98, 117, 0.08);
+}
+
+.iva-row-highlight {
+    background: linear-gradient(145deg, rgba(73, 194, 211, 0.12), rgba(255, 240, 208, 0.32));
+    border-color: rgba(73, 194, 211, 0.22);
+}
+
+.iva-row-label {
+    color: #124a75;
+    font-weight: 700;
+}
+
+.iva-row-value {
+    justify-self: end;
+    color: #496275;
+    font-weight: 800;
+}
+
+.result-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.result-box {
+    display: grid;
+    gap: 0.4rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(73, 98, 117, 0.08);
+}
+
+.result-box span,
+.result-box small {
+    color: #6e7f90;
+}
+
+.result-box strong {
+    color: #124a75;
+    font-size: 1.3rem;
+}
+
+.result-box-accent {
+    background: linear-gradient(145deg, rgba(73, 194, 211, 0.14), rgba(255, 240, 208, 0.4));
+}
+
+.ia-card {
+    display: grid;
+    gap: 1rem;
+}
+
+.ia-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.9rem;
+    min-height: 2.5rem;
+    border-radius: 999px;
+    background: linear-gradient(145deg, rgba(73, 194, 211, 0.16), rgba(255, 240, 208, 0.46));
+    border: 1px solid rgba(73, 194, 211, 0.2);
+    color: #124a75;
+    font-weight: 700;
+}
+
+.ia-content {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.ia-content p {
+    margin: 0;
+    padding: 1rem 1.05rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(73, 98, 117, 0.08);
+    color: #496275;
+    line-height: 1.65;
+}
+
+@media (max-width: 960px) {
+    .iva-panels-grid,
+    .result-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .iva-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .iva-row {
+        grid-template-columns: 1fr;
+    }
+
+    .iva-row-value {
+        justify-self: start;
+    }
+}

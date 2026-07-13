@@ -174,6 +174,12 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return movimientos.Select(MapKardex).ToArray();
     }
 
+    public async Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync(CancellationToken cancellationToken = default)
+    {
+        var alertas = await inventarioRepository.GetAlertasStockAsync(cancellationToken);
+        return alertas.Select(MapAlerta).ToArray();
+    }
+
     public async Task<ProductoResponse?> AjustarStockAsync(Guid productoId, AjusteStockRequest request, CancellationToken cancellationToken = default)
     {
         ValidateTipoMovimiento(request.TipoMovimiento);
@@ -259,6 +265,43 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return producto is null ? null : MapProducto(producto);
     }
 
+    public async Task<TomaFisicaResultadoResponse> ProcesarTomaFisicaAsync(TomaFisicaInventarioRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.BodegaId == Guid.Empty)
+        {
+            throw new InvalidOperationException("La bodega es obligatoria para procesar la toma fisica.");
+        }
+
+        if (request.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Debes registrar al menos un producto contado en la toma fisica.");
+        }
+
+        if (request.Items.Any(item => item.ProductoId == Guid.Empty || item.CantidadContada < 0))
+        {
+            throw new InvalidOperationException("La toma fisica contiene productos o cantidades invalidas.");
+        }
+
+        var items = request.Items
+            .GroupBy(item => item.ProductoId)
+            .Select(group => (ProductoId: group.Key, CantidadContada: group.Last().CantidadContada))
+            .ToArray();
+
+        var resultado = await inventarioRepository.ProcesarTomaFisicaAsync(
+            request.BodegaId,
+            string.IsNullOrWhiteSpace(request.Concepto) ? "Toma fisica" : request.Concepto.Trim(),
+            items,
+            cancellationToken);
+
+        return new TomaFisicaResultadoResponse
+        {
+            BodegaId = resultado.BodegaId,
+            BodegaNombre = resultado.BodegaNombre,
+            ProductosProcesados = resultado.ProductosProcesados,
+            MovimientosGenerados = resultado.MovimientosGenerados
+        };
+    }
+
     public Task DescontarStockPorFacturaAsync(DescontarStockFacturaRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.ReferenciaFactura))
@@ -335,6 +378,26 @@ public sealed class InventarioUseCase : IInventarioUseCase
             CostoPromedio = movimiento.CostoPromedio,
             SaldoValor = movimiento.SaldoValor,
             FechaMovimiento = movimiento.FechaMovimiento
+        };
+    }
+
+    private static StockAlertaResponse MapAlerta(StockAlerta alerta)
+    {
+        return new StockAlertaResponse
+        {
+            ProductoId = alerta.ProductoId,
+            Codigo = alerta.Codigo,
+            Nombre = alerta.Nombre,
+            StockMinimo = alerta.StockMinimo,
+            StockTotal = alerta.StockTotal,
+            BodegasComprometidas = alerta.BodegasComprometidas
+                .Select(bodega => new StockAlertaBodegaResponse
+                {
+                    BodegaId = bodega.BodegaId,
+                    BodegaNombre = bodega.BodegaNombre,
+                    StockActual = bodega.StockActual
+                })
+                .ToArray()
         };
     }
 

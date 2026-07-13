@@ -36,6 +36,12 @@ public sealed class InventarioApiClient
             $"api/inventario/productos/{productoId}/kardex{bodegaQuery}") ?? Array.Empty<KardexMovimientoResponse>();
     }
 
+    public async Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<StockAlertaResponse>>("api/inventario/alertas-stock")
+            ?? Array.Empty<StockAlertaResponse>();
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateProductoAsync(ProductoRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/inventario/productos", request);
@@ -64,6 +70,24 @@ public sealed class InventarioApiClient
     {
         var response = await httpClient.PostAsJsonAsync("api/inventario/movimientos/transferencia", request);
         return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, TomaFisicaResultadoResponse? Data)> ProcesarTomaFisicaAsync(TomaFisicaInventarioRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/inventario/tomas-fisicas", request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<TomaFisicaResultadoResponse>());
+        }
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            return (false, error?.Message ?? "No se pudo procesar la toma fisica.", null);
+        }
+
+        return (false, "No se pudo procesar la toma fisica.", null);
     }
 
     private static async Task<(bool Succeeded, string? ErrorMessage)> BuildResultAsync(HttpResponseMessage response)

@@ -1,5 +1,5 @@
 @page "/empleados"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpleadosView)]
 
 <PageTitle>Empleados</PageTitle>
 

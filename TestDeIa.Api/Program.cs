@@ -1,10 +1,14 @@
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TestDeIa.Api.Reporting;
 using TestDeIa.Api.Middleware;
+using TestDeIa.Api.Security;
 using TestDeIa.Application;
 using TestDeIa.Infrastructure;
+using TestDeIa.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,9 +50,50 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var userIdValue = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdValue, out var userId))
+                {
+                    context.Fail("Token invalido.");
+                    return;
+                }
+
+                var issuedAtValue = context.Principal?.FindFirst(JwtRegisteredClaimNames.Iat)?.Value;
+                _ = long.TryParse(issuedAtValue, out var issuedAtUnix);
+                var issuedAt = issuedAtUnix > 0
+                    ? DateTimeOffset.FromUnixTimeSeconds(issuedAtUnix)
+                    : DateTimeOffset.MinValue;
+
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<TestDeIaDbContext>();
+                var user = await dbContext.SecurityUsers
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(current => current.Id == userId, context.HttpContext.RequestAborted);
+
+                if (user is null || !user.IsActive || user.BloqueadoManualmente)
+                {
+                    context.Fail("La sesion ya no es valida para este usuario.");
+                    return;
+                }
+
+                if (user.BloqueadoHasta.HasValue && user.BloqueadoHasta.Value > DateTimeOffset.UtcNow)
+                {
+                    context.Fail("La cuenta se encuentra bloqueada temporalmente.");
+                    return;
+                }
+
+                if (user.TokensInvalidosDesde.HasValue && issuedAt <= user.TokensInvalidosDesde.Value)
+                {
+                    context.Fail("La sesion fue revocada. Inicia sesion nuevamente.");
+                }
+            }
+        };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(AuthorizationPolicyRegistration.Register);
 builder.Services.AddScoped<FacturaDocumentQueryService>();
 builder.Services.AddSingleton<FacturaRideRdlcRenderer>();
 

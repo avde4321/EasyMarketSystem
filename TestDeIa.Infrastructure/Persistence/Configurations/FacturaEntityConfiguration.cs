@@ -76,6 +76,9 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.BodegaId)
             .IsRequired();
 
+        builder.Property(factura => factura.UsuarioId)
+            .IsRequired();
+
         builder.Property(factura => factura.ClienteDireccion)
             .HasMaxLength(300);
 
@@ -140,9 +143,15 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasForeignKey(factura => factura.BodegaId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<CajaSesionEntity>()
+            .WithMany()
+            .HasForeignKey(factura => factura.CajaSesionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(factura => factura.ClaveAcceso)
             .IsUnique();
 
         builder.HasIndex(factura => new { factura.Estado, factura.CreatedAt });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.CajaSesionId, factura.CreatedAt });
     }
 }

@@ -23,6 +23,9 @@ public sealed class EmpresaPuntoEmisionEntityConfiguration : IEntityTypeConfigur
         builder.Property(punto => punto.DireccionEstablecimiento)
             .HasMaxLength(300);
 
+        builder.Property(punto => punto.BodegaId)
+            .IsRequired();
+
         builder.HasIndex(punto => new { punto.EmpresaEmisoraId, punto.Establecimiento, punto.PuntoEmision })
             .IsUnique();
 
@@ -30,5 +33,10 @@ public sealed class EmpresaPuntoEmisionEntityConfiguration : IEntityTypeConfigur
             .WithMany(empresa => empresa.PuntosEmision)
             .HasForeignKey(punto => punto.EmpresaEmisoraId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(punto => punto.Bodega)
+            .WithMany()
+            .HasForeignKey(punto => punto.BodegaId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

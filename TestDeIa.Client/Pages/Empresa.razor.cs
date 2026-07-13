@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Empresa;
+using TestDeIa.Client.Services.Inventario;
 using TestDeIa.Shared.Requests.Empresa;
 using TestDeIa.Shared.Responses.Catalogos;
+using TestDeIa.Shared.Responses.Inventario;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Client.Pages;
 
@@ -15,11 +18,15 @@ public partial class Empresa
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
+    [Inject]
+    private InventarioApiClient InventarioApiClient { get; set; } = default!;
+
     private EmpresaRequest empresaRequest = new();
     private TestDeIa.Shared.Responses.Empresa.EmpresaResponse? empresaActual;
     private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> empresas = [];
     private readonly List<CatalogoItemResponse> ambientesSri = [];
     private readonly List<CatalogoItemResponse> tiposEmision = [];
+    private readonly List<BodegaResponse> bodegas = [];
     private bool isSaving;
     private string? errorMessage;
     private string? statusMessage;
@@ -37,10 +44,12 @@ public partial class Empresa
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+    private IReadOnlyList<BodegaResponse> activeBodegas => bodegas.Where(current => current.IsActive).OrderBy(current => current.Nombre).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
+        await LoadBodegasAsync();
         await LoadAsync(resetPaging: true);
     }
 
@@ -50,6 +59,12 @@ public partial class Empresa
         tiposEmision.Clear();
         ambientesSri.AddRange(await CatalogosApiClient.GetItemsAsync("AMBIENTE_SRI", true));
         tiposEmision.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_EMISION", true));
+    }
+
+    private async Task LoadBodegasAsync()
+    {
+        bodegas.Clear();
+        bodegas.AddRange(await InventarioApiClient.GetBodegasAsync());
     }
 
     private async Task LoadAsync(bool resetPaging = false)
@@ -163,9 +178,9 @@ public partial class Empresa
             NombreComercial = empresaActual.NombreComercial,
             Ruc = empresaActual.Ruc,
             DireccionMatriz = empresaActual.DireccionMatriz,
-            AmbienteSri = empresaActual.AmbienteSri,
+            AmbienteSri = SriCatalogCodes.NormalizeAmbienteCode(empresaActual.AmbienteSri) ?? empresaActual.AmbienteSri,
             ModoDesarrollo = empresaActual.ModoDesarrollo,
-            TipoEmision = empresaActual.TipoEmision,
+            TipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(empresaActual.TipoEmision) ?? empresaActual.TipoEmision,
             ObligadoContabilidad = empresaActual.ObligadoContabilidad,
             ContribuyenteEspecial = empresaActual.ContribuyenteEspecial,
             RegimenRimpe = empresaActual.RegimenRimpe,
@@ -176,6 +191,7 @@ public partial class Empresa
                 .Select(punto => new EmpresaPuntoEmisionRequest
                 {
                     Id = punto.Id,
+                    BodegaId = punto.BodegaId,
                     DireccionEstablecimiento = punto.DireccionEstablecimiento,
                     Establecimiento = punto.Establecimiento,
                     PuntoEmision = punto.PuntoEmision,
@@ -195,8 +211,8 @@ public partial class Empresa
         certificadoNombreArchivoActual = null;
         empresaRequest = new EmpresaRequest
         {
-            AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "Pruebas",
-            TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "Normal",
+            AmbienteSri = ambientesSri.FirstOrDefault()?.Codigo ?? "1",
+            TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "1",
             IsActive = true,
             ModoDesarrollo = true,
             PuntosEmision =
@@ -205,6 +221,7 @@ public partial class Empresa
                 {
                     Establecimiento = "001",
                     PuntoEmision = "001",
+                    BodegaId = activeBodegas.FirstOrDefault()?.Id,
                     IsDefault = true
                 }
             ]
@@ -218,6 +235,7 @@ public partial class Empresa
             empresaRequest.PuntosEmision[editingPuntoIndex.Value] = new EmpresaPuntoEmisionRequest
             {
                 Id = puntoEmisionDraft.Id,
+                BodegaId = puntoEmisionDraft.BodegaId,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
                 Establecimiento = puntoEmisionDraft.Establecimiento,
                 PuntoEmision = puntoEmisionDraft.PuntoEmision,
@@ -229,6 +247,7 @@ public partial class Empresa
             empresaRequest.PuntosEmision.Add(new EmpresaPuntoEmisionRequest
             {
                 Id = puntoEmisionDraft.Id,
+                BodegaId = puntoEmisionDraft.BodegaId,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
                 Establecimiento = puntoEmisionDraft.Establecimiento,
                 PuntoEmision = puntoEmisionDraft.PuntoEmision,
@@ -289,6 +308,7 @@ public partial class Empresa
         puntoEmisionDraft = new EmpresaPuntoEmisionRequest
         {
             Id = punto.Id,
+            BodegaId = punto.BodegaId,
             DireccionEstablecimiento = punto.DireccionEstablecimiento,
             Establecimiento = punto.Establecimiento,
             PuntoEmision = punto.PuntoEmision,
@@ -303,8 +323,19 @@ public partial class Empresa
         {
             Establecimiento = "001",
             PuntoEmision = "001",
+            BodegaId = activeBodegas.FirstOrDefault()?.Id,
             IsDefault = empresaRequest.PuntosEmision.Count == 0
         };
+    }
+
+    private string GetBodegaName(Guid? bodegaId)
+    {
+        if (!bodegaId.HasValue || bodegaId.Value == Guid.Empty)
+        {
+            return "Se asignara Principal";
+        }
+
+        return activeBodegas.FirstOrDefault(current => current.Id == bodegaId.Value)?.Nombre ?? "Bodega no disponible";
     }
 
     private static string GetPuntosResumen(TestDeIa.Shared.Responses.Empresa.EmpresaResponse empresa)
@@ -319,6 +350,10 @@ public partial class Empresa
             ? $"{principal.Establecimiento}-{principal.PuntoEmision}"
             : $"{principal.Establecimiento}-{principal.PuntoEmision} + {empresa.PuntosEmision.Count - 1}";
     }
+
+    private static string GetAmbienteLabel(string? value) => SriCatalogCodes.GetAmbienteName(value);
+
+    private static string GetTipoEmisionLabel(string? value) => SriCatalogCodes.GetTipoEmisionName(value);
 
     private Task SearchAsync() => LoadAsync(resetPaging: true);
 

@@ -1,0 +1,224 @@
+@page "/proveedores"
+@attribute [Authorize(Policy = SecurityPolicyNames.ProveedoresView)]
+
+<PageTitle>Proveedores</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Proveedores</h1>
+            <p>Maestro comercial de compras conectado a la persona centralizada.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear proveedor</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por RUC, pasaporte, razon social, correo, telefono o codigos de retencion..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+        <div class="soft-info-message compact-message">
+            El proveedor reutiliza la persona existente y solo agrega sus atributos comerciales de compras y retenciones.
+        </div>
+        @if (isLoading)
+        {
+            <p><em>Cargando proveedores...</em></p>
+        }
+        else if (totalCount == 0)
+        {
+            <div class="empty-state">No hay proveedores registrados.</div>
+        }
+        else if (!VisibleProveedores.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Identificacion</th>
+                            <th>Nombre</th>
+                            <th>Ret. IVA</th>
+                            <th>Ret. renta</th>
+                            <th>Credito</th>
+                            <th>Roles</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var proveedor in VisibleProveedores)
+                        {
+                            <tr>
+                                <td data-label="Tipo">@proveedor.TipoIdentificacion</td>
+                                <td data-label="Identificacion">@proveedor.Identificacion</td>
+                                <td data-label="Nombre">@proveedor.NombreCompleto</td>
+                                <td data-label="Ret. IVA">@proveedor.CodigoRetencionIvaDefault</td>
+                                <td data-label="Ret. renta">@proveedor.CodigoRetencionRentaDefault</td>
+                                <td data-label="Credito">@(proveedor.PermiteCredito ? $"{proveedor.DiasCredito} dias" : "No")</td>
+                                <td data-label="Roles">@string.Join(", ", proveedor.RolesPersona)</td>
+                                <td data-label="Estado"><span class="status-pill">@proveedor.EstadoProveedor</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" @onclick="() => OpenEditModal(proveedor)">Editar</button>
+                                    <button class="danger-button" @onclick="() => DeleteProveedorAsync(proveedor.Id)">Eliminar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @proveedores.Count de @totalCount proveedores</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingProveedorId.HasValue ? "Actualizar proveedor" : "Crear proveedor")</h2>
+                <button class="icon-button" @onclick="CloseModal">x</button>
+            </header>
+
+            <EditForm Model="proveedorRequest" OnValidSubmit="SaveProveedorAsync">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="status-banner">@statusMessage</div>
+                }
+
+                <div class="status-banner">
+                    Si la persona ya existe por RUC o pasaporte, se reutiliza y se agrega el rol de proveedor sin duplicar sus datos base.
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="tipoIdentificacion">Tipo identificacion</label>
+                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="proveedorRequest.TipoIdentificacion">
+                            @foreach (var item in tiposIdentificacion)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => proveedorRequest.TipoIdentificacion)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="identificacion">Identificacion</label>
+                        <div class="input-action-row">
+                            <InputText id="identificacion" class="form-control" @bind-Value="proveedorRequest.Identificacion" />
+                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                            </button>
+                        </div>
+                        <ValidationMessage For="@(() => proveedorRequest.Identificacion)" />
+                        <small class="file-hint">Solo se admiten RUC (04) y Pasaporte (06).</small>
+                    </div>
+
+                    <div class="form-field full">
+                        <label for="razonSocial">Razon social / nombres completos</label>
+                        <InputText id="razonSocial" class="form-control" @bind-Value="proveedorRequest.RazonSocialONombresCompletos" />
+                        <ValidationMessage For="@(() => proveedorRequest.RazonSocialONombresCompletos)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="nombreComercial">Nombre comercial</label>
+                        <InputText id="nombreComercial" class="form-control" @bind-Value="proveedorRequest.NombreComercial" />
+                        <ValidationMessage For="@(() => proveedorRequest.NombreComercial)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="email">Correo principal</label>
+                        <InputText id="email" class="form-control" @bind-Value="proveedorRequest.CorreoElectronicoPrincipal" />
+                        <ValidationMessage For="@(() => proveedorRequest.CorreoElectronicoPrincipal)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="telefono">Celular</label>
+                        <InputText id="telefono" class="form-control" @bind-Value="proveedorRequest.TelefonoCelular" />
+                        <ValidationMessage For="@(() => proveedorRequest.TelefonoCelular)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="genero">Genero</label>
+                        <InputText id="genero" class="form-control" @bind-Value="proveedorRequest.Genero" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="fechaNacimiento">Fecha nacimiento</label>
+                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="proveedorRequest.FechaNacimiento" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label for="direccion">Direccion</label>
+                        <InputTextArea id="direccion" class="form-control" @bind-Value="proveedorRequest.DireccionPrincipal" />
+                        <ValidationMessage For="@(() => proveedorRequest.DireccionPrincipal)" />
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="retIva">Codigo retencion IVA</label>
+                        <InputText id="retIva" class="form-control" @bind-Value="proveedorRequest.CodigoRetencionIvaDefault" />
+                        <ValidationMessage For="@(() => proveedorRequest.CodigoRetencionIvaDefault)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="retRenta">Codigo retencion renta</label>
+                        <InputText id="retRenta" class="form-control" @bind-Value="proveedorRequest.CodigoRetencionRentaDefault" />
+                        <ValidationMessage For="@(() => proveedorRequest.CodigoRetencionRentaDefault)" />
+                    </div>
+
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="proveedorRequest.PermiteCredito" />
+                        <span class="form-check-label">Permite credito</span>
+                    </label>
+
+                    <div class="form-field">
+                        <label for="diasCredito">Dias credito</label>
+                        <InputNumber id="diasCredito" class="form-control" @bind-Value="proveedorRequest.DiasCredito" />
+                        <ValidationMessage For="@(() => proveedorRequest.DiasCredito)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="estadoProveedor">Estado proveedor</label>
+                        <InputSelect id="estadoProveedor" class="form-control" @bind-Value="proveedorRequest.EstadoProveedor">
+                            <option value="Activo">Activo</option>
+                            <option value="Inactivo">Inactivo</option>
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="proveedorRequest.IsActive" />
+                    <span class="form-check-label">Proveedor activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

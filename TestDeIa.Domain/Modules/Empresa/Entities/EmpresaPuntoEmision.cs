@@ -8,7 +8,9 @@ public sealed class EmpresaPuntoEmision
         string establecimiento,
         string puntoEmision,
         string? direccionEstablecimiento,
-        bool isDefault)
+        bool isDefault,
+        Guid? bodegaId,
+        string? bodegaNombre)
     {
         Id = id;
         EmpresaId = empresaId;
@@ -16,6 +18,8 @@ public sealed class EmpresaPuntoEmision
         PuntoEmision = puntoEmision;
         DireccionEstablecimiento = direccionEstablecimiento;
         IsDefault = isDefault;
+        BodegaId = bodegaId;
+        BodegaNombre = bodegaNombre;
     }
 
     public Guid Id { get; }
@@ -24,4 +28,6 @@ public sealed class EmpresaPuntoEmision
     public string PuntoEmision { get; }
     public string? DireccionEstablecimiento { get; }
     public bool IsDefault { get; }
+    public Guid? BodegaId { get; }
+    public string? BodegaNombre { get; }
 }

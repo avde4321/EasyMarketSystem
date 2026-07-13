@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using TestDeIa.Shared.Sri;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Facturacion;
@@ -156,27 +157,14 @@ internal static class SriFacturaXmlBuilder
 
     public static string GetAmbienteCode(string ambienteSri)
     {
-        if (string.Equals(ambienteSri, "Pruebas", StringComparison.OrdinalIgnoreCase))
-        {
-            return "1";
-        }
-
-        if (string.Equals(ambienteSri, "Produccion", StringComparison.OrdinalIgnoreCase))
-        {
-            return "2";
-        }
-
-        throw new InvalidOperationException("El ambiente SRI de la factura no es valido.");
+        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri)
+            ?? throw new InvalidOperationException("El ambiente SRI de la factura no es valido.");
     }
 
     public static string GetTipoEmisionCode(string tipoEmision)
     {
-        if (string.Equals(tipoEmision, "Normal", StringComparison.OrdinalIgnoreCase))
-        {
-            return "1";
-        }
-
-        throw new InvalidOperationException("El tipo de emision de la factura no es valido.");
+        return SriCatalogCodes.NormalizeTipoEmisionCode(tipoEmision)
+            ?? throw new InvalidOperationException("El tipo de emision de la factura no es valido.");
     }
 
     private static int ComputeModulo11Digit(string key)

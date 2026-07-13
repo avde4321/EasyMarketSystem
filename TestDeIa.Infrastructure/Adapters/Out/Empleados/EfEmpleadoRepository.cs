@@ -141,6 +141,8 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
             .Include(empleado => empleado.Persona)
             .ThenInclude(persona => persona.Cliente)
             .Include(empleado => empleado.Persona)
+            .ThenInclude(persona => persona.Proveedor)
+            .Include(empleado => empleado.Persona)
             .ThenInclude(persona => persona.SecurityUser);
     }
 
@@ -206,6 +208,11 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
         if (persona.Cliente is not null)
         {
             roles.Add("Cliente");
+        }
+
+        if (persona.Proveedor is not null)
+        {
+            roles.Add("Proveedor");
         }
 
         if (persona.SecurityUser is not null)

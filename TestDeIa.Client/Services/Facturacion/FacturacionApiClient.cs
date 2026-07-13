@@ -22,11 +22,12 @@ public sealed class FacturacionApiClient
             $"api/facturacion/clientes?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosClienteResponse> { Skip = skip, Take = take };
     }
 
-    public async Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take)
+    public async Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null)
     {
         var encodedTerm = Uri.EscapeDataString(term);
+        var bodegaQuery = bodegaId.HasValue && bodegaId.Value != Guid.Empty ? $"&bodegaId={bodegaId.Value}" : string.Empty;
         return await httpClient.GetFromJsonAsync<PagedResultResponse<PosProductoResponse>>(
-            $"api/facturacion/productos?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosProductoResponse> { Skip = skip, Take = take };
+            $"api/facturacion/productos?term={encodedTerm}&skip={skip}&take={take}{bodegaQuery}") ?? new PagedResultResponse<PosProductoResponse> { Skip = skip, Take = take };
     }
 
     public async Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync()

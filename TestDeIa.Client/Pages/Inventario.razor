@@ -1,5 +1,5 @@
 @page "/inventario"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
 
 <PageTitle>Inventario</PageTitle>
 
@@ -9,7 +9,14 @@
             <h1>Inventario</h1>
             <p>Control multi-bodega, alertas por ubicacion, Kardex filtrable y movimientos operativos.</p>
         </div>
-        <button class="primary-action" @onclick="OpenProductModal">Crear producto</button>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <div class="header-actions">
+                    <button class="secondary-action" @onclick="OpenTomaFisicaModal">Toma fisica</button>
+                    <button class="primary-action" @onclick="OpenProductModal">Crear producto</button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -431,6 +438,68 @@
                     <button class="secondary-action" type="button" @onclick="CloseTransferModal">Cancelar</button>
                     <button class="primary-action" type="submit" disabled="@(!CanSubmitTransfer || isSaving)">
                         @(isSaving ? "Transfiriendo..." : "Transferir")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isTomaFisicaModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Toma fisica por bodega</h2>
+                <button class="icon-button" @onclick="CloseTomaFisicaModal">x</button>
+            </header>
+            <p class="modal-subtitle">Bodega: @selectedBodega?.Nombre. Ajusta las cantidades contadas y el sistema conciliara automaticamente el Kardex.</p>
+
+            <EditForm Model="tomaFisicaRequest" OnValidSubmit="SaveTomaFisicaAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid single">
+                    <div class="form-field">
+                        <label>Concepto</label>
+                        <InputText class="form-control" @bind-Value="tomaFisicaRequest.Concepto" />
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Producto</th>
+                                <th>Stock sistema</th>
+                                <th>Contado</th>
+                                <th>Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in tomaFisicaRows)
+                            {
+                                <tr>
+                                    <td data-label="Codigo">@row.Codigo</td>
+                                    <td data-label="Producto">@row.Nombre</td>
+                                    <td data-label="Stock sistema">@row.StockSistema.ToString("0.####")</td>
+                                    <td data-label="Contado">
+                                        <InputNumber class="form-control compact-input" @bind-Value="row.CantidadContada" />
+                                    </td>
+                                    <td data-label="Diferencia">
+                                        <span class="status-pill @(row.Diferencia == 0 ? string.Empty : (row.Diferencia > 0 ? "is-active" : "status-servicio"))">
+                                            @row.Diferencia.ToString("0.####")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseTomaFisicaModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@(!CanSubmitTomaFisica || isSaving)">
+                        @(isSaving ? "Conciliando..." : "Aplicar toma fisica")
                     </button>
                 </footer>
             </EditForm>

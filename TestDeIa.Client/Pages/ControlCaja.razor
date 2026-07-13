@@ -1,0 +1,108 @@
+@page "/caja/control"
+@attribute [Authorize(Policy = SecurityPolicyNames.CajaOperar)]
+
+<PageTitle>Control de caja</PageTitle>
+
+<section class="page-shell">
+    <header class="page-header">
+        <div>
+            <span class="page-kicker">POS</span>
+            <h1>Control de caja</h1>
+            <p>Apertura, conciliacion y cierre diario del puesto de caja.</p>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback-banner error">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="feedback-banner success">@statusMessage</div>
+    }
+
+    <section class="content-grid">
+        <article class="table-card">
+            <header class="section-header">
+                <div>
+                    <h2>@(cajaActiva is null ? "Abrir caja" : "Caja activa")</h2>
+                    <p>@(cajaActiva is null ? "Define el fondo inicial para habilitar el POS." : "Consulta el acumulado y registra los montos fisicos al cerrar.")</p>
+                </div>
+            </header>
+
+            @if (isLoading)
+            {
+                <div class="empty-state">Cargando estado de caja...</div>
+            }
+            else if (cajaActiva is null)
+            {
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Monto de apertura</label>
+                        <InputNumber class="form-control" @bind-Value="montoApertura" />
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="primary-action" type="button" @onclick="AbrirCajaAsync" disabled="@isSaving">
+                        @(isSaving ? "Abriendo..." : "Abrir caja")
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="summary-grid">
+                    <div class="summary-card accent">
+                        <span>Apertura</span>
+                        <strong>@cajaActiva.MontoApertura.ToString("0.00")</strong>
+                        <small>@cajaActiva.FechaApertura.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                    </div>
+                    <div class="summary-card">
+                        <span>Ventas efectivo</span>
+                        <strong>@cajaActiva.TotalVentasEfectivoCalculado.ToString("0.00")</strong>
+                        <small>Calculado por facturas del turno</small>
+                    </div>
+                    <div class="summary-card">
+                        <span>Ventas tarjeta</span>
+                        <strong>@cajaActiva.TotalVentasTarjetaCalculado.ToString("0.00")</strong>
+                        <small>Pagos no efectivos del turno</small>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Efectivo fisico real</label>
+                        <InputNumber class="form-control" @bind-Value="montoFisicoEfectivoReal" />
+                    </div>
+                    <div class="form-field">
+                        <label>Tarjeta / transferencias reales</label>
+                        <InputNumber class="form-control" @bind-Value="montoFisicoTarjetaReal" />
+                    </div>
+                </div>
+
+                <div class="summary-grid compact">
+                    <div class="summary-card @(GetDifferenceClass(cajaActiva.DiferenciaEfectivo))">
+                        <span>Diferencia efectivo</span>
+                        <strong>@cajaActiva.DiferenciaEfectivo.ToString("0.00")</strong>
+                    </div>
+                    <div class="summary-card @(GetDifferenceClass(cajaActiva.DiferenciaTarjeta))">
+                        <span>Diferencia tarjeta</span>
+                        <strong>@cajaActiva.DiferenciaTarjeta.ToString("0.00")</strong>
+                    </div>
+                </div>
+
+                <div class="audit-note">
+                    <strong>Listo para auditoria:</strong> el cierre contrasta el acumulado del sistema contra lo declarado fisicamente por el cajero.
+                </div>
+
+                <div class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="RefreshAsync" disabled="@isSaving">Actualizar totales</button>
+                    <button class="primary-action danger" type="button" @onclick="CerrarCajaAsync" disabled="@isSaving">
+                        @(isSaving ? "Cerrando..." : "Cerrar caja")
+                    </button>
+                </div>
+            }
+        </article>
+    </section>
+</section>

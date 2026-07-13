@@ -55,5 +55,6 @@ public sealed class KardexMovimientoEntityConfiguration : IEntityTypeConfigurati
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(movimiento => new { movimiento.ProductoId, movimiento.BodegaId, movimiento.FechaMovimiento });
+        builder.HasIndex(movimiento => new { movimiento.EmpresaId, movimiento.FechaMovimiento, movimiento.BodegaId, movimiento.ProductoId });
     }
 }

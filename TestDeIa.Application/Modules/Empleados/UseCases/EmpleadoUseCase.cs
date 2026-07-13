@@ -9,6 +9,7 @@ using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Empleados;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empleados;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Empleados.UseCases;
 
@@ -58,7 +59,9 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     public async Task<EmpleadoResponse> CreateAsync(EmpleadoRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el empleado");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion del empleado no coincide con los tipos soportados por facturacion electronica.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el empleado");
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
         if (persona is not null)
@@ -113,7 +116,9 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     public async Task<EmpleadoResponse?> UpdateAsync(Guid id, EmpleadoRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el empleado");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion del empleado no coincide con los tipos soportados por facturacion electronica.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el empleado");
 
         var current = await empleadoRepository.GetByIdAsync(id, cancellationToken);
         if (current is null)
@@ -176,7 +181,7 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
     {
         return new Persona(
             id,
-            request.TipoIdentificacion.Trim(),
+            SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion) ?? request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
             request.RazonSocialONombresCompletos.Trim(),
             NormalizeOptional(request.NombreComercial),
@@ -228,7 +233,9 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
 
     private async Task ValidateCatalogValuesAsync(EmpleadoRequest request, CancellationToken cancellationToken)
     {
-        if (!await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", request.TipoIdentificacion.Trim(), cancellationToken))
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion);
+        if (tipoIdentificacion is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", tipoIdentificacion, cancellationToken))
         {
             throw new InvalidOperationException("El tipo de identificacion del empleado no coincide con los tipos soportados por facturacion electronica.");
         }

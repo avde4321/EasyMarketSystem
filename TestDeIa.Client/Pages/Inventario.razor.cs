@@ -17,6 +17,8 @@ public partial class Inventario
     private AjusteStockRequest ajusteRequest = new();
     private EgresoMermaRequest mermaRequest = new();
     private TransferenciaInventarioRequest transferenciaRequest = new();
+    private TomaFisicaInventarioRequest tomaFisicaRequest = new();
+    private readonly List<TomaFisicaRowModel> tomaFisicaRows = [];
     private ProductoResponse? selectedProduct;
     private ProductoResponse? selectedAdjustmentProduct;
     private ProductoResponse? selectedMermaProduct;
@@ -30,6 +32,7 @@ public partial class Inventario
     private bool isAdjustmentModalOpen;
     private bool isMermaModalOpen;
     private bool isTransferModalOpen;
+    private bool isTomaFisicaModalOpen;
     private string? errorMessage;
     private string searchTerm = string.Empty;
     private string kardexSearchTerm = string.Empty;
@@ -59,10 +62,13 @@ public partial class Inventario
                                    mermaRequest.Cantidad > 0 &&
                                    mermaRequest.Cantidad <= selectedMermaProduct.StockActual;
     private bool CanSubmitTransfer => selectedTransferProduct is not null &&
-                                      selectedTransferDestinoId.HasValue &&
-                                      selectedTransferDestinoId.Value != Guid.Empty &&
-                                      transferenciaRequest.Cantidad > 0 &&
-                                      transferenciaRequest.Cantidad <= selectedTransferProduct.StockActual;
+                                       selectedTransferDestinoId.HasValue &&
+                                       selectedTransferDestinoId.Value != Guid.Empty &&
+                                       transferenciaRequest.Cantidad > 0 &&
+                                       transferenciaRequest.Cantidad <= selectedTransferProduct.StockActual;
+    private bool CanSubmitTomaFisica => selectedBodegaId.HasValue &&
+                                        tomaFisicaRows.Count > 0 &&
+                                        tomaFisicaRows.All(row => row.CantidadContada >= 0);
 
     private IEnumerable<KardexMovimientoResponse> FilteredKardex => kardex.Where(movimiento =>
         string.IsNullOrWhiteSpace(kardexSearchTerm) ||
@@ -390,6 +396,48 @@ public partial class Inventario
         errorMessage = null;
     }
 
+    private void OpenTomaFisicaModal()
+    {
+        if (selectedBodegaId is null)
+        {
+            errorMessage = "Debe seleccionar una bodega operativa antes de registrar una toma fisica.";
+            return;
+        }
+
+        var productosInventariables = VisibleProductos.Where(producto => producto.ControlaStock).ToArray();
+        if (productosInventariables.Length == 0)
+        {
+            errorMessage = "No hay productos inventariables visibles para procesar la toma fisica.";
+            return;
+        }
+
+        tomaFisicaRequest = new TomaFisicaInventarioRequest
+        {
+            BodegaId = selectedBodegaId.Value,
+            Concepto = $"Toma fisica {selectedBodega?.Nombre}"
+        };
+
+        tomaFisicaRows.Clear();
+        tomaFisicaRows.AddRange(productosInventariables.Select(producto => new TomaFisicaRowModel
+        {
+            ProductoId = producto.Id,
+            Codigo = producto.Codigo,
+            Nombre = producto.Nombre,
+            StockSistema = producto.StockActual,
+            CantidadContada = producto.StockActual
+        }));
+
+        isTomaFisicaModalOpen = true;
+        errorMessage = null;
+    }
+
+    private void CloseTomaFisicaModal()
+    {
+        isTomaFisicaModalOpen = false;
+        tomaFisicaRows.Clear();
+        isSaving = false;
+    }
+
     private void CloseTransferModal()
     {
         isTransferModalOpen = false;
@@ -432,6 +480,61 @@ public partial class Inventario
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo registrar la transferencia.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task SaveTomaFisicaAsync()
+    {
+        if (selectedBodegaId is null)
+        {
+            return;
+        }
+
+        if (!CanSubmitTomaFisica)
+        {
+            errorMessage = "La toma fisica contiene cantidades invalidas.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        tomaFisicaRequest.BodegaId = selectedBodegaId.Value;
+        tomaFisicaRequest.Items = tomaFisicaRows
+            .Select(row => new TomaFisicaInventarioItemRequest
+            {
+                ProductoId = row.ProductoId,
+                CantidadContada = row.CantidadContada
+            })
+            .ToList();
+
+        try
+        {
+            var result = await InventarioApiClient.ProcesarTomaFisicaAsync(tomaFisicaRequest);
+            if (!result.Succeeded)
+            {
+                errorMessage = result.ErrorMessage;
+                return;
+            }
+
+            CloseTomaFisicaModal();
+            await LoadProductsAsync();
+
+            if (selectedProduct is not null)
+            {
+                var refreshed = productos.FirstOrDefault(producto => producto.Id == selectedProduct.Id);
+                if (refreshed is not null)
+                {
+                    await LoadKardexAsync(refreshed, preserveCurrentFilter: true);
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo procesar la toma fisica.";
         }
         finally
         {
@@ -493,5 +596,15 @@ public partial class Inventario
         return string.IsNullOrWhiteSpace(bodega.Direccion)
             ? bodega.Nombre
             : $"{bodega.Nombre} - {bodega.Direccion}";
+    }
+
+    private sealed class TomaFisicaRowModel
+    {
+        public Guid ProductoId { get; set; }
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public decimal StockSistema { get; set; }
+        public decimal CantidadContada { get; set; }
+        public decimal Diferencia => Math.Round(CantidadContada - StockSistema, 4);
     }
 }

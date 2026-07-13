@@ -63,6 +63,12 @@
     color: #1d665f;
 }
 
+.inline-link {
+    margin-left: 0.45rem;
+    color: #13588c;
+    font-weight: 600;
+}
+
 .product-item .price-meta {
     text-align: right;
 }

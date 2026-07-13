@@ -11,4 +11,6 @@ public sealed class SecurityRoleEntity
     public bool IsActive { get; set; }
 
     public ICollection<SecurityUserRoleEntity> UserRoles { get; set; } = [];
+
+    public ICollection<SecurityRolPermisoEntity> RolePermissions { get; set; } = [];
 }

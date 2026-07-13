@@ -21,11 +21,12 @@ public sealed class SecurityApiClient
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            return new LoginResponse
-            {
-                Succeeded = false,
-                ErrorMessage = "Usuario o contrasena incorrectos."
-            };
+            return await response.Content.ReadFromJsonAsync<LoginResponse>()
+                ?? new LoginResponse
+                {
+                    Succeeded = false,
+                    ErrorMessage = "Usuario o contrasena incorrectos."
+                };
         }
 
         response.EnsureSuccessStatusCode();
@@ -50,6 +51,13 @@ public sealed class SecurityApiClient
             ?? Array.Empty<SecurityRoleResponse>();
     }
 
+    public async Task<PagedResultResponse<SecurityAuditLogResponse>> GetAuditLogsAsync(string? term, int skip, int take)
+    {
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<SecurityAuditLogResponse>>($"api/security/auditoria?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<SecurityAuditLogResponse> { Skip = skip, Take = take };
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateUserAsync(SecurityUserRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/security/users", request);
@@ -59,6 +67,30 @@ public sealed class SecurityApiClient
     public async Task<(bool Succeeded, string? ErrorMessage)> UpdateUserAsync(Guid id, SecurityUserRequest request)
     {
         var response = await httpClient.PutAsJsonAsync($"api/security/users/{id}", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> ResetPasswordAsync(Guid id, ResetPasswordRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/security/users/{id}/reset-password", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> UnlockUserAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/security/users/{id}/unlock", null);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> UpdatePerfilAsync(Guid id, UpdateUserPerfilRequest request)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/security/usuarios/{id}/perfil", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> UpdateEstadoAsync(Guid id, UpdateUserEstadoRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/security/usuarios/{id}/estado", request);
         return await BuildResultAsync(response);
     }
 

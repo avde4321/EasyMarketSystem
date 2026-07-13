@@ -22,6 +22,16 @@ public static class EcuadorIdentificationValidator
             return;
         }
 
+        if (tipo == "06")
+        {
+            if (numero.Length < 3)
+            {
+                throw new InvalidOperationException($"El pasaporte de {subjectLabel} debe tener al menos 3 caracteres.");
+            }
+
+            return;
+        }
+
         if (!numero.All(char.IsDigit))
         {
             throw new InvalidOperationException($"La identificacion de {subjectLabel} debe contener solo digitos para el tipo seleccionado.");
@@ -78,15 +88,6 @@ public static class EcuadorIdentificationValidator
             throw new InvalidOperationException($"El RUC de {subjectLabel} no tiene un tercer digito valido para Ecuador.");
         }
 
-        if (tipo == "06")
-        {
-            if (numero.Length < 3)
-            {
-                throw new InvalidOperationException($"El pasaporte de {subjectLabel} debe tener al menos 3 caracteres.");
-            }
-
-            return;
-        }
     }
 
     private static bool IsValidNaturalPersonCedula(string cedula)

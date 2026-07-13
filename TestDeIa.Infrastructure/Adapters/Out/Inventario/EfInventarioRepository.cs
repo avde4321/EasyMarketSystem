@@ -235,6 +235,41 @@ public sealed class EfInventarioRepository : IInventarioRepository
         return movimientos.Select(MapKardex).ToArray();
     }
 
+    public async Task<IReadOnlyCollection<StockAlerta>> GetAlertasStockAsync(CancellationToken cancellationToken = default)
+    {
+        var productos = await dbContext.Productos
+            .AsNoTracking()
+            .Include(producto => producto.ProductosBodega)
+            .ThenInclude(productoBodega => productoBodega.Bodega)
+            .Where(producto => producto.IsActive && producto.ControlaStock)
+            .OrderBy(producto => producto.Nombre)
+            .ToListAsync(cancellationToken);
+
+        return productos
+            .Select(producto =>
+            {
+                var bodegasActivas = producto.ProductosBodega
+                    .Where(current => current.Bodega.IsActive)
+                    .OrderBy(current => current.StockActual)
+                    .ThenBy(current => current.Bodega.Nombre)
+                    .Select(current => new StockAlertaBodega(
+                        current.BodegaId,
+                        current.Bodega.Nombre,
+                        current.StockActual))
+                    .ToArray();
+
+                return new StockAlerta(
+                    producto.Id,
+                    producto.Codigo,
+                    producto.Nombre,
+                    producto.StockMinimo,
+                    bodegasActivas.Sum(current => current.StockActual),
+                    bodegasActivas);
+            })
+            .Where(alerta => alerta.StockTotal <= alerta.StockMinimo)
+            .ToArray();
+    }
+
     public async Task<Producto?> RegistrarMovimientoAsync(
         Guid productoId,
         Guid? bodegaId,
@@ -436,6 +471,85 @@ public sealed class EfInventarioRepository : IInventarioRepository
             cancellationToken);
 
         return productoActualizado;
+    }
+
+    public async Task<TomaFisicaResultado> ProcesarTomaFisicaAsync(
+        Guid bodegaId,
+        string concepto,
+        IReadOnlyCollection<(Guid ProductoId, decimal CantidadContada)> items,
+        CancellationToken cancellationToken = default)
+    {
+        var resultado = new TomaFisicaResultado(bodegaId, string.Empty, 0, 0);
+
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                var bodega = await GetBodegaEntityByIdAsync(bodegaId, token);
+                var productos = await dbContext.Productos
+                    .Include(current => current.ProductosBodega)
+                    .Where(current => items.Select(item => item.ProductoId).Contains(current.Id))
+                    .ToDictionaryAsync(current => current.Id, token);
+
+                var productosProcesados = 0;
+                var movimientosGenerados = 0;
+
+                foreach (var item in items)
+                {
+                    if (!productos.TryGetValue(item.ProductoId, out var producto))
+                    {
+                        throw new InvalidOperationException("Uno de los productos enviados en la toma fisica no existe.");
+                    }
+
+                    if (!producto.ControlaStock)
+                    {
+                        logger.LogInformation(
+                            "Se omite la toma fisica para el producto {ProductoId} porque no controla stock.",
+                            producto.Id);
+                        continue;
+                    }
+
+                    var existencia = await GetOrCreateProductoBodegaAsync(producto, bodega, token);
+                    var diferencia = Math.Round(item.CantidadContada - existencia.StockActual, 4);
+                    productosProcesados++;
+
+                    if (diferencia == 0)
+                    {
+                        continue;
+                    }
+
+                    var isIngreso = diferencia > 0;
+                    RegistrarMovimientoInternal(
+                        producto,
+                        existencia,
+                        bodega,
+                        isIngreso ? "Entrada" : "Salida",
+                        isIngreso ? "INGRESO_AJUSTE" : "EGRESO_AJUSTE",
+                        concepto,
+                        Math.Abs(diferencia),
+                        producto.CostoPromedio,
+                        recalcularCostoPromedioEnEntrada: false,
+                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {bodega.Nombre} para conciliar la toma fisica.");
+
+                    movimientosGenerados++;
+                }
+
+                resultado = new TomaFisicaResultado(
+                    bodega.Id,
+                    bodega.Nombre,
+                    productosProcesados,
+                    movimientosGenerados);
+
+                logger.LogInformation(
+                    "Toma fisica procesada para la bodega {BodegaId} ({BodegaNombre}). Productos: {ProductosProcesados}. Ajustes: {MovimientosGenerados}.",
+                    bodega.Id,
+                    bodega.Nombre,
+                    productosProcesados,
+                    movimientosGenerados);
+            },
+            $"toma fisica en bodega {bodegaId}",
+            cancellationToken);
+
+        return resultado;
     }
 
     public async Task DescontarStockPorFacturaAsync(

@@ -14,5 +14,9 @@ public sealed class SriFacturaProcessingResult
 
     public string? XmlFirmado { get; set; }
 
+    public string? AuditoriaJson { get; set; }
+
+    public TimeSpan? RetryDelay { get; set; }
+
     public DateTimeOffset FechaRespuesta { get; set; }
 }

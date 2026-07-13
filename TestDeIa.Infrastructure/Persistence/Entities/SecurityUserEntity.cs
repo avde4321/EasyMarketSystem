@@ -25,6 +25,16 @@ public sealed class SecurityUserEntity
 
     public DateTimeOffset CreatedAt { get; set; }
 
+    public int IntentosFallidos { get; set; }
+
+    public DateTimeOffset? BloqueadoHasta { get; set; }
+
+    public DateTimeOffset? UltimoAcceso { get; set; }
+
+    public bool BloqueadoManualmente { get; set; }
+
+    public DateTimeOffset? TokensInvalidosDesde { get; set; }
+
     public ICollection<SecurityUserRoleEntity> UserRoles { get; set; } = [];
 
     public ICollection<SecurityUserEmpresaEntity> EmpresasAcceso { get; set; } = [];

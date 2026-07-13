@@ -20,12 +20,12 @@ public sealed class EmpresaRequest
     public string DireccionMatriz { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El ambiente SRI es obligatorio.")]
-    public string AmbienteSri { get; set; } = "Pruebas";
+    public string AmbienteSri { get; set; } = "1";
 
     public bool ModoDesarrollo { get; set; } = true;
 
     [Required(ErrorMessage = "El tipo de emision es obligatorio.")]
-    public string TipoEmision { get; set; } = "Normal";
+    public string TipoEmision { get; set; } = "1";
 
     public bool ObligadoContabilidad { get; set; }
 

@@ -4,4 +4,5 @@ public interface ICurrentUserAccessor
 {
     Guid? GetUserId();
     Guid GetRequiredUserId();
+    Guid GetRequiredEmpresaId();
 }

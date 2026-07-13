@@ -19,6 +19,9 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<CatalogoItemEntity> CatalogoItems => Set<CatalogoItemEntity>();
 
     public DbSet<SecurityRoleEntity> SecurityRoles => Set<SecurityRoleEntity>();
+    public DbSet<SecurityPermisoEntity> SecurityPermisos => Set<SecurityPermisoEntity>();
+    public DbSet<SecurityRolPermisoEntity> SecurityRolPermisos => Set<SecurityRolPermisoEntity>();
+    public DbSet<SecurityAuditLogEntity> SecurityAuditLogs => Set<SecurityAuditLogEntity>();
 
     public DbSet<SecurityUserRoleEntity> SecurityUserRoles => Set<SecurityUserRoleEntity>();
 
@@ -27,6 +30,13 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<ClienteEntity> Clientes => Set<ClienteEntity>();
 
     public DbSet<EmpleadoEntity> Empleados => Set<EmpleadoEntity>();
+    public DbSet<ProveedorEntity> Proveedores => Set<ProveedorEntity>();
+    public DbSet<CompraEntity> Compras => Set<CompraEntity>();
+    public DbSet<CompraDetalleEntity> CompraDetalles => Set<CompraDetalleEntity>();
+    public DbSet<EstudioMercadoCompraEntity> EstudiosMercadoCompra => Set<EstudioMercadoCompraEntity>();
+    public DbSet<CuentaPorPagarEntity> CuentasPorPagar => Set<CuentaPorPagarEntity>();
+    public DbSet<PagoCxPEntity> PagosCxP => Set<PagoCxPEntity>();
+    public DbSet<MemoriaAnalisisFiscalEntity> MemoriasAnalisisFiscal => Set<MemoriaAnalisisFiscalEntity>();
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
@@ -41,6 +51,7 @@ public sealed class TestDeIaDbContext : DbContext
 
     public DbSet<FacturaEntity> Facturas => Set<FacturaEntity>();
     public DbSet<FacturaSecuencialEntity> FacturaSecuenciales => Set<FacturaSecuencialEntity>();
+    public DbSet<CajaSesionEntity> CajaSesiones => Set<CajaSesionEntity>();
 
     public DbSet<FacturaDetalleEntity> FacturaDetalles => Set<FacturaDetalleEntity>();
 
@@ -56,6 +67,20 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<EmpleadoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ProveedorEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CompraEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CompraDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Compra.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<EstudioMercadoCompraEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CuentaPorPagarEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<PagoCxPEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.CuentaPorPagar.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<MemoriaAnalisisFiscalEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProductoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<BodegaEntity>()
@@ -65,6 +90,8 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<KardexMovimientoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<FacturaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CajaSesionEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<FacturaDetalleEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);
@@ -76,6 +103,8 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
                 entity.EmpresasAcceso.Any(link => link.EmpresaId == tenantContextAccessor.EmpresaId));
+        modelBuilder.Entity<SecurityAuditLogEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<SecurityUserRoleEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||

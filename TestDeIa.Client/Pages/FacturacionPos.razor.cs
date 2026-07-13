@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services.Caja;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Facturacion;
@@ -20,6 +21,9 @@ public partial class FacturacionPos : IDisposable
     [Inject]
     private ClientesApiClient ClientesApiClient { get; set; } = default!;
 
+    [Inject]
+    private CajaApiClient CajaApiClient { get; set; } = default!;
+
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
@@ -29,13 +33,15 @@ public partial class FacturacionPos : IDisposable
     private string productoSearchTerm = string.Empty;
     private PosClienteResponse? selectedCliente;
     private PosPuntoEmisionResponse? selectedPuntoEmision;
-    private string formaPago = "Efectivo";
+    private string formaPago = "01";
     private string? observacion;
     private bool isSubmitting;
     private bool showOperationalContextModal;
     private bool isCreatingClienteExtension;
     private string? errorMessage;
     private string? statusMessage;
+    private bool isCajaLoading;
+    private bool hasCajaActiva;
     private const int SearchPageSize = 8;
     private int clienteSkip;
     private int productoSkip;
@@ -46,18 +52,20 @@ public partial class FacturacionPos : IDisposable
     private bool CanGoPreviousProductos => productoSkip > 0;
     private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
     private bool HasOperationalContext => selectedPuntoEmision is not null;
+    private bool CanOperatePos => HasOperationalContext && hasCajaActiva;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCatalogosAsync();
         await LoadPuntosEmisionAsync();
+        await LoadCajaStateAsync();
     }
 
     private async Task LoadCatalogosAsync()
     {
         formasPago.Clear();
         formasPago.AddRange(await CatalogosApiClient.GetItemsAsync("FORMA_PAGO_SRI", true));
-        formaPago = formasPago.FirstOrDefault()?.Codigo ?? "Efectivo";
+        formaPago = formasPago.FirstOrDefault()?.Codigo ?? "01";
     }
 
     private async Task LoadPuntosEmisionAsync()
@@ -75,6 +83,24 @@ public partial class FacturacionPos : IDisposable
 
         selectedPuntoEmision ??= puntosEmision.FirstOrDefault(current => current.IsDefault) ?? puntosEmision[0];
         showOperationalContextModal = true;
+    }
+
+    private async Task LoadCajaStateAsync()
+    {
+        isCajaLoading = true;
+
+        try
+        {
+            hasCajaActiva = await CajaApiClient.GetActivaAsync() is not null;
+        }
+        catch (HttpRequestException)
+        {
+            hasCajaActiva = false;
+        }
+        finally
+        {
+            isCajaLoading = false;
+        }
     }
 
     private async Task SearchClientesAsync()
@@ -126,7 +152,7 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
-        var page = await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim(), productoSkip, SearchPageSize);
+        var page = await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim(), productoSkip, SearchPageSize, selectedPuntoEmision?.BodegaId);
         productoResults.AddRange(page.Items);
         productoTotalCount = page.TotalCount;
     }
@@ -260,6 +286,7 @@ public partial class FacturacionPos : IDisposable
             var result = await FacturacionApiClient.EmitirFacturaAsync(new EmitirFacturaRequest
             {
                 ClienteId = selectedCliente.ClienteId.Value,
+                BodegaId = selectedPuntoEmision!.BodegaId,
                 Establecimiento = selectedPuntoEmision!.Establecimiento,
                 PuntoEmision = selectedPuntoEmision.PuntoEmision,
                 FormaPago = formaPago,
@@ -281,6 +308,7 @@ public partial class FacturacionPos : IDisposable
             cartItems.Clear();
             productoResults.Clear();
             observacion = null;
+            await LoadCajaStateAsync();
         }
         catch (HttpRequestException)
         {
@@ -383,14 +411,16 @@ public partial class FacturacionPos : IDisposable
 
     private bool EnsureOperationalContext()
     {
-        if (HasOperationalContext)
+        if (HasOperationalContext && hasCajaActiva)
         {
             return true;
         }
 
         errorMessage = puntosEmision.Count == 0
             ? "La empresa activa no tiene puntos de emision configurados."
-            : "Debes seleccionar un establecimiento y punto de emision antes de operar el POS.";
+            : !hasCajaActiva
+                ? "Debes abrir una caja para este usuario antes de operar el POS."
+                : "Debes seleccionar un establecimiento y punto de emision antes de operar el POS.";
         showOperationalContextModal = puntosEmision.Count > 0;
         return false;
     }

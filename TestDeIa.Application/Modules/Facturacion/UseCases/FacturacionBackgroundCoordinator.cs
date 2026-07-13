@@ -111,6 +111,8 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
                     result.ClaveAcceso,
                     result.XmlFirmado ?? throw new InvalidOperationException("El motor del SRI marco el comprobante como pendiente, pero no devolvio el XML firmado."),
                     result.Mensaje,
+                    result.AuditoriaJson,
+                    result.RetryDelay,
                     result.FechaRespuesta,
                     cancellationToken);
 
@@ -133,6 +135,7 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
             await facturacionRepository.MarkFacturaAsRejectedAsync(
                 factura.Id,
                 result.Mensaje,
+                result.AuditoriaJson,
                 result.XmlFirmado,
                 result.FechaRespuesta,
                 cancellationToken);
@@ -143,7 +146,7 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
             await facturacionRepository.MarkFacturaAsErrorAsync(
                 factura.Id,
                 $"{exception.GetType().Name}: {exception.Message}",
-                DateTimeOffset.UtcNow.AddSeconds(20),
+                null,
                 cancellationToken);
         }
         finally

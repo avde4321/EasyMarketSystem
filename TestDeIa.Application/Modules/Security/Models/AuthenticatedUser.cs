@@ -6,4 +6,5 @@ public sealed record AuthenticatedUser(
     string DisplayName,
     string Email,
     Guid? DefaultEmpresaId,
-    IReadOnlyCollection<string> Roles);
+    IReadOnlyCollection<string> Roles,
+    IReadOnlyCollection<string> Permissions);

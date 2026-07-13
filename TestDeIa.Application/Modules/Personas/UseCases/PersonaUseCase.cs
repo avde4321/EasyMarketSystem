@@ -6,6 +6,7 @@ using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Shared.Requests.Personas;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Personas;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Personas.UseCases;
 
@@ -58,7 +59,9 @@ public sealed class PersonaUseCase : IPersonaUseCase
     public async Task<PersonaResponse> CreateAsync(PersonaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "la persona");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "la persona");
 
         if (await personaRepository.ExistsByIdentificacionAsync(request.Identificacion, cancellationToken: cancellationToken))
         {
@@ -67,7 +70,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
         var persona = new Persona(
             Guid.NewGuid(),
-            request.TipoIdentificacion.Trim(),
+            tipoIdentificacion,
             request.Identificacion.Trim(),
             request.RazonSocialONombresCompletos.Trim(),
             NormalizeOptional(request.NombreComercial),
@@ -87,7 +90,9 @@ public sealed class PersonaUseCase : IPersonaUseCase
     public async Task<PersonaResponse?> UpdateAsync(Guid id, PersonaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "la persona");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "la persona");
 
         if (await personaRepository.ExistsByIdentificacionAsync(request.Identificacion, id, cancellationToken))
         {
@@ -102,7 +107,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
         var persona = new Persona(
             id,
-            request.TipoIdentificacion.Trim(),
+            tipoIdentificacion,
             request.Identificacion.Trim(),
             request.RazonSocialONombresCompletos.Trim(),
             NormalizeOptional(request.NombreComercial),
@@ -143,7 +148,9 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
     private async Task ValidateCatalogValuesAsync(PersonaRequest request, CancellationToken cancellationToken)
     {
-        if (!await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", request.TipoIdentificacion.Trim(), cancellationToken))
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion);
+        if (tipoIdentificacion is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", tipoIdentificacion, cancellationToken))
         {
             throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
         }

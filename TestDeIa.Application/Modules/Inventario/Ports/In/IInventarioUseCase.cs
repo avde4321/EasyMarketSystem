@@ -26,6 +26,8 @@ public interface IInventarioUseCase
 
     Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId, Guid? bodegaId = null, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync(CancellationToken cancellationToken = default);
+
     Task<ProductoResponse?> AjustarStockAsync(Guid productoId, AjusteStockRequest request, CancellationToken cancellationToken = default);
 
     Task<ProductoResponse?> RegistrarCompraAsync(IngresoCompraRequest request, CancellationToken cancellationToken = default);
@@ -33,6 +35,8 @@ public interface IInventarioUseCase
     Task<ProductoResponse?> RegistrarMermaAsync(EgresoMermaRequest request, CancellationToken cancellationToken = default);
 
     Task<ProductoResponse?> TransferirStockAsync(TransferenciaInventarioRequest request, CancellationToken cancellationToken = default);
+
+    Task<TomaFisicaResultadoResponse> ProcesarTomaFisicaAsync(TomaFisicaInventarioRequest request, CancellationToken cancellationToken = default);
 
     Task DescontarStockPorFacturaAsync(DescontarStockFacturaRequest request, CancellationToken cancellationToken = default);
 }

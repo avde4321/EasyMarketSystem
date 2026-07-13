@@ -35,5 +35,7 @@ public sealed class PersonaEntity
 
     public EmpleadoEntity? Empleado { get; set; }
 
+    public ProveedorEntity? Proveedor { get; set; }
+
     public SecurityUserEntity? SecurityUser { get; set; }
 }

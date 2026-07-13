@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Api.Controllers;
 
@@ -18,6 +19,7 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("clientes")]
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> SearchClientes([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 25);
@@ -27,15 +29,17 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("productos")]
-    public async Task<IActionResult> SearchProductos([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+    public async Task<IActionResult> SearchProductos([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 25);
         skip = Math.Max(0, skip);
-        var productos = await facturacionUseCase.SearchProductosAsync(term, skip, take, cancellationToken);
+        var productos = await facturacionUseCase.SearchProductosAsync(term, skip, take, bodegaId, cancellationToken);
         return Ok(productos);
     }
 
     [HttpGet("puntos-emision")]
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> GetPuntosEmision(CancellationToken cancellationToken = default)
     {
         var puntos = await facturacionUseCase.GetPuntosEmisionAsync(cancellationToken);
@@ -43,6 +47,7 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpPost("facturas")]
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> EmitirFactura([FromBody] EmitirFacturaRequest request, CancellationToken cancellationToken)
     {
         try
@@ -57,6 +62,7 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("monitor")]
+    [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
     public async Task<IActionResult> GetMonitor([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 25);

@@ -2,6 +2,8 @@ namespace TestDeIa.Shared.Responses.Facturacion;
 
 public sealed class PosPuntoEmisionResponse
 {
+    public Guid BodegaId { get; set; }
+    public string? BodegaNombre { get; set; }
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;
     public string? DireccionEstablecimiento { get; set; }

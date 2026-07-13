@@ -6,6 +6,7 @@ using TestDeIa.Domain.Modules.Empresa.Entities;
 using TestDeIa.Shared.Requests.Empresa;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empresa;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Empresa.UseCases;
 
@@ -63,6 +64,10 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
 
         await ValidateRequestAsync(request, current, cancellationToken);
 
+        var ambienteSri = SriCatalogCodes.NormalizeAmbienteCode(request.AmbienteSri)
+            ?? throw new InvalidOperationException("El ambiente SRI no existe en el catalogo parametrizado.");
+        var tipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(request.TipoEmision)
+            ?? throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
         var empresaId = current?.Id ?? Guid.NewGuid();
         var puntosEmision = BuildPuntosEmision(request, empresaId);
         var puntoDefault = puntosEmision.First(currentPunto => currentPunto.IsDefault);
@@ -77,9 +82,9 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             puntoDefault.DireccionEstablecimiento,
             puntoDefault.Establecimiento,
             puntoDefault.PuntoEmision,
-            request.AmbienteSri.Trim(),
+            ambienteSri,
             request.ModoDesarrollo,
-            request.TipoEmision.Trim(),
+            tipoEmision,
             request.ObligadoContabilidad,
             NormalizeOptional(request.ContribuyenteEspecial),
             NormalizeOptional(request.RegimenRimpe),
@@ -127,6 +132,8 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
                 .Select(punto => new EmpresaPuntoEmisionResponse
                 {
                     Id = punto.Id,
+                    BodegaId = punto.BodegaId ?? Guid.Empty,
+                    BodegaNombre = punto.BodegaNombre,
                     DireccionEstablecimiento = punto.DireccionEstablecimiento,
                     Establecimiento = punto.Establecimiento,
                     PuntoEmision = punto.PuntoEmision,
@@ -195,18 +202,22 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             }
         }
 
-        if (!await catalogoRepository.ExistsActiveItemAsync("AMBIENTE_SRI", request.AmbienteSri.Trim(), cancellationToken))
+        var ambienteSri = SriCatalogCodes.NormalizeAmbienteCode(request.AmbienteSri);
+        if (ambienteSri is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("AMBIENTE_SRI", ambienteSri, cancellationToken))
         {
             throw new InvalidOperationException("El ambiente SRI no existe en el catalogo parametrizado.");
         }
 
         if (request.ModoDesarrollo &&
-            string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase))
+            SriCatalogCodes.IsProductionEnvironment(ambienteSri))
         {
             throw new InvalidOperationException("No se puede dejar el modo desarrollo activo con ambiente SRI en Produccion.");
         }
 
-        if (!await catalogoRepository.ExistsActiveItemAsync("TIPO_EMISION", request.TipoEmision.Trim(), cancellationToken))
+        var tipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(request.TipoEmision);
+        if (tipoEmision is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("TIPO_EMISION", tipoEmision, cancellationToken))
         {
             throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
         }
@@ -243,7 +254,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         var hasCertificatePassword = !string.IsNullOrWhiteSpace(request.CertificadoClave) ||
             !string.IsNullOrWhiteSpace(current?.CertificadoClave);
 
-        if (string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase) &&
+        if (SriCatalogCodes.IsProductionEnvironment(ambienteSri) &&
             (!hasCertificateConfigured || !hasCertificatePassword))
         {
             throw new InvalidOperationException("Para trabajar en Produccion debes tener certificado digital y clave configurados.");
@@ -264,7 +275,9 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
                 punto.Establecimiento.Trim(),
                 punto.PuntoEmision.Trim(),
                 NormalizeOptional(punto.DireccionEstablecimiento),
-                punto.IsDefault || (index == 0 && request.PuntosEmision.Count(current => current.IsDefault) == 0)))
+                punto.IsDefault || (index == 0 && request.PuntosEmision.Count(current => current.IsDefault) == 0),
+                punto.BodegaId,
+                null))
             .ToArray();
     }
 

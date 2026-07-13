@@ -1,5 +1,5 @@
 @page "/facturacion/monitor"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
 @implements IAsyncDisposable
 
 <PageTitle>Monitor de Comprobantes</PageTitle>

@@ -53,19 +53,19 @@ internal static class CatalogSeedData
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000035"), CatalogoId = EstadoDocumentoElectronicoCatalogoId, Codigo = "Rechazado", Nombre = "Rechazado", Orden = 5, IsActive = true },
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000036"), CatalogoId = EstadoDocumentoElectronicoCatalogoId, Codigo = "Error", Nombre = "Error", Orden = 6, IsActive = true },
 
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000041"), CatalogoId = AmbienteSriCatalogoId, Codigo = "Pruebas", Nombre = "Pruebas", Descripcion = "Codigo SRI 1", Orden = 1, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000042"), CatalogoId = AmbienteSriCatalogoId, Codigo = "Produccion", Nombre = "Produccion", Descripcion = "Codigo SRI 2", Orden = 2, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000041"), CatalogoId = AmbienteSriCatalogoId, Codigo = "1", Nombre = "Pruebas", Descripcion = "Codigo SRI 1", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000042"), CatalogoId = AmbienteSriCatalogoId, Codigo = "2", Nombre = "Produccion", Descripcion = "Codigo SRI 2", Orden = 2, IsActive = true },
 
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000051"), CatalogoId = TipoEmisionCatalogoId, Codigo = "Normal", Nombre = "Normal", Descripcion = "Codigo SRI 1", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000051"), CatalogoId = TipoEmisionCatalogoId, Codigo = "1", Nombre = "Normal", Descripcion = "Codigo SRI 1", Orden = 1, IsActive = true },
 
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000061"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Efectivo", Nombre = "Efectivo", Descripcion = "Codigo SRI 01", Orden = 1, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000062"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Compensacion", Nombre = "Compensacion", Descripcion = "Codigo SRI 15", Orden = 2, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000063"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Tarjeta de debito", Nombre = "Tarjeta de debito", Descripcion = "Codigo SRI 16", Orden = 3, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000064"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Dinero electronico", Nombre = "Dinero electronico", Descripcion = "Codigo SRI 17", Orden = 4, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000065"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Tarjeta prepago", Nombre = "Tarjeta prepago", Descripcion = "Codigo SRI 18", Orden = 5, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000066"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Tarjeta de credito", Nombre = "Tarjeta de credito", Descripcion = "Codigo SRI 19", Orden = 6, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000067"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Transferencia", Nombre = "Transferencia", Descripcion = "Codigo SRI 20", Orden = 7, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000068"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "Endoso de titulos", Nombre = "Endoso de titulos", Descripcion = "Codigo SRI 21", Orden = 8, IsActive = true }
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000061"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "01", Nombre = "Efectivo", Descripcion = "Codigo SRI 01", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000062"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "15", Nombre = "Compensacion", Descripcion = "Codigo SRI 15", Orden = 2, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000063"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "16", Nombre = "Tarjeta de debito", Descripcion = "Codigo SRI 16", Orden = 3, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000064"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "17", Nombre = "Dinero electronico", Descripcion = "Codigo SRI 17", Orden = 4, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000065"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "18", Nombre = "Tarjeta prepago", Descripcion = "Codigo SRI 18", Orden = 5, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000066"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "19", Nombre = "Tarjeta de credito", Descripcion = "Codigo SRI 19", Orden = 6, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000067"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "20", Nombre = "Transferencia", Descripcion = "Codigo SRI 20", Orden = 7, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000068"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "21", Nombre = "Endoso de titulos", Descripcion = "Codigo SRI 21", Orden = 8, IsActive = true }
         ];
     }
 }

@@ -9,7 +9,7 @@ public interface IFacturacionRepository
 {
     Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
-    Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default);
 
@@ -39,12 +39,15 @@ public interface IFacturacionRepository
         string claveAcceso,
         string xmlFirmado,
         string mensaje,
+        string? auditoriaJson,
+        TimeSpan? retryDelay,
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 
     Task MarkFacturaAsRejectedAsync(
         Guid facturaId,
         string mensaje,
+        string? auditoriaJson,
         string? xmlFirmado,
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
@@ -60,6 +63,6 @@ public interface IFacturacionRepository
     Task MarkFacturaAsErrorAsync(
         Guid facturaId,
         string mensaje,
-        DateTimeOffset nextRetryAt,
+        string? auditoriaJson,
         CancellationToken cancellationToken = default);
 }

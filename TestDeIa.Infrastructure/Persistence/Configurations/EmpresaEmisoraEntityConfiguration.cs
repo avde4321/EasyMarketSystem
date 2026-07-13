@@ -90,9 +90,9 @@ public sealed class EmpresaEmisoraEntityConfiguration : IEntityTypeConfiguration
             DireccionEstablecimiento = "Sucursal demo",
             Establecimiento = "001",
             PuntoEmision = "001",
-            AmbienteSri = "Pruebas",
+            AmbienteSri = "1",
             ModoDesarrollo = true,
-            TipoEmision = "Normal",
+            TipoEmision = "1",
             ObligadoContabilidad = false,
             IsActive = true,
             CreatedAt = new DateTimeOffset(2026, 6, 23, 0, 0, 0, TimeSpan.Zero)

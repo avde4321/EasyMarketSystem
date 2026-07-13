@@ -36,8 +36,14 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
 
         builder.Property(user => user.PasswordHash)
-            .HasMaxLength(128)
+            .HasMaxLength(512)
             .IsRequired();
+
+        builder.Property(user => user.IntentosFallidos)
+            .HasDefaultValue(0);
+
+        builder.Property(user => user.BloqueadoManualmente)
+            .HasDefaultValue(false);
 
         builder.HasIndex(user => new { user.EmpresaId, user.NormalizedUserName })
             .IsUnique();
@@ -60,7 +66,9 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             NormalizedEmail = "ADMIN@TESTDEIA.LOCAL",
             PasswordHash = "0A5BC3E342432F1BAD92FFD51B785343EC72906CDBA6A26131060B008E786656",
             IsActive = true,
-            CreatedAt = new DateTimeOffset(2026, 6, 17, 0, 0, 0, TimeSpan.Zero)
+            CreatedAt = new DateTimeOffset(2026, 6, 17, 0, 0, 0, TimeSpan.Zero),
+            IntentosFallidos = 0,
+            BloqueadoManualmente = false
         });
 
         builder.HasOne(user => user.Persona)

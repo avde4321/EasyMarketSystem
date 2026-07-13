@@ -30,6 +30,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         var entity = await dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(empresa => empresa.PuntosEmision)
+            .ThenInclude(punto => punto.Bodega)
             .FirstOrDefaultAsync(empresa => empresa.Id == tenantContextAccessor.EmpresaId.Value, cancellationToken);
 
         return entity is null ? null : Map(entity);
@@ -40,6 +41,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         var entities = await dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(empresa => empresa.PuntosEmision)
+            .ThenInclude(punto => punto.Bodega)
             .OrderByDescending(empresa => empresa.IsActive)
             .ThenBy(empresa => empresa.RazonSocial)
             .ToListAsync(cancellationToken);
@@ -53,6 +55,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         var query = dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(empresa => empresa.PuntosEmision)
+            .ThenInclude(punto => punto.Bodega)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(normalizedTerm))
@@ -90,6 +93,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         var entity = await dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(empresa => empresa.PuntosEmision)
+            .ThenInclude(punto => punto.Bodega)
             .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
 
         return entity is null ? null : Map(entity);
@@ -156,17 +160,20 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
         if (empresa.PuntosEmision.Count > 0)
         {
-            var points = empresa.PuntosEmision
-                .Select(punto => new EmpresaPuntoEmisionEntity
+            var points = new List<EmpresaPuntoEmisionEntity>();
+            foreach (var punto in empresa.PuntosEmision)
+            {
+                points.Add(new EmpresaPuntoEmisionEntity
                 {
                     Id = punto.Id == Guid.Empty ? Guid.NewGuid() : punto.Id,
                     EmpresaEmisoraId = entity.Id,
+                    BodegaId = await ResolvePuntoBodegaIdAsync(entity.Id, punto.BodegaId, cancellationToken),
                     Establecimiento = punto.Establecimiento,
                     PuntoEmision = punto.PuntoEmision,
                     DireccionEstablecimiento = punto.DireccionEstablecimiento,
                     IsDefault = punto.IsDefault
-                })
-                .ToArray();
+                });
+            }
 
             dbContext.EmpresaPuntosEmision.AddRange(points);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -177,6 +184,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         var persisted = await dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(current => current.PuntosEmision)
+            .ThenInclude(punto => punto.Bodega)
             .FirstAsync(current => current.Id == entity.Id, cancellationToken);
 
         return Map(persisted);
@@ -214,10 +222,65 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
                     punto.Establecimiento,
                     punto.PuntoEmision,
                     punto.DireccionEstablecimiento,
-                    punto.IsDefault))
+                    punto.IsDefault,
+                    punto.BodegaId,
+                    punto.Bodega.Nombre))
                 .ToArray(),
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
+    }
+
+    private async Task<Guid> ResolvePuntoBodegaIdAsync(Guid empresaId, Guid? requestedBodegaId, CancellationToken cancellationToken)
+    {
+        if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)
+        {
+            var requestedBodega = await dbContext.Bodegas
+                .FirstOrDefaultAsync(current => current.Id == requestedBodegaId.Value && current.EmpresaId == empresaId, cancellationToken)
+                ?? throw new InvalidOperationException("La bodega seleccionada no pertenece a la empresa.");
+
+            if (!requestedBodega.IsActive)
+            {
+                throw new InvalidOperationException("La bodega seleccionada no se encuentra activa.");
+            }
+
+            return requestedBodega.Id;
+        }
+
+        var principal = await dbContext.Bodegas
+            .FirstOrDefaultAsync(current =>
+                current.EmpresaId == empresaId &&
+                current.IsActive &&
+                current.Nombre == "Principal",
+                cancellationToken);
+
+        if (principal is not null)
+        {
+            return principal.Id;
+        }
+
+        var firstActive = await dbContext.Bodegas
+            .Where(current => current.EmpresaId == empresaId && current.IsActive)
+            .OrderBy(current => current.Nombre)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (firstActive is not null)
+        {
+            return firstActive.Id;
+        }
+
+        var nuevaPrincipal = new BodegaEntity
+        {
+            Id = Guid.NewGuid(),
+            EmpresaId = empresaId,
+            Nombre = "Principal",
+            Direccion = null,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        dbContext.Bodegas.Add(nuevaPrincipal);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return nuevaPrincipal.Id;
     }
 }

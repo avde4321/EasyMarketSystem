@@ -8,6 +8,8 @@ using TestDeIa.Domain.Modules.Security.Entities;
 using TestDeIa.Shared.Requests.Security;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Security;
+using TestDeIa.Shared.Security;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Security.UseCases;
 
@@ -57,14 +59,43 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
         return roles
             .Where(role => role.IsActive)
             .OrderBy(role => role.Name)
-            .Select(role => new SecurityRoleResponse { Name = role.Name })
+            .Select(role => new SecurityRoleResponse
+            {
+                Name = role.Name,
+                Permissions = role.Permissions
+            })
             .ToArray();
+    }
+
+    public async Task<PagedResultResponse<SecurityAuditLogResponse>> GetAuditLogsPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await securityUserRepository.GetAuditLogsPagedAsync(term, skip, take, cancellationToken);
+
+        return new PagedResultResponse<SecurityAuditLogResponse>
+        {
+            Items = page.Items.Select(current => new SecurityAuditLogResponse
+            {
+                Id = current.Id,
+                UsuarioId = current.UsuarioId,
+                UserName = current.UserName,
+                DisplayName = current.DisplayName,
+                FechaEvento = current.FechaEvento,
+                TipoEvento = current.TipoEvento.ToString(),
+                DireccionIp = current.DireccionIp,
+                Detalles = current.Detalles
+            }).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
     }
 
     public async Task<SecurityUserResponse> CreateUserAsync(SecurityUserRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el usuario");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion del usuario no coincide con el catalogo parametrizado.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el usuario");
         ValidateRequest(request, true);
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
@@ -101,9 +132,15 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             passwordHashService.Hash(request.Password!.Trim()),
             request.Roles.Select(role => role.Trim()).ToArray(),
             [],
+            [],
             persona.RolesPersona.Concat(["Usuario"]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             request.IsActive,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            0,
+            null,
+            null,
+            false,
+            null);
 
         var created = await securityUserRepository.CreateAsync(user, cancellationToken);
         return MapUser(created, [persona]);
@@ -112,7 +149,9 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     public async Task<SecurityUserResponse?> UpdateUserAsync(Guid id, SecurityUserRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
-        EcuadorIdentificationValidator.EnsureValid(request.TipoIdentificacion, request.Identificacion, "el usuario");
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("El tipo de identificacion del usuario no coincide con el catalogo parametrizado.");
+        EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el usuario");
         ValidateRequest(request, false);
 
         var current = await securityUserRepository.GetByIdAsync(id, cancellationToken);
@@ -153,18 +192,97 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             updatedPersona.CorreoElectronicoPrincipal!.Trim(),
             passwordHash,
             request.Roles.Select(role => role.Trim()).ToArray(),
+            current.Permissions,
             current.EmpresasAcceso,
             updatedPersona.RolesPersona,
             request.IsActive,
-            current.CreatedAt);
+            current.CreatedAt,
+            current.IntentosFallidos,
+            current.BloqueadoHasta,
+            current.UltimoAcceso,
+            current.BloqueadoManualmente,
+            current.TokensInvalidosDesde);
 
         var updated = await securityUserRepository.UpdateAsync(user, cancellationToken);
         return updated is null ? null : MapUser(updated, [updatedPersona]);
     }
 
+    public async Task<SecurityUserResponse?> UpdatePerfilAsync(Guid id, UpdateUserPerfilRequest request, string? ipAddress, CancellationToken cancellationToken = default)
+    {
+        await ValidateRolesAsync(request.Roles, cancellationToken);
+
+        var updated = await securityUserRepository.UpdatePerfilAsync(
+            id,
+            request.Roles.Select(role => role.Trim()).ToArray(),
+            ipAddress,
+            cancellationToken);
+
+        if (updated is null)
+        {
+            return null;
+        }
+
+        var persona = await personaRepository.GetByIdAsync(updated.PersonaId, cancellationToken);
+        return MapUser(updated, persona is null ? [] : [persona]);
+    }
+
+    public async Task<SecurityUserResponse?> UpdateEstadoAsync(Guid id, UpdateUserEstadoRequest request, string? ipAddress, CancellationToken cancellationToken = default)
+    {
+        var estado = SecurityUserEstados.Normalize(request.Estado);
+        if (string.IsNullOrWhiteSpace(estado))
+        {
+            throw new InvalidOperationException("El estado del usuario no es valido.");
+        }
+
+        var updated = await securityUserRepository.UpdateEstadoAsync(id, estado, ipAddress, cancellationToken);
+        if (updated is null)
+        {
+            return null;
+        }
+
+        var persona = await personaRepository.GetByIdAsync(updated.PersonaId, cancellationToken);
+        return MapUser(updated, persona is null ? [] : [persona]);
+    }
+
+    public async Task<SecurityUserResponse?> ResetPasswordAsync(Guid id, ResetPasswordRequest request, string? ipAddress, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.TemporaryPassword) || request.TemporaryPassword.Trim().Length < 6)
+        {
+            throw new InvalidOperationException("La clave temporal debe tener al menos 6 caracteres.");
+        }
+
+        var updated = await securityUserRepository.ResetPasswordAsync(
+            id,
+            passwordHashService.Hash(request.TemporaryPassword.Trim()),
+            ipAddress,
+            cancellationToken);
+
+        if (updated is null)
+        {
+            return null;
+        }
+
+        var persona = await personaRepository.GetByIdAsync(updated.PersonaId, cancellationToken);
+        return MapUser(updated, persona is null ? [] : [persona]);
+    }
+
+    public async Task<SecurityUserResponse?> UnlockUserAsync(Guid id, string? ipAddress, CancellationToken cancellationToken = default)
+    {
+        var updated = await securityUserRepository.UnlockUserAsync(id, ipAddress, cancellationToken);
+        if (updated is null)
+        {
+            return null;
+        }
+
+        var persona = await personaRepository.GetByIdAsync(updated.PersonaId, cancellationToken);
+        return MapUser(updated, persona is null ? [] : [persona]);
+    }
+
     private async Task ValidateCatalogValuesAsync(SecurityUserRequest request, CancellationToken cancellationToken)
     {
-        if (!await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", request.TipoIdentificacion.Trim(), cancellationToken))
+        var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion);
+        if (tipoIdentificacion is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("TIPO_IDENTIFICACION", tipoIdentificacion, cancellationToken))
         {
             throw new InvalidOperationException("El tipo de identificacion del usuario no coincide con el catalogo parametrizado.");
         }
@@ -190,7 +308,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
 
         return new Persona(
             id,
-            request.TipoIdentificacion.Trim(),
+            SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion) ?? request.TipoIdentificacion.Trim(),
             request.Identificacion.Trim(),
             nombresCompletos,
             null,
@@ -242,11 +360,34 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             DisplayName = user.DisplayName,
             Email = user.Email,
             Roles = user.Roles,
+            Permissions = user.Permissions,
             RolesPersona = user.RolesPersona,
+            RolPrincipal = user.Roles.FirstOrDefault() ?? "Sin rol",
+            Estado = ResolveEstado(user),
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            IsBlocked = user.BloqueadoManualmente || (user.BloqueadoHasta.HasValue && user.BloqueadoHasta.Value > DateTimeOffset.UtcNow),
+            IsBlockedManually = user.BloqueadoManualmente,
+            CreatedAt = user.CreatedAt,
+            IntentosFallidos = user.IntentosFallidos,
+            BloqueadoHasta = user.BloqueadoHasta,
+            UltimoAcceso = user.UltimoAcceso
         };
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string ResolveEstado(SecurityUser user)
+    {
+        if (!user.IsActive)
+        {
+            return SecurityUserEstados.Inactivo;
+        }
+
+        if (user.BloqueadoManualmente || (user.BloqueadoHasta.HasValue && user.BloqueadoHasta.Value > DateTimeOffset.UtcNow))
+        {
+            return SecurityUserEstados.Bloqueado;
+        }
+
+        return SecurityUserEstados.Activo;
+    }
 }

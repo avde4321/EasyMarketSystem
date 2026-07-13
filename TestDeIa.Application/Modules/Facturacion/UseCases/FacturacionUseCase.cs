@@ -1,10 +1,12 @@
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
+using TestDeIa.Application.Modules.Caja.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Facturacion.UseCases;
 
@@ -13,15 +15,18 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
     private readonly IFacturacionRepository facturacionRepository;
     private readonly IFacturaBackgroundQueue facturaBackgroundQueue;
     private readonly ICatalogoRepository catalogoRepository;
+    private readonly ICajaSesionRepository cajaSesionRepository;
 
     public FacturacionUseCase(
         IFacturacionRepository facturacionRepository,
         IFacturaBackgroundQueue facturaBackgroundQueue,
-        ICatalogoRepository catalogoRepository)
+        ICatalogoRepository catalogoRepository,
+        ICajaSesionRepository cajaSesionRepository)
     {
         this.facturacionRepository = facturacionRepository;
         this.facturaBackgroundQueue = facturaBackgroundQueue;
         this.catalogoRepository = catalogoRepository;
+        this.cajaSesionRepository = cajaSesionRepository;
     }
 
     public Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
@@ -29,9 +34,9 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return facturacionRepository.SearchClientesAsync(term, skip, take, cancellationToken);
     }
 
-    public Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
+    public Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        return facturacionRepository.SearchProductosAsync(term, skip, take, cancellationToken);
+        return facturacionRepository.SearchProductosAsync(term, skip, take, bodegaId, cancellationToken);
     }
 
     public Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default)
@@ -47,7 +52,10 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             request,
             cancellationToken);
 
-        facturaBackgroundQueue.Enqueue(response.FacturaId);
+        if (!string.Equals(response.Estado, FacturaEstado.AUTORIZADO.ToApiValue(), StringComparison.OrdinalIgnoreCase))
+        {
+            facturaBackgroundQueue.Enqueue(response.FacturaId);
+        }
 
         return response;
     }
@@ -79,7 +87,9 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             throw new InvalidOperationException("La forma de pago es obligatoria.");
         }
 
-        if (!await catalogoRepository.ExistsActiveItemAsync("FORMA_PAGO_SRI", request.FormaPago.Trim(), cancellationToken))
+        var formaPago = SriCatalogCodes.NormalizeFormaPagoCode(request.FormaPago);
+        if (formaPago is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("FORMA_PAGO_SRI", formaPago, cancellationToken))
         {
             throw new InvalidOperationException("La forma de pago seleccionada no esta disponible en el catalogo activo.");
         }
@@ -92,6 +102,11 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         if (request.Items.Any(item => item.ProductoId == Guid.Empty || item.Cantidad <= 0 || item.Descuento < 0))
         {
             throw new InvalidOperationException("La factura contiene productos invalidos.");
+        }
+
+        if (!await cajaSesionRepository.HasActiveSessionAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Debes abrir una caja antes de facturar en el POS.");
         }
     }
 }

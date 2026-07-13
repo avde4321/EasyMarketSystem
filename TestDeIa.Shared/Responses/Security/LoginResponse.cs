@@ -16,6 +16,8 @@ public sealed class LoginResponse
 
     public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
 
+    public IReadOnlyCollection<string> Permissions { get; set; } = Array.Empty<string>();
+
     public Guid? ActiveEmpresaId { get; set; }
 
     public IReadOnlyCollection<EmpresaOptionResponse> Empresas { get; set; } = Array.Empty<EmpresaOptionResponse>();

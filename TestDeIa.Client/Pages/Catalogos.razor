@@ -1,5 +1,5 @@
 @page "/catalogos"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.CatalogosAdministrar)]
 
 <PageTitle>Catalogos</PageTitle>
 

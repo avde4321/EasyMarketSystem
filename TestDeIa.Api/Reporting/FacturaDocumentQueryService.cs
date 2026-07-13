@@ -32,9 +32,28 @@ public sealed class FacturaDocumentQueryService
                 cancellationToken);
 
         var bannerPath = Path.Combine(AppContext.BaseDirectory, "Reporting", "Templates", "SriFacturaBanner.png");
-        var subtotalIva12 = factura.Detalles
-            .Where(current => current.PorcentajeIva > 0)
-            .Sum(current => current.Subtotal);
+        var subtotalesPorTarifa = factura.Detalles
+            .GroupBy(current => current.PorcentajeIva)
+            .ToDictionary(
+                group => group.Key,
+                group => Math.Round(group.Sum(current => current.Subtotal), 2));
+
+        var ivaPorTarifa = factura.Detalles
+            .GroupBy(current => current.PorcentajeIva)
+            .ToDictionary(
+                group => group.Key,
+                group => Math.Round(group.Sum(current => current.IvaValor), 2));
+
+        var tarifaPrincipalIva = subtotalesPorTarifa
+            .Where(current => current.Key > 0m && current.Value > 0m)
+            .OrderByDescending(current => current.Value)
+            .ThenByDescending(current => current.Key)
+            .Select(current => current.Key)
+            .FirstOrDefault();
+
+        var subtotalTarifaPrincipal = tarifaPrincipalIva > 0m && subtotalesPorTarifa.TryGetValue(tarifaPrincipalIva, out var subtotalPrincipal)
+            ? subtotalPrincipal
+            : 0m;
 
         var totalSubsidio = 0m;
         var detalleRows = factura.Detalles
@@ -56,19 +75,19 @@ public sealed class FacturaDocumentQueryService
             })
             .ToArray();
 
-        var totalesRows = new[]
+        var totalesRows = new List<FacturaRideTotalRow>
         {
-            new FacturaRideTotalRow { Label = "SUBTOTAL 12%", Valor = subtotalIva12.ToString("0.00") },
-            new FacturaRideTotalRow { Label = "SUBTOTAL IVA 0%", Valor = factura.SubtotalIva0.ToString("0.00") },
-            new FacturaRideTotalRow { Label = "SUBTOTAL NO OBJETO IVA", Valor = "0.00" },
-            new FacturaRideTotalRow { Label = "SUBTOTAL EXENTO IVA", Valor = "0.00" },
-            new FacturaRideTotalRow { Label = "SUBTOTAL SIN IMPUESTOS", Valor = factura.Subtotal.ToString("0.00") },
-            new FacturaRideTotalRow { Label = "DESCUENTO", Valor = factura.TotalDescuento.ToString("0.00") },
-            new FacturaRideTotalRow { Label = "ICE", Valor = "0.00" },
-            new FacturaRideTotalRow { Label = "IVA 12%", Valor = factura.IvaTotal.ToString("0.00") },
-            new FacturaRideTotalRow { Label = "IRBPNR", Valor = "0.00" },
-            new FacturaRideTotalRow { Label = "PROPINA", Valor = "0.00" },
-            new FacturaRideTotalRow { Label = "VALOR TOTAL", Valor = factura.Total.ToString("0.00") }
+            new() { Label = $"SUBTOTAL {FormatPercentageLabel(tarifaPrincipalIva)}", Valor = subtotalTarifaPrincipal.ToString("0.00") },
+            new() { Label = "SUBTOTAL IVA 0%", Valor = factura.SubtotalIva0.ToString("0.00") },
+            new() { Label = "SUBTOTAL NO OBJETO IVA", Valor = "0.00" },
+            new() { Label = "SUBTOTAL EXENTO IVA", Valor = "0.00" },
+            new() { Label = "SUBTOTAL SIN IMPUESTOS", Valor = factura.Subtotal.ToString("0.00") },
+            new() { Label = "DESCUENTO", Valor = factura.TotalDescuento.ToString("0.00") },
+            new() { Label = "ICE", Valor = "0.00" },
+            new() { Label = $"IVA {FormatPercentageLabel(tarifaPrincipalIva)}", Valor = (tarifaPrincipalIva > 0m && ivaPorTarifa.TryGetValue(tarifaPrincipalIva, out var ivaPrincipal) ? ivaPrincipal : 0m).ToString("0.00") },
+            new() { Label = "IRBPNR", Valor = "0.00" },
+            new() { Label = "PROPINA", Valor = "0.00" },
+            new() { Label = "VALOR TOTAL", Valor = factura.Total.ToString("0.00") }
         };
 
         var razonSocialEmisor = string.IsNullOrWhiteSpace(empresa?.RazonSocial) ? factura.RazonSocialEmisor : empresa.RazonSocial;
@@ -115,7 +134,7 @@ public sealed class FacturaDocumentQueryService
             Subtotal = factura.Subtotal,
             IvaTotal = factura.IvaTotal,
             Total = factura.Total,
-            SubtotalIva12 = subtotalIva12,
+            SubtotalIva12 = subtotalTarifaPrincipal,
             SubtotalIva0 = factura.SubtotalIva0,
             SubtotalNoObjeto = 0m,
             SubtotalExento = 0m,
@@ -139,6 +158,11 @@ public sealed class FacturaDocumentQueryService
             FacturaEstado.PENDIENTE => "PENDIENTE DE AUTORIZACION",
             _ => string.Empty
         };
+    }
+
+    private static string FormatPercentageLabel(decimal percentage)
+    {
+        return percentage.ToString(percentage == decimal.Truncate(percentage) ? "0" : "0.##") + "%";
     }
 
 }

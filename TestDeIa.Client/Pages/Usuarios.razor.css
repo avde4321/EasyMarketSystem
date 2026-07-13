@@ -1,0 +1,21 @@
+.compact-message {
+    margin-bottom: 1rem;
+}
+
+.muted-text {
+    color: #7088a0;
+}
+
+.success-pill {
+    background: rgba(70, 184, 134, 0.16);
+    color: #1c7c59;
+}
+
+.danger-pill {
+    background: rgba(255, 105, 97, 0.16);
+    color: #b14a44;
+}
+
+.state-modal-card {
+    max-width: 540px;
+}

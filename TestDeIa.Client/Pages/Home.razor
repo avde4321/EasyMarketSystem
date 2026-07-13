@@ -1,47 +1,184 @@
 @page "/"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.DashboardView)]
 
-<PageTitle>Inicio</PageTitle>
+<PageTitle>Dashboard Gerencial</PageTitle>
 
-<section class="home-page">
-    <header class="hero-panel">
-        <div class="hero-copy">
-            <p class="hero-eyebrow">EasyMarket Systems</p>
-            <h1>Operacion comercial lista para vender, controlar y facturar.</h1>
-            <span class="hero-chip">Arquitectura modular .NET 9 + Blazor</span>
+<section class="dashboard-page">
+    <header class="dashboard-hero">
+        <div class="dashboard-hero-copy">
+            <p class="dashboard-eyebrow">EasyMarket Systems</p>
+            <h1>Dashboard gerencial con lectura financiera y alertas predictivas locales.</h1>
+            <span class="dashboard-chip">Analitica operativa del mes en curso para la empresa activa</span>
         </div>
-        <div class="hero-metrics">
-            <div class="metric-card">
-                <strong>Clientes</strong>
-                <span>Gestion centralizada de personas y cuentas comerciales.</span>
-            </div>
-            <div class="metric-card">
-                <strong>Inventario</strong>
-                <span>Catalogo con stock minimo, kardex y ajustes controlados.</span>
-            </div>
-            <div class="metric-card">
-                <strong>Facturacion</strong>
-                <span>POS asincrono y monitor de comprobantes para el SRI.</span>
-            </div>
+
+        <div class="dashboard-hero-actions">
+            <a class="hero-link" href="facturacion/pos">Ir al POS</a>
+            <a class="hero-link secondary" href="inventario">Abrir inventario</a>
         </div>
     </header>
 
-    <section class="quick-grid">
-        <a class="quick-card" href="empresa">
-            <strong>Empresa emisora</strong>
-            <span>Datos tributarios, ambiente SRI y certificado.</span>
-        </a>
-        <a class="quick-card" href="inventario">
-            <strong>Inventario</strong>
-            <span>Productos, costos y alertas de stock minimo.</span>
-        </a>
-        <a class="quick-card" href="facturacion/pos">
-            <strong>Punto de venta</strong>
-            <span>Venta rapida con procesamiento desacoplado.</span>
-        </a>
-        <a class="quick-card" href="facturacion/monitor">
-            <strong>Comprobantes</strong>
-            <span>Estados de envio, recepcion y autorizacion.</span>
-        </a>
-    </section>
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+    else if (isLoading)
+    {
+        <section class="dashboard-section">
+            <div class="empty-state">Cargando analitica gerencial...</div>
+        </section>
+    }
+    else
+    {
+        <section class="kpi-grid">
+            <article class="kpi-card sales-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M4 18h16M7 14l3-3 3 2 4-5" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Ventas facturadas</span>
+                <strong>@overview.ResumenFinanciero.TotalVentasFacturadas.ToString("C2")</strong>
+                <small>Emitidas durante el mes en curso.</small>
+            </article>
+
+            <article class="kpi-card purchases-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M6 7h15l-2 8H8L6 7Zm0 0L5 4H3M9 19a1 1 0 1 0 0 .01M18 19a1 1 0 1 0 0 .01" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Compras registradas</span>
+                <strong>@overview.ResumenFinanciero.TotalComprasRegistradas.ToString("C2")</strong>
+                <small>Ingresos operativos contabilizados.</small>
+            </article>
+
+            <article class="kpi-card margin-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M5 19V9m7 10V5m7 14v-7" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Margen estimado</span>
+                <strong>@overview.ResumenFinanciero.MargenGananciaEstimado.ToString("C2")</strong>
+                <small>Ventas menos costo promedio estimado.</small>
+            </article>
+
+            <article class="kpi-card alerts-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M12 4 4 19h16L12 4Zm0 5v4m0 3h.01" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Alertas IA</span>
+                <strong>@overview.AlertasPredictivas.Count</strong>
+                <small>Productos con riesgo de desabastecimiento.</small>
+            </article>
+        </section>
+
+        <section class="dashboard-main-grid">
+            <section class="dashboard-section top-products-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Top 5 productos mas vendidos</h2>
+                        <p>Ranking comercial del mes con cantidad, venta y margen estimado.</p>
+                    </div>
+                </header>
+
+                @if (overview.TopProductos.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">Todavia no hay ventas suficientes para consolidar un ranking.</div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cantidad</th>
+                                    <th>Venta</th>
+                                    <th>Costo</th>
+                                    <th>Margen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var producto in overview.TopProductos)
+                                {
+                                    <tr>
+                                        <td data-label="Producto">
+                                            <strong>@producto.Nombre</strong>
+                                            <small>@producto.Codigo</small>
+                                        </td>
+                                        <td data-label="Cantidad">@producto.CantidadVendida.ToString("0.##")</td>
+                                        <td data-label="Venta">@producto.TotalVendido.ToString("C2")</td>
+                                        <td data-label="Costo">@producto.CostoEstimado.ToString("C2")</td>
+                                        <td data-label="Margen">@producto.MargenEstimado.ToString("C2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="dashboard-section predictive-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Alertas predictivas de IA</h2>
+                        <p>Estimacion local con ML.NET sobre consumo historico por producto y bodega.</p>
+                    </div>
+                    <a class="secondary-link" href="inventario">Ver inventario</a>
+                </header>
+
+                @if (overview.AlertasPredictivas.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">No hay alertas predictivas relevantes para la empresa activa.</div>
+                }
+                else
+                {
+                    <div class="predictive-grid">
+                        @foreach (var alerta in overview.AlertasPredictivas)
+                        {
+                            <article class="prediction-card @GetRiskCssClass(alerta.Riesgo)">
+                                <div class="prediction-head">
+                                    <span class="risk-pill">@alerta.Riesgo</span>
+                                    <span class="prediction-bodega">@alerta.BodegaNombre</span>
+                                </div>
+                                <strong>@alerta.NombreProducto</strong>
+                                <small>@alerta.CodigoProducto</small>
+                                <dl class="prediction-stats">
+                                    <div>
+                                        <dt>Stock actual</dt>
+                                        <dd>@alerta.StockActual.ToString("0.##")</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Minimo</dt>
+                                        <dd>@alerta.StockMinimo.ToString("0.##")</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Consumo diario</dt>
+                                        <dd>@alerta.TendenciaConsumo.ToString("0.##")</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Dias estimados</dt>
+                                        <dd>@(alerta.DiasStockEstimados >= 999m ? "Sin dato" : alerta.DiasStockEstimados.ToString("0.0"))</dd>
+                                    </div>
+                                </dl>
+                                <p class="prediction-footer">
+                                    @if (alerta.FechaProbableQuiebre.HasValue)
+                                    {
+                                        <span>Quiebre estimado: @alerta.FechaProbableQuiebre.Value.ToString("dd/MM/yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Sin fecha probable de quiebre.</span>
+                                    }
+                                </p>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </section>
+    }
 </section>

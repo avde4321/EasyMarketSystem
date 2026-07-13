@@ -29,6 +29,8 @@ public interface IInventarioRepository
 
     Task<IReadOnlyCollection<KardexMovimiento>> GetKardexAsync(Guid productoId, Guid? bodegaId = null, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<StockAlerta>> GetAlertasStockAsync(CancellationToken cancellationToken = default);
+
     Task<Producto?> RegistrarMovimientoAsync(
         Guid productoId,
         Guid? bodegaId,
@@ -61,6 +63,12 @@ public interface IInventarioRepository
         Guid bodegaDestinoId,
         decimal cantidad,
         string? referencia,
+        CancellationToken cancellationToken = default);
+
+    Task<TomaFisicaResultado> ProcesarTomaFisicaAsync(
+        Guid bodegaId,
+        string concepto,
+        IReadOnlyCollection<(Guid ProductoId, decimal CantidadContada)> items,
         CancellationToken cancellationToken = default);
 
     Task DescontarStockPorFacturaAsync(

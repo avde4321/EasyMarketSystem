@@ -1,5 +1,5 @@
 @page "/usuarios"
-@attribute [Authorize(Roles = "Administrador")]
+@attribute [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
 
 <PageTitle>Usuarios</PageTitle>
 
@@ -22,6 +22,9 @@
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por usuario, persona, identificacion, correo o rol..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
+        <div class="soft-info-message compact-message">
+            El perfil controla roles efectivos, bloqueo de acceso y trazabilidad por empresa activa.
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando usuarios...</em></p>
@@ -38,10 +41,9 @@
                         <tr>
                             <th>Usuario</th>
                             <th>Persona</th>
-                            <th>Correo</th>
-                            <th>Rol sistema</th>
-                            <th>Roles persona</th>
+                            <th>Rol principal</th>
                             <th>Estado</th>
+                            <th>Ultimo acceso</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -51,19 +53,33 @@
                             <tr>
                                 <td data-label="Usuario">@user.UserName</td>
                                 <td data-label="Persona">
-                                    <strong>@user.PersonaNombre</strong>
-                                    <small>@user.PersonaIdentificacion</small>
-                                </td>
-                                <td data-label="Correo">@user.Email</td>
-                                <td data-label="Rol sistema">@string.Join(", ", user.Roles)</td>
-                                <td data-label="Roles persona">@string.Join(", ", user.RolesPersona)</td>
-                                <td data-label="Estado"><span class="status-pill">@((user.IsActive ? "Activo" : "Inactivo"))</span></td>
-                                <td data-label="Acciones">
-                                    <div class="row-actions">
-                                        <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
-                                    </div>
-                                </td>
-                            </tr>
+                                        <strong>@user.PersonaNombre</strong>
+                                        <small>@user.PersonaIdentificacion</small>
+                                    </td>
+                                    <td data-label="Rol principal">
+                                        <strong>@user.RolPrincipal</strong>
+                                        <small>@string.Join(", ", user.RolesPersona)</small>
+                                    </td>
+                                    <td data-label="Estado"><span class="@GetStatusClass(user)">@user.Estado</span></td>
+                                    <td data-label="Ultimo acceso">
+                                        @if (user.UltimoAcceso.HasValue)
+                                        {
+                                            <span>@user.UltimoAcceso.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">Sin ingresos</span>
+                                        }
+                                    </td>
+                                    <td data-label="Acciones">
+                                        <div class="row-actions">
+                                            <button class="ghost-button" @onclick="() => OpenEditModal(user)">Editar</button>
+                                            <button class="ghost-button" @onclick="() => OpenProfileModal(user)">Perfil</button>
+                                            <button class="ghost-button" @onclick="() => OpenResetPasswordModal(user)">Resetear clave</button>
+                                            <button class="ghost-button" @onclick="() => OpenUnlockModal(user)">Desbloquear</button>
+                                        </div>
+                                    </td>
+                                </tr>
                         }
                     </tbody>
                 </table>
@@ -80,6 +96,17 @@
         }
     </section>
 </section>
+
+<DetalleUsuarioModal User="profileUser"
+                     Roles="roles"
+                     SelectedRoles="profileSelectedRoles"
+                     SelectedPermissions="SelectedPermissions"
+                     IsSaving="isSavingProfile"
+                     ErrorMessage="profileErrorMessage"
+                     OnSave="SaveProfileAsync"
+                     OnClose="CloseProfileModal"
+                     OnToggleRole="ToggleProfileRoleAsync"
+                     OnChangeEstado="OpenStateModalAsync" />
 
 @if (isEditorOpen)
 {
@@ -189,6 +216,85 @@
                     </button>
                 </footer>
             </EditForm>
+        </section>
+    </div>
+}
+
+@if (isResetModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Resetear clave</h2>
+                <button class="icon-button" @onclick="CloseResetModal">x</button>
+            </header>
+
+            <EditForm Model="resetPasswordRequest" OnValidSubmit="ConfirmResetPasswordAsync">
+                <DataAnnotationsValidator />
+
+                <div class="status-banner">
+                    Se asignara una clave temporal nueva y se reiniciaran los bloqueos del usuario.
+                </div>
+
+                <div class="form-field">
+                    <label>Clave temporal</label>
+                    <InputText class="form-control" type="password" @bind-Value="resetPasswordRequest.TemporaryPassword" />
+                    <ValidationMessage For="@(() => resetPasswordRequest.TemporaryPassword)" />
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseResetModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isResettingPassword">
+                        @(isResettingPassword ? "Guardando..." : "Confirmar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isStateModalOpen && profileUser is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card state-modal-card">
+            <header class="modal-header">
+                <h2>Confirmar cambio de estado</h2>
+                <button class="icon-button" @onclick="CloseStateModal">x</button>
+            </header>
+
+            <div class="status-banner">
+                @stateConfirmationMessage
+            </div>
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseStateModal">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="ConfirmStateChangeAsync" disabled="@isChangingState">
+                    @(isChangingState ? "Procesando..." : "Confirmar")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (isUnlockModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Desbloquear usuario</h2>
+                <button class="icon-button" @onclick="CloseUnlockModal">x</button>
+            </header>
+
+            <div class="status-banner">
+                Esta accion limpia intentos fallidos y libera el bloqueo temporal del usuario.
+            </div>
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseUnlockModal">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="ConfirmUnlockAsync" disabled="@isUnlocking">
+                    @(isUnlocking ? "Procesando..." : "Desbloquear")
+                </button>
+            </footer>
         </section>
     </div>
 }

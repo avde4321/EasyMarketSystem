@@ -1,5 +1,5 @@
 @page "/empresa"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
 
 <PageTitle>Empresa</PageTitle>
 
@@ -53,7 +53,7 @@
                             <tr class="@(selectedEmpresaId == empresa.Id ? "is-selected-row" : string.Empty)">
                                 <td data-label="RUC">@empresa.Ruc</td>
                                 <td data-label="Razon social">@empresa.RazonSocial</td>
-                                <td data-label="Ambiente">@empresa.AmbienteSri</td>
+                                <td data-label="Ambiente">@GetAmbienteLabel(empresa.AmbienteSri)</td>
                                 <td data-label="Emision">
                                     @GetPuntosResumen(empresa)
                                     <small>@($"{empresa.PuntosEmision.Count} punto(s) configurado(s)")</small>
@@ -95,7 +95,7 @@
             {
                 <div class="status-banner">
                     Empresa actual: @empresaActual.RazonSocial |
-                    Ambiente actual: @empresaActual.AmbienteSri |
+                    Ambiente actual: @GetAmbienteLabel(empresaActual.AmbienteSri) |
                     Certificado: @(empresaActual.TieneCertificadoConfigurado ? "Configurado" : "Pendiente") |
                     Estado: @(empresaActual.IsActive ? "Activo" : "Inactivo")
                 </div>
@@ -235,6 +235,17 @@
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.PuntoEmision" />
                 </div>
                 <div class="form-field full">
+                    <label>Bodega de despacho por defecto</label>
+                    <InputSelect class="form-control" @bind-Value="puntoEmisionDraft.BodegaId">
+                        <option value="">Asignar Principal automaticamente</option>
+                        @foreach (var bodega in activeBodegas)
+                        {
+                            <option value="@bodega.Id">@bodega.Nombre</option>
+                        }
+                    </InputSelect>
+                    <small class="file-hint">El POS descontara inventario desde esta bodega cuando opere con este punto.</small>
+                </div>
+                <div class="form-field full">
                     <label>Direccion establecimiento</label>
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.DireccionEstablecimiento" />
                 </div>
@@ -263,6 +274,7 @@
                             <tr>
                                 <th>Establecimiento</th>
                                 <th>Punto</th>
+                                <th>Bodega</th>
                                 <th>Direccion</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
@@ -272,7 +284,7 @@
                             @if (empresaRequest.PuntosEmision.Count == 0)
                             {
                                 <tr>
-                                    <td colspan="5" class="empty-state-cell">Todavia no has agregado puntos de emision.</td>
+                                    <td colspan="6" class="empty-state-cell">Todavia no has agregado puntos de emision.</td>
                                 </tr>
                             }
                             else
@@ -284,6 +296,7 @@
                                     <tr>
                                         <td data-label="Establecimiento">@punto.Establecimiento</td>
                                         <td data-label="Punto">@punto.PuntoEmision</td>
+                                        <td data-label="Bodega">@GetBodegaName(punto.BodegaId)</td>
                                         <td data-label="Direccion">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion" : punto.DireccionEstablecimiento)</td>
                                         <td data-label="Estado">
                                             <span class="status-pill @(punto.IsDefault ? "is-active" : string.Empty)">

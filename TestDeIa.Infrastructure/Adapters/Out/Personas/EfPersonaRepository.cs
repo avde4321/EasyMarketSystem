@@ -46,6 +46,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
                 (persona.TelefonoCelular != null && persona.TelefonoCelular.Contains(normalizedTerm)) ||
                 (persona.Cliente != null && "Cliente".Contains(normalizedTerm)) ||
                 (persona.Empleado != null && "Empleado".Contains(normalizedTerm)) ||
+                (persona.Proveedor != null && "Proveedor".Contains(normalizedTerm)) ||
                 (persona.SecurityUser != null && "Usuario".Contains(normalizedTerm)));
         }
 
@@ -140,6 +141,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
             .AsNoTracking()
             .Include(persona => persona.Cliente)
             .Include(persona => persona.Empleado)
+            .Include(persona => persona.Proveedor)
             .Include(persona => persona.SecurityUser);
     }
 
@@ -195,6 +197,11 @@ public sealed class EfPersonaRepository : IPersonaRepository
         if (entity.Empleado is not null)
         {
             roles.Add("Empleado");
+        }
+
+        if (entity.Proveedor is not null)
+        {
+            roles.Add("Proveedor");
         }
 
         if (entity.SecurityUser is not null)

@@ -1,5 +1,5 @@
 @page "/facturacion/pos"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
 @implements IDisposable
 
 <PageTitle>Punto de Venta</PageTitle>
@@ -26,7 +26,14 @@
                 }
                 else
                 {
-                    <span>Operando con <strong>@selectedPuntoEmision.DisplayName</strong> @(string.IsNullOrWhiteSpace(selectedPuntoEmision.DireccionEstablecimiento) ? string.Empty : $"- {selectedPuntoEmision.DireccionEstablecimiento}")</span>
+                    <span>
+                        Operando con <strong>@selectedPuntoEmision.DisplayName</strong>
+                        @if (!string.IsNullOrWhiteSpace(selectedPuntoEmision.BodegaNombre))
+                        {
+                            <span> | Bodega: <strong>@selectedPuntoEmision.BodegaNombre</strong></span>
+                        }
+                        @(string.IsNullOrWhiteSpace(selectedPuntoEmision.DireccionEstablecimiento) ? string.Empty : $" - {selectedPuntoEmision.DireccionEstablecimiento}")
+                    </span>
                 }
             </p>
         </div>
@@ -34,6 +41,18 @@
             @(selectedPuntoEmision is null ? "Seleccionar punto" : "Cambiar punto")
         </button>
     </section>
+
+    @if (isCajaLoading)
+    {
+        <div class="status-banner">Validando estado de caja...</div>
+    }
+    else if (!hasCajaActiva)
+    {
+        <div class="alert-message">
+            Esta caja no esta abierta para tu usuario. Debes abrirla antes de buscar clientes, cargar productos o facturar.
+            <a class="inline-link" href="caja/control">Ir a control de caja</a>
+        </div>
+    }
 
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
@@ -57,7 +76,7 @@
 
                 <div class="search-row">
                     <InputText class="form-control" @bind-Value="clienteSearchTerm" placeholder="Ej. 0923 o Delgado" />
-                    <button class="secondary-action" @onclick="SearchClientesAsync" disabled="@(!HasOperationalContext)">Buscar</button>
+                    <button class="secondary-action" @onclick="SearchClientesAsync" disabled="@(!CanOperatePos)">Buscar</button>
                 </div>
 
                 @if (selectedCliente is not null)
@@ -114,7 +133,7 @@
 
                 <div class="search-row">
                     <InputText class="form-control" @bind-Value="productoSearchTerm" placeholder="Ej. SKU o nombre" />
-                    <button class="secondary-action" @onclick="SearchProductosAsync" disabled="@(!HasOperationalContext)">Buscar</button>
+                    <button class="secondary-action" @onclick="SearchProductosAsync" disabled="@(!CanOperatePos)">Buscar</button>
                 </div>
 
                 @if (productoResults.Count > 0)
@@ -217,7 +236,7 @@
                         <span>Subtotal: @GetCartSubtotal().ToString("0.00")</span>
                         <span>IVA: @GetCartIva().ToString("0.00")</span>
                         <strong>Total: @GetCartTotal().ToString("0.00")</strong>
-                        <button class="primary-action" @onclick="CobrarAsync" disabled="@(isSubmitting || !HasOperationalContext)">
+                        <button class="primary-action" @onclick="CobrarAsync" disabled="@(isSubmitting || !CanOperatePos)">
                             @(isSubmitting ? "Registrando..." : "Cobrar")
                         </button>
                     </div>
@@ -250,6 +269,7 @@
                         <button class="result-item @(selectedPuntoEmision?.DisplayName == punto.DisplayName ? "is-selected-context" : string.Empty)" type="button" @onclick="() => SelectPuntoEmision(punto)">
                             <strong>@punto.DisplayName</strong>
                             <span>@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion registrada" : punto.DireccionEstablecimiento)</span>
+                            <small>@($"Bodega: {punto.BodegaNombre ?? "Sin asignar"}")</small>
                             <small>@(punto.IsDefault ? "Predeterminado" : "Disponible")</small>
                         </button>
                     }

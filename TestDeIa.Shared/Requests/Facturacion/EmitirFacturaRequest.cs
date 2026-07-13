@@ -19,7 +19,7 @@ public sealed class EmitirFacturaRequest
 
     [Required(ErrorMessage = "La forma de pago es obligatoria.")]
     [StringLength(60, ErrorMessage = "La forma de pago no puede superar 60 caracteres.")]
-    public string FormaPago { get; set; } = "Efectivo";
+    public string FormaPago { get; set; } = "01";
 
     [StringLength(300, ErrorMessage = "La observacion no puede superar 300 caracteres.")]
     public string? Observacion { get; set; }

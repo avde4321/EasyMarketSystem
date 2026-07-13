@@ -18,9 +18,25 @@ public sealed class SecurityUserResponse
 
     public IReadOnlyCollection<string> Roles { get; set; } = [];
 
+    public IReadOnlyCollection<string> Permissions { get; set; } = [];
+
     public IReadOnlyCollection<string> RolesPersona { get; set; } = [];
+
+    public string RolPrincipal { get; set; } = string.Empty;
+
+    public string Estado { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
 
+    public bool IsBlocked { get; set; }
+
+    public bool IsBlockedManually { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
+
+    public int IntentosFallidos { get; set; }
+
+    public DateTimeOffset? BloqueadoHasta { get; set; }
+
+    public DateTimeOffset? UltimoAcceso { get; set; }
 }
