@@ -36,6 +36,12 @@ public sealed class FacturacionApiClient
             ?? Array.Empty<PosPuntoEmisionResponse>();
     }
 
+    public async Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosOperadorResponse>>("api/facturacion/operadores")
+            ?? Array.Empty<PosOperadorResponse>();
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage, FacturaEmissionResponse? Data)> EmitirFacturaAsync(EmitirFacturaRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/facturacion/facturas", request);
@@ -59,6 +65,15 @@ public sealed class FacturacionApiClient
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
         return await httpClient.GetFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}")
             ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
+    }
+
+    public async Task<LiquidacionComisionResponse> GetLiquidacionComisionesAsync(DateOnly desde, DateOnly hasta, Guid? operadorId = null)
+    {
+        var operadorQuery = operadorId.HasValue && operadorId.Value != Guid.Empty
+            ? $"&operadorId={operadorId.Value}"
+            : string.Empty;
+        return await httpClient.GetFromJsonAsync<LiquidacionComisionResponse>($"api/facturacion/comisiones/liquidacion?desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}{operadorQuery}")
+            ?? new LiquidacionComisionResponse { Desde = desde, Hasta = hasta };
     }
 
     public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetRidePdfAsync(Guid facturaId)

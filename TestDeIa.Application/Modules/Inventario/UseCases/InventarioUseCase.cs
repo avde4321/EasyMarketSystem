@@ -122,6 +122,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.ControlaStock ? request.StockMinimo ?? 0 : null,
             0,
             request.ControlaStock,
+            !request.ControlaStock && request.AplicaComision,
+            !request.ControlaStock && request.AplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
+            !request.ControlaStock && request.AplicaComision ? request.ValorComision : null,
             request.IsActive,
             DateTimeOffset.UtcNow,
             null);
@@ -160,6 +163,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.ControlaStock ? request.StockMinimo ?? 0 : null,
             current.CostoPromedio,
             request.ControlaStock,
+            !request.ControlaStock && request.AplicaComision,
+            !request.ControlaStock && request.AplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
+            !request.ControlaStock && request.AplicaComision ? request.ValorComision : null,
             request.IsActive,
             current.CreatedAt,
             DateTimeOffset.UtcNow);
@@ -342,6 +348,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
             StockActual = producto.StockActual,
             StockMinimo = producto.StockMinimo,
             ControlaStock = producto.ControlaStock,
+            AplicaComision = producto.AplicaComision,
+            TipoComision = producto.TipoComision,
+            ValorComision = producto.ValorComision,
             CostoPromedio = producto.CostoPromedio,
             IsActive = producto.IsActive
         };
@@ -446,6 +455,40 @@ public sealed class InventarioUseCase : IInventarioUseCase
         {
             throw new InvalidOperationException("El stock minimo no puede ser negativo.");
         }
+
+        if (request.ControlaStock && request.AplicaComision)
+        {
+            throw new InvalidOperationException("Las comisiones solo aplican para servicios sin control de stock.");
+        }
+
+        if (request.AplicaComision)
+        {
+            var tipoComision = NormalizeTipoComision(request.TipoComision);
+            if (tipoComision is null)
+            {
+                throw new InvalidOperationException("Debe seleccionar el tipo de comision del servicio.");
+            }
+
+            if (request.ValorComision is null or < 0)
+            {
+                throw new InvalidOperationException("Debe ingresar un valor de comision valido.");
+            }
+        }
+    }
+
+    private static string? NormalizeTipoComision(string? tipoComision)
+    {
+        if (string.IsNullOrWhiteSpace(tipoComision))
+        {
+            return null;
+        }
+
+        return tipoComision.Trim() switch
+        {
+            "Porcentaje" => "Porcentaje",
+            "ValorFijo" => "ValorFijo",
+            _ => null
+        };
     }
 
     private static void ValidateBodegaRequest(BodegaRequest request)

@@ -210,6 +210,9 @@ public sealed class EfInventarioRepository : IInventarioRepository
         entity.StockMinimo = producto.StockMinimo;
         entity.IsActive = producto.IsActive;
         entity.ControlaStock = producto.ControlaStock;
+        entity.AplicaComision = producto.AplicaComision;
+        entity.TipoComision = producto.TipoComision;
+        entity.ValorComision = producto.ValorComision;
         entity.UpdatedAt = producto.UpdatedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -872,6 +875,9 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.StockMinimo,
             entity.CostoPromedio,
             entity.ControlaStock,
+            entity.AplicaComision,
+            entity.TipoComision,
+            entity.ValorComision,
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
@@ -892,6 +898,9 @@ public sealed class EfInventarioRepository : IInventarioRepository
             StockMinimo = producto.StockMinimo,
             CostoPromedio = producto.CostoPromedio,
             ControlaStock = producto.ControlaStock,
+            AplicaComision = producto.AplicaComision,
+            TipoComision = producto.TipoComision,
+            ValorComision = producto.ValorComision,
             IsActive = producto.IsActive,
             CreatedAt = producto.CreatedAt,
             UpdatedAt = producto.UpdatedAt

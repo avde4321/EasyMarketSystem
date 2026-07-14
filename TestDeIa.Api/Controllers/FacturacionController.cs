@@ -12,10 +12,12 @@ namespace TestDeIa.Api.Controllers;
 public sealed class FacturacionController : ControllerBase
 {
     private readonly IFacturacionUseCase facturacionUseCase;
+    private readonly IComisionesUseCase comisionesUseCase;
 
-    public FacturacionController(IFacturacionUseCase facturacionUseCase)
+    public FacturacionController(IFacturacionUseCase facturacionUseCase, IComisionesUseCase comisionesUseCase)
     {
         this.facturacionUseCase = facturacionUseCase;
+        this.comisionesUseCase = comisionesUseCase;
     }
 
     [HttpGet("clientes")]
@@ -46,6 +48,14 @@ public sealed class FacturacionController : ControllerBase
         return Ok(puntos);
     }
 
+    [HttpGet("operadores")]
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+    public async Task<IActionResult> GetOperadores(CancellationToken cancellationToken = default)
+    {
+        var operadores = await facturacionUseCase.GetOperadoresAsync(cancellationToken);
+        return Ok(operadores);
+    }
+
     [HttpPost("facturas")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> EmitirFactura([FromBody] EmitirFacturaRequest request, CancellationToken cancellationToken)
@@ -68,5 +78,19 @@ public sealed class FacturacionController : ControllerBase
         take = Math.Clamp(take, 1, 25);
         skip = Math.Max(0, skip);
         return Ok(await facturacionUseCase.GetMonitorAsync(term, skip, take, cancellationToken));
+    }
+
+    [HttpGet("comisiones/liquidacion")]
+    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    public async Task<IActionResult> GetLiquidacionComisiones([FromQuery] DateOnly desde, [FromQuery] DateOnly hasta, [FromQuery] Guid? operadorId = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await comisionesUseCase.GetLiquidacionAsync(desde, hasta, operadorId, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
     }
 }

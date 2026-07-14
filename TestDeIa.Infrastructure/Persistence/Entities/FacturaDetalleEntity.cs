@@ -29,4 +29,8 @@ public sealed class FacturaDetalleEntity
     public decimal IvaValor { get; set; }
 
     public decimal Total { get; set; }
+
+    public Guid? UsuarioIdOperador { get; set; }
+
+    public decimal MontoComisionCalculado { get; set; }
 }

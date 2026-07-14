@@ -23,6 +23,12 @@ public sealed class ProductoEntity
 
     public bool ControlaStock { get; set; } = true;
 
+    public bool AplicaComision { get; set; }
+
+    public string? TipoComision { get; set; }
+
+    public decimal? ValorComision { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

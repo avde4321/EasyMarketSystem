@@ -1,0 +1,153 @@
+@page "/facturacion/comisiones"
+@attribute [Authorize(Roles = SecurityRoleNames.Administrador)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Shared.Responses.Facturacion
+@using TestDeIa.Shared.Security
+@inject FacturacionApiClient FacturacionApiClient
+
+<PageTitle>Liquidacion de Comisiones</PageTitle>
+
+<section class="module-page commissions-page">
+    <header class="module-header commissions-header">
+        <div>
+            <h1>Liquidacion de Comisiones</h1>
+            <p>Consulta rapida de servicios facturados, operador asignado y total acumulado por pagar.</p>
+        </div>
+        <div class="summary-pill">
+            <span>Servicios liquidados</span>
+            <strong>@(liquidacion?.Detalles.Count ?? 0)</strong>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card commissions-filter-card">
+        <div class="commissions-filter-grid">
+            <div class="form-field">
+                <label>Desde</label>
+                <InputDate class="form-control rounded-control" @bind-Value="desde" />
+            </div>
+            <div class="form-field">
+                <label>Hasta</label>
+                <InputDate class="form-control rounded-control" @bind-Value="hasta" />
+            </div>
+            <div class="form-field">
+                <label>Empleado</label>
+                <InputSelect class="form-control rounded-control" @bind-Value="operadorId">
+                    <option value="">Todos los operadores</option>
+                    @foreach (var operador in operadores)
+                    {
+                        <option value="@operador.UsuarioId">@operador.NombreCompleto (@operador.Identificacion)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-field filter-action-field">
+                <button class="secondary-action rounded-xl-button" type="button" @onclick="ConsultarAsync" disabled="@isLoading">
+                    @(isLoading ? "Consultando..." : "Consultar")
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="commissions-summary-grid">
+        <article class="table-card summary-card">
+            <span>Subtotal servicios</span>
+            <strong>@((liquidacion?.TotalServicios ?? 0m).ToString("0.00"))</strong>
+        </article>
+        <article class="table-card summary-card summary-card-accent">
+            <span>Comision acumulada</span>
+            <strong>@((liquidacion?.TotalComisiones ?? 0m).ToString("0.00"))</strong>
+        </article>
+    </section>
+
+    <section class="table-card commissions-table-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Servicios prestados</h2>
+                <p>Solo se muestran facturas autorizadas del SRI dentro de la empresa activa.</p>
+            </div>
+        </header>
+
+        @if (liquidacion is null || liquidacion.Detalles.Count == 0)
+        {
+            <div class="empty-state">No hay servicios con comision para el filtro seleccionado.</div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="data-table commissions-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Factura SRI</th>
+                            <th>Empleado</th>
+                            <th>Servicio</th>
+                            <th>Subtotal</th>
+                            <th>Comision</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detalle in liquidacion.Detalles)
+                        {
+                            <tr>
+                                <td>@detalle.FechaEmision.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@detalle.NumeroFactura</td>
+                                <td>
+                                    <strong>@detalle.Operador</strong>
+                                    <small>@detalle.IdentificacionOperador</small>
+                                </td>
+                                <td>@detalle.Servicio</td>
+                                <td>@detalle.Subtotal.ToString("0.00")</td>
+                                <td>@detalle.MontoComision.ToString("0.00")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly List<PosOperadorResponse> operadores = [];
+    private LiquidacionComisionResponse? liquidacion;
+    private DateOnly desde = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateOnly hasta = DateOnly.FromDateTime(DateTime.Today);
+    private Guid? operadorId;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        operadores.AddRange(await FacturacionApiClient.GetOperadoresAsync());
+        await ConsultarAsync();
+    }
+
+    private async Task ConsultarAsync()
+    {
+        if (hasta < desde)
+        {
+            errorMessage = "La fecha hasta no puede ser menor que la fecha desde.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            liquidacion = await FacturacionApiClient.GetLiquidacionComisionesAsync(desde, hasta, operadorId);
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar la liquidacion de comisiones.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -13,6 +13,8 @@ public interface IFacturacionRepository
 
     Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default);
+
     Task<FacturaEmissionResponse> CreatePendingFacturaAsync(
         EmitirFacturaRequest request,
         CancellationToken cancellationToken = default);

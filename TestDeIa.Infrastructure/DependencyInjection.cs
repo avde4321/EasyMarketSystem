@@ -69,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
+        services.AddScoped<IComisionesRepository, EfComisionesRepository>();
         services.AddSingleton<SriResponseParser>();
         services.AddSingleton<SriFacturaXmlSchemaValidator>();
         services.AddSingleton<SriLiquidacionCompraXmlValidator>();

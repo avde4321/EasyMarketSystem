@@ -1,0 +1,129 @@
+.commissions-page {
+    gap: 1.25rem;
+}
+
+.commissions-header {
+    align-items: center;
+}
+
+.summary-pill {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 11rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid #d9e8ef;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #fbfeff 0%, #eef7fb 100%);
+}
+
+.summary-pill span,
+.summary-card span {
+    color: #668196;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.summary-pill strong,
+.summary-card strong {
+    color: #124a75;
+    font-size: 1.45rem;
+}
+
+.commissions-filter-card,
+.commissions-table-card,
+.summary-card {
+    border-radius: 24px;
+}
+
+.commissions-filter-grid,
+.commissions-summary-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.commissions-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+}
+
+.filter-action-field {
+    justify-content: end;
+}
+
+.commissions-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-card {
+    padding: 1rem 1.1rem;
+    border: 1px solid #deecf2;
+    background: #f9fcfd;
+}
+
+.summary-card-accent {
+    background: linear-gradient(180deg, #f3fbf6 0%, #ebf8f0 100%);
+    border-color: #d7eadc;
+}
+
+.commissions-table {
+    min-width: 100%;
+}
+
+.commissions-table th {
+    background: #f2f8fb;
+    color: #4d7088;
+}
+
+.commissions-table td {
+    vertical-align: top;
+}
+
+.commissions-table td strong,
+.commissions-table td small {
+    display: block;
+}
+
+.commissions-table td small {
+    color: #7590a4;
+    margin-top: 0.15rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+@media (max-width: 920px) {
+    .commissions-filter-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .commissions-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .summary-pill {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .commissions-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-action-field {
+        justify-content: stretch;
+    }
+
+    .filter-action-field .secondary-action {
+        width: 100%;
+    }
+
+    .commissions-table th,
+    .commissions-table td {
+        white-space: nowrap;
+    }
+}

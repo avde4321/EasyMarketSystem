@@ -36,6 +36,14 @@ public sealed class ProductoRequest
 
     public bool ControlaStock { get; set; } = true;
 
+    public bool AplicaComision { get; set; }
+
+    [StringLength(20, ErrorMessage = "El tipo de comision no puede superar 20 caracteres.")]
+    public string? TipoComision { get; set; }
+
+    [Range(0, 999999999, ErrorMessage = "El valor de la comision no puede ser negativo.")]
+    public decimal? ValorComision { get; set; }
+
     public bool IsActive { get; set; } = true;
 }
 

@@ -14,6 +14,9 @@ public sealed class Producto
         decimal? stockMinimo,
         decimal costoPromedio,
         bool controlaStock,
+        bool aplicaComision,
+        string? tipoComision,
+        decimal? valorComision,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -29,6 +32,9 @@ public sealed class Producto
         StockMinimo = stockMinimo;
         CostoPromedio = costoPromedio;
         ControlaStock = controlaStock;
+        AplicaComision = aplicaComision;
+        TipoComision = tipoComision;
+        ValorComision = valorComision;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -55,6 +61,12 @@ public sealed class Producto
     public decimal CostoPromedio { get; }
 
     public bool ControlaStock { get; }
+
+    public bool AplicaComision { get; }
+
+    public string? TipoComision { get; }
+
+    public decimal? ValorComision { get; }
 
     public bool IsActive { get; }
 

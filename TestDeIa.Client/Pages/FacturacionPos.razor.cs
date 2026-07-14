@@ -33,6 +33,7 @@ public partial class FacturacionPos : IDisposable
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
+    private readonly List<PosOperadorResponse> operadores = [];
     private readonly List<CatalogoItemResponse> formasPago = [];
     private readonly List<CartItemModel> cartItems = [];
     private string clienteSearchTerm = string.Empty;
@@ -66,6 +67,7 @@ public partial class FacturacionPos : IDisposable
         await ResolveCurrentUserCapabilitiesAsync();
         await LoadCatalogosAsync();
         await LoadPuntosEmisionAsync();
+        await LoadOperadoresAsync();
         await LoadCajaStateAsync();
     }
 
@@ -105,6 +107,19 @@ public partial class FacturacionPos : IDisposable
 
         selectedPuntoEmision ??= puntosEmision.FirstOrDefault(current => current.IsDefault) ?? puntosEmision[0];
         showOperationalContextModal = true;
+    }
+
+    private async Task LoadOperadoresAsync()
+    {
+        operadores.Clear();
+
+        try
+        {
+            operadores.AddRange(await FacturacionApiClient.GetOperadoresAsync());
+        }
+        catch (HttpRequestException)
+        {
+        }
     }
 
     private async Task LoadCajaStateAsync()
@@ -240,21 +255,26 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
-        var existing = cartItems.FirstOrDefault(item => item.ProductoId == producto.ProductoId);
-        if (existing is not null)
+        if (producto.ControlaStock)
         {
-            existing.Cantidad += 1;
-            return;
+            var existing = cartItems.FirstOrDefault(item => item.ProductoId == producto.ProductoId && item.ControlaStock);
+            if (existing is not null)
+            {
+                existing.Cantidad += 1;
+                return;
+            }
         }
 
         cartItems.Add(new CartItemModel
         {
+            RowId = Guid.NewGuid(),
             ProductoId = producto.ProductoId,
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             PrecioVenta = producto.PrecioVenta,
             PorcentajeIva = producto.PorcentajeIva,
             ControlaStock = producto.ControlaStock,
+            UsuarioIdOperador = null,
             Cantidad = 1
         });
     }
@@ -274,9 +294,9 @@ public partial class FacturacionPos : IDisposable
         item.Cantidad -= 1;
     }
 
-    private void RemoveProducto(Guid productoId)
+    private void RemoveProducto(Guid rowId)
     {
-        var existing = cartItems.FirstOrDefault(item => item.ProductoId == productoId);
+        var existing = cartItems.FirstOrDefault(item => item.RowId == rowId);
         if (existing is not null)
         {
             cartItems.Remove(existing);
@@ -317,6 +337,12 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        if (cartItems.Any(item => item.IsService && (!item.UsuarioIdOperador.HasValue || item.UsuarioIdOperador.Value == Guid.Empty)))
+        {
+            errorMessage = "Cada servicio debe tener un operador asignado antes de cobrar.";
+            return;
+        }
+
         if (cartItems.Any(item => item.IsService && item.PrecioVenta < 0))
         {
             errorMessage = "El precio de los servicios no puede ser negativo.";
@@ -339,7 +365,8 @@ public partial class FacturacionPos : IDisposable
                 {
                     ProductoId = item.ProductoId,
                     Cantidad = item.Cantidad,
-                    PrecioUnitarioOverride = item.IsService ? item.PrecioVenta : null
+                    PrecioUnitarioOverride = item.IsService ? item.PrecioVenta : null,
+                    UsuarioIdOperador = item.IsService ? item.UsuarioIdOperador : null
                 }).ToArray()
             });
 
@@ -480,7 +507,11 @@ public partial class FacturacionPos : IDisposable
 
     private sealed class CartItemModel
     {
+        public Guid RowId { get; set; }
+
         public Guid ProductoId { get; set; }
+
+        public Guid? UsuarioIdOperador { get; set; }
 
         public string Codigo { get; set; } = string.Empty;
 

@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IPersonaUseCase, PersonaUseCase>();
         services.AddScoped<IInventarioUseCase, InventarioUseCase>();
         services.AddScoped<IFacturacionUseCase, FacturacionUseCase>();
+        services.AddScoped<IComisionesUseCase, ComisionesUseCase>();
         services.AddScoped<IFacturacionBackgroundCoordinator, FacturacionBackgroundCoordinator>();
 
         return services;

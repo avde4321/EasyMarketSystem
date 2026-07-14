@@ -122,7 +122,10 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                     .Where(current => current.BodegaId == operationalBodegaId)
                     .Select(current => current.StockActual)
                     .FirstOrDefault(),
-                ControlaStock = producto.ControlaStock
+                ControlaStock = producto.ControlaStock,
+                AplicaComision = producto.AplicaComision,
+                TipoComision = producto.TipoComision,
+                ValorComision = producto.ValorComision
             }).ToArray(),
             TotalCount = totalCount,
             Skip = skip,
@@ -130,6 +133,34 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         };
     }
 
+
+    public async Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default)
+    {
+        var empresaActivaId = tenantContextAccessor.EmpresaId;
+        if (!empresaActivaId.HasValue)
+        {
+            return Array.Empty<PosOperadorResponse>();
+        }
+
+        return await dbContext.SecurityUsers
+            .AsNoTracking()
+            .Include(usuario => usuario.Persona)
+            .Include(usuario => usuario.EmpresasAcceso)
+            .Where(usuario =>
+                usuario.IsActive &&
+                !usuario.BloqueadoManualmente &&
+                (usuario.BloqueadoHasta == null || usuario.BloqueadoHasta <= DateTimeOffset.UtcNow) &&
+                (usuario.EmpresaId == empresaActivaId.Value || usuario.EmpresasAcceso.Any(acceso => acceso.EmpresaId == empresaActivaId.Value)))
+            .OrderBy(usuario => usuario.DisplayName)
+            .Select(usuario => new PosOperadorResponse
+            {
+                UsuarioId = usuario.Id,
+                UserName = usuario.UserName,
+                NombreCompleto = string.IsNullOrWhiteSpace(usuario.DisplayName) ? usuario.Persona.RazonSocialONombresCompletos : usuario.DisplayName,
+                Identificacion = usuario.Persona.Identificacion
+            })
+            .ToArrayAsync(cancellationToken);
+    }
     public async Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default)
     {
         var empresaActivaId = tenantContextAccessor.EmpresaId;
@@ -227,10 +258,11 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         }
 
         var itemsByProduct = request.Items
-            .GroupBy(item => item.ProductoId)
+            .GroupBy(item => new { item.ProductoId, item.UsuarioIdOperador })
             .Select(group => new
             {
-                ProductoId = group.Key,
+                group.Key.ProductoId,
+                group.Key.UsuarioIdOperador,
                 Cantidad = group.Sum(item => item.Cantidad),
                 Descuento = group.Sum(item => item.Descuento),
                 PrecioUnitarioOverride = group
@@ -250,6 +282,22 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         {
             throw new InvalidOperationException("Uno o varios productos ya no estan disponibles.");
         }
+
+        var serviceItems = itemsByProduct
+            .Where(item => !productos.First(producto => producto.Id == item.ProductoId).ControlaStock)
+            .ToArray();
+
+        if (serviceItems.Any(item => !item.UsuarioIdOperador.HasValue || item.UsuarioIdOperador.Value == Guid.Empty))
+        {
+            throw new InvalidOperationException("Todos los servicios deben registrar el operador que realizo el trabajo.");
+        }
+
+        var operadorIds = serviceItems
+            .Select(item => item.UsuarioIdOperador!.Value)
+            .Distinct()
+            .ToArray();
+
+        await EnsureOperadoresAllowedForActiveEmpresaAsync(operadorIds, empresaActivaId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var clienteTipoIdentificacion = MapClienteTipoIdentificacionSri(cliente.Persona.TipoIdentificacion);
@@ -334,6 +382,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             var subtotal = subtotalBruto - descuento;
             var ivaValor = Math.Round(subtotal * (producto.PorcentajeIva / 100m), 2);
             var total = subtotal + ivaValor;
+            var usuarioIdOperador = producto.ControlaStock ? null : item.UsuarioIdOperador;
+            var montoComision = CalculateServiceCommission(producto, usuarioIdOperador, subtotal, item.Cantidad);
 
             factura.Detalles.Add(new FacturaDetalleEntity
             {
@@ -349,7 +399,9 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 Descuento = descuento,
                 Subtotal = subtotal,
                 IvaValor = ivaValor,
-                Total = total
+                Total = total,
+                UsuarioIdOperador = usuarioIdOperador,
+                MontoComisionCalculado = montoComision
             });
 
             factura.Subtotal += subtotal;
@@ -890,6 +942,35 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .Distinct()
             .ToArrayAsync(cancellationToken);
     }
+    private async Task EnsureOperadoresAllowedForActiveEmpresaAsync(
+        IReadOnlyCollection<Guid> operadorIds,
+        Guid empresaId,
+        CancellationToken cancellationToken)
+    {
+        if (operadorIds.Count == 0)
+        {
+            return;
+        }
+
+        var operadoresValidos = await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(usuario =>
+                operadorIds.Contains(usuario.Id) &&
+                usuario.IsActive &&
+                !usuario.BloqueadoManualmente &&
+                (usuario.BloqueadoHasta == null || usuario.BloqueadoHasta <= DateTimeOffset.UtcNow) &&
+                (usuario.EmpresaId == empresaId || usuario.EmpresasAcceso.Any(acceso => acceso.EmpresaId == empresaId)))
+            .Select(usuario => usuario.Id)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        if (operadoresValidos.Length != operadorIds.Count)
+        {
+            throw new InvalidOperationException("Uno o varios operadores seleccionados no pertenecen a la empresa activa o no estan disponibles.");
+        }
+    }
+
     private static string ToAuditMessage(string mensaje, string? auditoriaJson)
     {
         var value = string.IsNullOrWhiteSpace(auditoriaJson) ? mensaje : auditoriaJson;
@@ -1079,6 +1160,32 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         return bodegaId;
     }
 
+
+    private static decimal CalculateServiceCommission(ProductoEntity producto, Guid? usuarioIdOperador, decimal subtotal, decimal cantidad)
+    {
+        if (producto.ControlaStock)
+        {
+            return 0m;
+        }
+
+        if (!usuarioIdOperador.HasValue || usuarioIdOperador.Value == Guid.Empty)
+        {
+            throw new InvalidOperationException($"Debe asignar un operador para el servicio {producto.Nombre}.");
+        }
+
+        if (!producto.AplicaComision)
+        {
+            return 0m;
+        }
+
+        var valorComision = producto.ValorComision ?? 0m;
+        var tipoComision = producto.TipoComision ?? string.Empty;
+        var monto = tipoComision.Equals("Porcentaje", StringComparison.OrdinalIgnoreCase)
+            ? subtotal * (valorComision / 100m)
+            : valorComision * cantidad;
+
+        return Math.Round(monto, 2, MidpointRounding.AwayFromZero);
+    }
     private async Task<Guid> ResolveOperationalBodegaIdAsync(Guid? requestedBodegaId, CancellationToken cancellationToken)
     {
         if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)

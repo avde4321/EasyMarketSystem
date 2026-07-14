@@ -22,6 +22,12 @@ public sealed class ProductoResponse
 
     public bool ControlaStock { get; set; }
 
+    public bool AplicaComision { get; set; }
+
+    public string? TipoComision { get; set; }
+
+    public decimal? ValorComision { get; set; }
+
     public bool TieneAlertaStockMinimo => ControlaStock && StockMinimo.HasValue && StockActual <= StockMinimo.Value;
 
     public decimal CostoPromedio { get; set; }

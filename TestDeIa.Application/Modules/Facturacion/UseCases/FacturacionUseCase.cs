@@ -44,6 +44,11 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return facturacionRepository.GetPuntosEmisionAsync(cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default)
+    {
+        return facturacionRepository.GetOperadoresAsync(cancellationToken);
+    }
+
     public async Task<FacturaEmissionResponse> EmitirFacturaAsync(EmitirFacturaRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateRequestAsync(request, cancellationToken);

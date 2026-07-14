@@ -300,6 +300,19 @@
                         </NavLink>
                             </Authorized>
                         </AuthorizeView>
+                        <AuthorizeView Roles="@SecurityRoleNames.Administrador">
+                            <Authorized>
+                        <NavLink class="nav-sublink" href="facturacion/comisiones" title="Liquidacion de comisiones">
+                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                    <path d="M6 18.5h12M8 15V9.5M12 15V6.5M16 15v-3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                    <path d="M6.5 10.5 10.2 7l3 2.5 4.3-4.3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                </svg>
+                            </span>
+                            <span class="nav-text">Comisiones</span>
+                        </NavLink>
+                            </Authorized>
+                        </AuthorizeView>
                         <AuthorizeView Policy="@SecurityPolicyNames.CatalogosAdministrar">
                             <Authorized>
                         <NavLink class="nav-sublink" href="catalogos" title="Catalogos">
@@ -444,7 +457,7 @@
         {
             "personas" or "clientes" or "empleados" or "proveedores" => "comercial",
             "inventario" or "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "facturacion/pos" => "operaciones",
-            "empresa" or "facturacion/monitor" or "catalogos" or "usuarios" or "financiero/reportes/iva" => "configuracion",
+            "empresa" or "facturacion/monitor" or "facturacion/comisiones" or "catalogos" or "usuarios" or "financiero/reportes/iva" => "configuracion",
             _ => expandedGroup
         };
     }
@@ -454,3 +467,4 @@
         NavigationManager.LocationChanged -= HandleLocationChanged;
     }
 }
+

@@ -215,6 +215,21 @@
     background: #ffffff;
 }
 
+.service-operator-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 18px;
+    border: 1px solid #f0dfbf;
+    background: linear-gradient(180deg, #fffaf0 0%, #fff4e1 100%);
+}
+
+.service-operator-field label,
+.service-operator-field small {
+    color: #8b6a2c;
+}
+
 .cart-row-meta {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, auto));
@@ -448,3 +463,8 @@
     font-size: 0.74rem;
     font-weight: 700;
 }
+.operator-select {
+    border-radius: 14px;
+    background: #fffdf9;
+}
+

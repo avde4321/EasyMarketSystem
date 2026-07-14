@@ -46,6 +46,15 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(producto => producto.ControlaStock)
             .HasDefaultValue(true);
 
+        builder.Property(producto => producto.AplicaComision)
+            .HasDefaultValue(false);
+
+        builder.Property(producto => producto.TipoComision)
+            .HasMaxLength(20);
+
+        builder.Property(producto => producto.ValorComision)
+            .HasPrecision(18, 2);
+
         builder.HasIndex(producto => new { producto.EmpresaId, producto.Codigo })
             .IsUnique();
     }
