@@ -4,7 +4,9 @@ using TestDeIa.Application.Modules.Catalogos.UseCases;
 using TestDeIa.Application.Modules.Caja.Ports.In;
 using TestDeIa.Application.Modules.Caja.UseCases;
 using TestDeIa.Application.Modules.Clientes.Ports.In;
+using TestDeIa.Application.Modules.Contabilidad.Ports.In;
 using TestDeIa.Application.Modules.Clientes.UseCases;
+using TestDeIa.Application.Modules.Contabilidad.UseCases;
 using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Application.Modules.Compras.UseCases;
 using TestDeIa.Application.Modules.Dashboard.Ports.In;
@@ -36,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogoUseCase, CatalogoUseCase>();
         services.AddScoped<ICajaSesionUseCase, CajaSesionUseCase>();
         services.AddScoped<IClienteUseCase, ClienteUseCase>();
+        services.AddScoped<IContabilidadUseCase, ContabilidadUseCase>();
         services.AddScoped<ICompraUseCase, CompraUseCase>();
         services.AddScoped<IEstudioMercadoUseCase, EstudioMercadoUseCase>();
         services.AddScoped<IProveedorUseCase, ProveedorUseCase>();

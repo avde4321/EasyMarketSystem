@@ -313,6 +313,21 @@
                         </NavLink>
                             </Authorized>
                         </AuthorizeView>
+                        <AuthorizeView Policy="@SecurityPolicyNames.EmpresaConfigurar">
+                            <Authorized>
+                        <NavLink class="nav-sublink" href="contabilidad/plan-cuentas" title="Plan de cuentas">
+                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                    <path d="M6 6.5h12M6 12h12M6 17.5h12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                    <circle cx="8" cy="6.5" r="1.2" fill="currentColor" />
+                                    <circle cx="10" cy="12" r="1.2" fill="currentColor" />
+                                    <circle cx="12" cy="17.5" r="1.2" fill="currentColor" />
+                                </svg>
+                            </span>
+                            <span class="nav-text">Plan de cuentas</span>
+                        </NavLink>
+                            </Authorized>
+                        </AuthorizeView>
                         <AuthorizeView Policy="@SecurityPolicyNames.CatalogosAdministrar">
                             <Authorized>
                         <NavLink class="nav-sublink" href="catalogos" title="Catalogos">
@@ -457,7 +472,7 @@
         {
             "personas" or "clientes" or "empleados" or "proveedores" => "comercial",
             "inventario" or "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "facturacion/pos" => "operaciones",
-            "empresa" or "facturacion/monitor" or "facturacion/comisiones" or "catalogos" or "usuarios" or "financiero/reportes/iva" => "configuracion",
+            "empresa" or "facturacion/monitor" or "facturacion/comisiones" or "contabilidad/plan-cuentas" or "catalogos" or "usuarios" or "financiero/reportes/iva" => "configuracion",
             _ => expandedGroup
         };
     }
