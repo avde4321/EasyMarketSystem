@@ -4,40 +4,38 @@
 
 <PageTitle>Punto de Venta</PageTitle>
 
-<section class="module-page pos-page">
-    <header class="module-header">
+<section class="module-page pos-page pastel-pos-page">
+    <header class="module-header pos-header">
         <div>
             <h1>Punto de Venta</h1>
             <p>Emision rapida de facturas con cola asincrona hacia el SRI.</p>
         </div>
-        <div class="pos-summary">
+        <div class="pos-summary pastel-summary">
             <span>Items: @cartItems.Count</span>
             <strong>Total: @GetCartTotal().ToString("0.00")</strong>
         </div>
     </header>
 
-    <section class="table-card pos-context-card">
-        <div>
-            <strong>Contexto operativo</strong>
-            <p>
-                @if (selectedPuntoEmision is null)
-                {
-                    <span>Debes elegir el establecimiento y punto de emision antes de atender ventas.</span>
-                }
-                else
-                {
-                    <span>
-                        Operando con <strong>@selectedPuntoEmision.DisplayName</strong>
-                        @if (!string.IsNullOrWhiteSpace(selectedPuntoEmision.BodegaNombre))
-                        {
-                            <span> | Bodega: <strong>@selectedPuntoEmision.BodegaNombre</strong></span>
-                        }
-                        @(string.IsNullOrWhiteSpace(selectedPuntoEmision.DireccionEstablecimiento) ? string.Empty : $" - {selectedPuntoEmision.DireccionEstablecimiento}")
-                    </span>
-                }
-            </p>
+    <section class="pos-topbar-card">
+        <div class="context-pill-group">
+            <div class="context-pill context-pill-primary">
+                <span>Establecimiento</span>
+                <strong>@(selectedPuntoEmision?.Establecimiento ?? "---")</strong>
+            </div>
+            <div class="context-pill context-pill-primary">
+                <span>Punto de emision</span>
+                <strong>@(selectedPuntoEmision?.PuntoEmision ?? "---")</strong>
+            </div>
+            <div class="context-pill context-pill-soft">
+                <span>Bodega</span>
+                <strong>@(selectedPuntoEmision?.BodegaNombre ?? "Sin asignar")</strong>
+            </div>
+            <div class="context-pill context-pill-soft wide-pill">
+                <span>Direccion</span>
+                <strong>@(selectedPuntoEmision?.DireccionEstablecimiento ?? "Sin direccion registrada")</strong>
+            </div>
         </div>
-        <button class="secondary-action" type="button" @onclick="OpenOperationalContextModal">
+        <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenOperationalContextModal">
             @(selectedPuntoEmision is null ? "Seleccionar punto" : "Cambiar punto")
         </button>
     </section>
@@ -64,84 +62,27 @@
         <div class="alert-message">@errorMessage</div>
     }
 
-    <section class="pos-grid">
-        <div class="pos-column">
-            <section class="table-card">
-                <header class="section-header">
-                    <div>
-                        <h2>Cliente</h2>
-                        <p>Busca por cedula, RUC o nombre.</p>
-                    </div>
-                </header>
-
-                <div class="search-row">
-                    <InputText class="form-control" @bind-Value="clienteSearchTerm" placeholder="Ej. 0923 o Delgado" />
-                    <button class="secondary-action" @onclick="SearchClientesAsync" disabled="@(!CanOperatePos)">Buscar</button>
-                </div>
-
-                @if (selectedCliente is not null)
-                {
-                    <div class="selected-card">
-                        <strong>@selectedCliente.NombreCompleto</strong>
-                        <span>@selectedCliente.Identificacion</span>
-                        <small>@selectedCliente.TipoIdentificacion</small>
-                        <small>@(selectedCliente.HasClienteExtension ? "Cliente habilitado" : "Persona sin rol cliente en esta empresa")</small>
-                        <small>@selectedCliente.Email</small>
-                        <small>@selectedCliente.Telefono</small>
-                        <small>@selectedCliente.Direccion</small>
-
-                        @if (!selectedCliente.HasClienteExtension)
-                        {
-                            <div class="inline-pager">
-                                <span class="pager-meta">Puedes reutilizar la persona y activar solo los atributos comerciales.</span>
-                                <button class="secondary-action" type="button" @onclick="ActivarClienteExtensionAsync" disabled="@isCreatingClienteExtension">
-                                    @(isCreatingClienteExtension ? "Activando..." : "Activar como cliente")
-                                </button>
-                            </div>
-                        }
-                    </div>
-                }
-                else if (clienteResults.Count > 0)
-                {
-                    <div class="result-list">
-                        @foreach (var cliente in clienteResults)
-                        {
-                            <button class="result-item" @onclick="() => SelectCliente(cliente)">
-                                <strong>@cliente.NombreCompleto</strong>
-                                <span>@cliente.Identificacion</span>
-                                <small>@cliente.TipoIdentificacion</small>
-                                <small>@(cliente.HasClienteExtension ? "Cliente disponible" : "Solo persona registrada")</small>
-                            </button>
-                        }
-                    </div>
-
-                    <div class="inline-pager">
-                        <button class="ghost-button" type="button" @onclick="PreviousClientesAsync" disabled="@(!CanGoPreviousClientes)">Anterior</button>
-                        <span class="pager-meta">Mostrando @clienteResults.Count de @clienteTotalCount</span>
-                        <button class="ghost-button" type="button" @onclick="NextClientesAsync" disabled="@(!CanGoNextClientes)">Siguiente</button>
-                    </div>
-                }
-            </section>
-
-            <section class="table-card">
-                <header class="section-header">
+    <section class="pos-shell-grid">
+        <div class="pos-main-column">
+            <section class="table-card pos-panel product-panel">
+                <header class="section-header compact-section-header">
                     <div>
                         <h2>Productos</h2>
-                        <p>Busqueda por codigo o nombre.</p>
+                        <p>Busca por codigo, nombre o descripcion y agrega al detalle de venta.</p>
                     </div>
                 </header>
 
-                <div class="search-row">
-                    <InputText class="form-control" @bind-Value="productoSearchTerm" placeholder="Ej. SKU o nombre" />
-                    <button class="secondary-action" @onclick="SearchProductosAsync" disabled="@(!CanOperatePos)">Buscar</button>
+                <div class="search-row compact-search-row">
+                    <InputText class="form-control" @bind-Value="productoSearchTerm" placeholder="Ej. SKU, servicio o nombre" />
+                    <button class="secondary-action rounded-xl-button" @onclick="SearchProductosAsync" disabled="@(!CanOperatePos)">Buscar</button>
                 </div>
 
                 @if (productoResults.Count > 0)
                 {
-                    <div class="result-list">
+                    <div class="result-list soft-result-list">
                         @foreach (var producto in productoResults)
                         {
-                            <button class="result-item product-item" @onclick="() => AddProducto(producto)">
+                            <button class="result-item product-item soft-product-item" @onclick="() => AddProducto(producto)">
                                 <div>
                                     <strong>@producto.Nombre</strong>
                                     <span>@producto.Codigo</span>
@@ -161,88 +102,199 @@
                         <button class="ghost-button" type="button" @onclick="NextProductosAsync" disabled="@(!CanGoNextProductos)">Siguiente</button>
                     </div>
                 }
-            </section>
-        </div>
 
-        <div class="pos-column wide">
-            <section class="table-card">
-                <header class="section-header">
+                <div class="cart-section-header">
                     <div>
-                        <h2>Carrito</h2>
-                        <p>El cobro registra localmente y libera el puesto de caja al instante.</p>
+                        <h2>Detalle de venta</h2>
+                        <p>Filas amplias, limpias y listas para cobro rapido.</p>
                     </div>
-                </header>
+                </div>
 
                 @if (cartItems.Count == 0)
                 {
-                    <div class="empty-state">Agrega productos para comenzar una venta.</div>
+                    <div class="empty-state pos-empty-state">Agrega productos para comenzar una venta.</div>
                 }
                 else
                 {
-                    <div class="table-scroll">
-                    <table class="data-table responsive-table">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>Cant.</th>
-                                <th>P. unit</th>
-                                <th>IVA</th>
-                                <th>Total</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in cartItems)
-                            {
-                                <tr>
-                                    <td data-label="Producto">
+                    <div class="cart-list">
+                        @foreach (var item in cartItems)
+                        {
+                            <article class="cart-row-card">
+                                <div class="cart-row-main">
+                                    <div class="cart-product-block">
                                         <strong>@item.Nombre</strong>
-                                        <small>@item.Codigo</small>
-                                    </td>
-                                    <td data-label="Cant.">
-                                        <InputNumber class="quantity-input" @bind-Value="item.Cantidad" @bind-Value:after="StateHasChanged" />
-                                    </td>
-                                    <td data-label="P. unit">@item.PrecioVenta.ToString("0.00")</td>
-                                    <td data-label="IVA">@item.PorcentajeIva.ToString("0.##")%</td>
-                                    <td data-label="Total">@item.Total.ToString("0.00")</td>
-                                    <td data-label="Acciones">
-                                        <button class="ghost-button" @onclick="() => RemoveProducto(item.ProductoId)">Quitar</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                                        <span>@item.Codigo</span>
+                                        <small class="item-type-badge @(item.IsService ? "service-item-badge" : "goods-item-badge")">@(item.IsService ? "Servicio" : "Bien")</small>
+                                    </div>
+                                    <div class="cart-quantity-block">
+                                        <button class="qty-action qty-soft" type="button" @onclick="() => DecrementQuantity(item)">-</button>
+                                        <InputNumber class="quantity-input soft-quantity-input" @bind-Value="item.Cantidad" @bind-Value:after="StateHasChanged" />
+                                        <button class="qty-action qty-soft" type="button" @onclick="() => IncrementQuantity(item)">+</button>
+                                    </div>
+                                </div>
+                                <div class="cart-row-meta">
+                                    <div class="meta-chip price-chip">
+                                        <span>P. unitario</span>
+                                        @if (item.IsService && canEditServicePrice)
+                                        {
+                                            <InputNumber class="form-control compact-price-input" @bind-Value="item.PrecioVenta" @bind-Value:after="StateHasChanged" />
+                                        }
+                                        else
+                                        {
+                                            <strong>@item.PrecioVenta.ToString("0.00")</strong>
+                                        }
+                                    </div>
+                                    <div class="meta-chip">
+                                        <span>IVA</span>
+                                        <strong>@item.PorcentajeIva.ToString("0.##")%</strong>
+                                        @if (item.IsService)
+                                        {
+                                            <small class="inline-service-note">Sin bodega fisica</small>
+                                        }
+                                    </div>
+                                    <div class="meta-chip total-chip">
+                                        <span>Total</span>
+                                        <strong>@item.Total.ToString("0.00")</strong>
+                                    </div>
+                                    <button class="remove-action" type="button" @onclick="() => RemoveProducto(item.ProductoId)">Eliminar</button>
+                                </div>
+                            </article>
+                        }
                     </div>
                 }
-
-                <div class="checkout-panel">
-                    <div class="checkout-fields">
-                        <div class="form-field">
-                            <label>Forma de pago</label>
-                            <InputSelect class="form-control" @bind-Value="formaPago">
-                                @foreach (var item in formasPago)
-                                {
-                                    <option value="@item.Codigo">@item.Nombre</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="form-field full">
-                            <label>Observacion</label>
-                            <InputText class="form-control" @bind-Value="observacion" />
-                        </div>
-                    </div>
-
-                    <div class="totals-box">
-                        <span>Subtotal: @GetCartSubtotal().ToString("0.00")</span>
-                        <span>IVA: @GetCartIva().ToString("0.00")</span>
-                        <strong>Total: @GetCartTotal().ToString("0.00")</strong>
-                        <button class="primary-action" @onclick="CobrarAsync" disabled="@(isSubmitting || !CanOperatePos)">
-                            @(isSubmitting ? "Registrando..." : "Cobrar")
-                        </button>
-                    </div>
-                </div>
             </section>
         </div>
+
+        <aside class="pos-side-column">
+            <section class="table-card pos-panel client-panel">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Cliente</h2>
+                        <p>Busca por cedula, RUC o nombre.</p>
+                    </div>
+                </header>
+
+                <div class="search-row compact-search-row">
+                    <InputText class="form-control" @bind-Value="clienteSearchTerm" placeholder="Ej. 0923 o Delgado" />
+                    <button class="secondary-action rounded-xl-button" @onclick="SearchClientesAsync" disabled="@(!CanOperatePos)">Buscar</button>
+                </div>
+
+                @if (selectedCliente is not null)
+                {
+                    <div class="selected-card selected-client-card">
+                        <strong>@selectedCliente.NombreCompleto</strong>
+                        <span>@selectedCliente.Identificacion</span>
+                        <small>@selectedCliente.TipoIdentificacion</small>
+                        <small>@(selectedCliente.HasClienteExtension ? "Cliente habilitado" : "Persona sin rol cliente en esta empresa")</small>
+                        <small>@selectedCliente.Email</small>
+                        <small>@selectedCliente.Telefono</small>
+                        <small>@selectedCliente.Direccion</small>
+
+                        @if (!selectedCliente.HasClienteExtension)
+                        {
+                            <div class="inline-pager compact-inline-actions">
+                                <span class="pager-meta">Puedes reutilizar la persona y activar solo los atributos comerciales.</span>
+                                <button class="secondary-action rounded-xl-button" type="button" @onclick="ActivarClienteExtensionAsync" disabled="@isCreatingClienteExtension">
+                                    @(isCreatingClienteExtension ? "Activando..." : "Activar como cliente")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (clienteResults.Count > 0)
+                {
+                    <div class="result-list soft-result-list client-results-list">
+                        @foreach (var cliente in clienteResults)
+                        {
+                            <button class="result-item soft-client-item" @onclick="() => SelectCliente(cliente)">
+                                <strong>@cliente.NombreCompleto</strong>
+                                <span>@cliente.Identificacion</span>
+                                <small>@cliente.TipoIdentificacion</small>
+                                <small>@(cliente.HasClienteExtension ? "Cliente disponible" : "Solo persona registrada")</small>
+                            </button>
+                        }
+                    </div>
+
+                    <div class="inline-pager">
+                        <button class="ghost-button" type="button" @onclick="PreviousClientesAsync" disabled="@(!CanGoPreviousClientes)">Anterior</button>
+                        <span class="pager-meta">Mostrando @clienteResults.Count de @clienteTotalCount</span>
+                        <button class="ghost-button" type="button" @onclick="NextClientesAsync" disabled="@(!CanGoNextClientes)">Siguiente</button>
+                    </div>
+                }
+            </section>
+
+            <section class="table-card pos-panel payment-panel">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Cobro</h2>
+                        <p>Resumen final de la venta y total a pagar.</p>
+                    </div>
+                </header>
+
+                <div class="checkout-fields compact-fields">
+                    <div class="form-field">
+                        <label>Forma de pago</label>
+                        <InputSelect class="form-control rounded-control" @bind-Value="formaPago">
+                            @foreach (var item in formasPago)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field full">
+                        <label>Observacion</label>
+                        <InputText class="form-control rounded-control" @bind-Value="observacion" />
+                    </div>
+                </div>
+
+                <div class="totals-card">
+                    <div class="totals-line">
+                        <span>Subtotal</span>
+                        <strong>@GetCartSubtotal().ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line">
+                        <span>IVA 0%</span>
+                        <strong>@GetCartIvaByRate(0m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line subtle-line">
+                        <span>Base 0%</span>
+                        <strong>@GetCartSubtotalByRate(0m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line">
+                        <span>IVA 5%</span>
+                        <strong>@GetCartIvaByRate(5m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line subtle-line">
+                        <span>Base 5%</span>
+                        <strong>@GetCartSubtotalByRate(5m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line">
+                        <span>IVA 8%</span>
+                        <strong>@GetCartIvaByRate(8m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line subtle-line">
+                        <span>Base 8%</span>
+                        <strong>@GetCartSubtotalByRate(8m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line">
+                        <span>IVA 15%</span>
+                        <strong>@GetCartIvaByRate(15m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line subtle-line">
+                        <span>Base 15%</span>
+                        <strong>@GetCartSubtotalByRate(15m).ToString("0.00")</strong>
+                    </div>
+                    <div class="totals-line total-highlight">
+                        <span>TOTAL A PAGAR</span>
+                        <strong>@GetCartTotal().ToString("0.00")</strong>
+                    </div>
+                </div>
+
+                <button class="checkout-button" @onclick="CobrarAsync" disabled="@(isSubmitting || !CanOperatePos)">
+                    @(isSubmitting ? "Registrando..." : "Cobrar")
+                </button>
+            </section>
+        </aside>
     </section>
 </section>
 
@@ -250,12 +302,13 @@
 {
     <div class="modal-backdrop">
         <section class="modal-card narrow">
-            <div class="modal-header">
+            <header class="modal-header">
                 <div>
                     <h2>Selecciona tu punto de venta</h2>
                     <p>El POS queda bloqueado hasta que definas con que establecimiento y punto de emision trabajara esta caja.</p>
                 </div>
-            </div>
+                <button class="icon-button" type="button" @onclick="CloseOperationalContextModal" aria-label="Cerrar modal" disabled="@(!HasOperationalContext)">x</button>
+            </header>
 
             @if (puntosEmision.Count == 0)
             {
@@ -263,7 +316,7 @@
             }
             else
             {
-                <div class="result-list">
+                <div class="result-list soft-result-list">
                     @foreach (var punto in puntosEmision)
                     {
                         <button class="result-item @(selectedPuntoEmision?.DisplayName == punto.DisplayName ? "is-selected-context" : string.Empty)" type="button" @onclick="() => SelectPuntoEmision(punto)">
@@ -276,9 +329,10 @@
                 </div>
             }
 
-            <div class="modal-actions">
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Cerrar</button>
                 <button class="primary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Usar este punto</button>
-            </div>
+            </footer>
         </section>
     </div>
 }

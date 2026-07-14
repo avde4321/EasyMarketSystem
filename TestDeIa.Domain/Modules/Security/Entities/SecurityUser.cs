@@ -6,6 +6,7 @@ public sealed class SecurityUser
         Guid id,
         Guid empresaId,
         Guid personaId,
+        string identification,
         string userName,
         string displayName,
         string email,
@@ -25,6 +26,7 @@ public sealed class SecurityUser
         Id = id;
         EmpresaId = empresaId;
         PersonaId = personaId;
+        Identification = identification;
         UserName = userName;
         DisplayName = displayName;
         Email = email;
@@ -47,6 +49,8 @@ public sealed class SecurityUser
     public Guid EmpresaId { get; }
 
     public Guid PersonaId { get; }
+
+    public string Identification { get; }
 
     public string UserName { get; }
 

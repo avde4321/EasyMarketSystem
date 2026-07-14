@@ -158,16 +158,6 @@
                     </div>
 
                     <div class="form-field">
-                        <label for="genero">Genero</label>
-                        <InputText id="genero" class="form-control" @bind-Value="proveedorRequest.Genero" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="fechaNacimiento">Fecha nacimiento</label>
-                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="proveedorRequest.FechaNacimiento" />
-                    </div>
-
-                    <div class="form-field full">
                         <label for="direccion">Direccion</label>
                         <InputTextArea id="direccion" class="form-control" @bind-Value="proveedorRequest.DireccionPrincipal" />
                         <ValidationMessage For="@(() => proveedorRequest.DireccionPrincipal)" />

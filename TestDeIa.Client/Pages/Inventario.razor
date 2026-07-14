@@ -100,7 +100,7 @@
                                 <td data-label="IVA">@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
                                 <td data-label="PVP">@producto.PrecioVenta.ToString("0.00")</td>
                                 <td data-label="Stock bodega">@(producto.ControlaStock ? producto.StockActual.ToString("0.####") : "No aplica")</td>
-                                <td data-label="Minimo">@(producto.ControlaStock ? producto.StockMinimo.ToString("0.####") : "No aplica")</td>
+                                <td data-label="Minimo">@(producto.ControlaStock ? (producto.StockMinimo?.ToString("0.####") ?? "0") : "No aplica")</td>
                                 <td data-label="Costo prom.">@(producto.ControlaStock ? producto.CostoPromedio.ToString("0.######") : "No aplica")</td>
                                 <td data-label="Estado"><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
                                 <td data-label="Acciones" class="row-actions">
@@ -211,7 +211,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>@(editingProductId.HasValue ? "Actualizar producto" : "Crear producto")</h2>
-                <button class="icon-button" @onclick="CloseProductModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseProductModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <EditForm Model="productoRequest" OnValidSubmit="SaveProductAsync">
@@ -249,7 +249,7 @@
                                            Value="productoRequest.ControlaStock"
                                            ValueChanged="OnControlaStockChanged"
                                            ValueExpression="@(() => productoRequest.ControlaStock)" />
-                            <span class="form-check-label">Controla stock</span>
+                            <span class="form-check-label">Es bien inventariable (si lo desmarcas se tratara como servicio)</span>
                         </label>
                     </div>
                     @if (productoRequest.ControlaStock)
@@ -296,7 +296,7 @@
                     <span class="form-check-label">Producto activo</span>
                 </label>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseProductModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseProductModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar")
                     </button>
@@ -312,7 +312,7 @@
         <section class="modal-card narrow">
             <header class="modal-header">
                 <h2>Ajuste de stock</h2>
-                <button class="icon-button" @onclick="CloseAdjustmentModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseAdjustmentModal" aria-label="Cerrar modal">x</button>
             </header>
             <p class="modal-subtitle">@selectedAdjustmentProduct.Nombre</p>
             <p class="modal-subtitle">Bodega origen: @selectedBodega?.Nombre | Stock visible: @selectedAdjustmentProduct.StockActual.ToString("0.####")</p>
@@ -345,7 +345,7 @@
                     </div>
                 </div>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseAdjustmentModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseAdjustmentModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Aplicando..." : "Aplicar ajuste")
                     </button>
@@ -361,7 +361,7 @@
         <section class="modal-card narrow">
             <header class="modal-header">
                 <h2>Registrar merma o dano</h2>
-                <button class="icon-button" @onclick="CloseMermaModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseMermaModal" aria-label="Cerrar modal">x</button>
             </header>
             <p class="modal-subtitle">@selectedMermaProduct.Nombre</p>
             <p class="modal-subtitle">Bodega origen: @selectedBodega?.Nombre | Stock actual: @selectedMermaProduct.StockActual.ToString("0.####")</p>
@@ -387,7 +387,7 @@
                     </div>
                 </div>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseMermaModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseMermaModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@(!CanSubmitMerma || isSaving)">
                         @(isSaving ? "Registrando..." : "Registrar merma")
                     </button>
@@ -403,7 +403,7 @@
         <section class="modal-card narrow">
             <header class="modal-header">
                 <h2>Transferencia entre bodegas</h2>
-                <button class="icon-button" @onclick="CloseTransferModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseTransferModal" aria-label="Cerrar modal">x</button>
             </header>
             <p class="modal-subtitle">@selectedTransferProduct.Nombre</p>
             <p class="modal-subtitle">Origen: @selectedBodega?.Nombre | Stock disponible: @selectedTransferProduct.StockActual.ToString("0.####")</p>
@@ -435,7 +435,7 @@
                     </div>
                 </div>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseTransferModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseTransferModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@(!CanSubmitTransfer || isSaving)">
                         @(isSaving ? "Transfiriendo..." : "Transferir")
                     </button>
@@ -451,7 +451,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>Toma fisica por bodega</h2>
-                <button class="icon-button" @onclick="CloseTomaFisicaModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseTomaFisicaModal" aria-label="Cerrar modal">x</button>
             </header>
             <p class="modal-subtitle">Bodega: @selectedBodega?.Nombre. Ajusta las cantidades contadas y el sistema conciliara automaticamente el Kardex.</p>
 
@@ -497,7 +497,7 @@
                 </div>
 
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseTomaFisicaModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseTomaFisicaModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@(!CanSubmitTomaFisica || isSaving)">
                         @(isSaving ? "Conciliando..." : "Aplicar toma fisica")
                     </button>
@@ -506,3 +506,4 @@
         </section>
     </div>
 }
+

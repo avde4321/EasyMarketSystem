@@ -107,8 +107,6 @@ public partial class Proveedores
             CorreoElectronicoPrincipal = proveedor.CorreoElectronicoPrincipal,
             TelefonoCelular = proveedor.TelefonoCelular,
             DireccionPrincipal = proveedor.DireccionPrincipal,
-            FechaNacimiento = proveedor.FechaNacimiento,
-            Genero = proveedor.Genero,
             CodigoRetencionIvaDefault = proveedor.CodigoRetencionIvaDefault,
             CodigoRetencionRentaDefault = proveedor.CodigoRetencionRentaDefault,
             PermiteCredito = proveedor.PermiteCredito,
@@ -157,8 +155,6 @@ public partial class Proveedores
             proveedorRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
             proveedorRequest.TelefonoCelular = persona.TelefonoCelular;
             proveedorRequest.DireccionPrincipal = persona.DireccionPrincipal;
-            proveedorRequest.FechaNacimiento = persona.FechaNacimiento;
-            proveedorRequest.Genero = persona.Genero;
             proveedorRequest.IsActive = persona.IsActive;
 
             statusMessage = "Se cargo la informacion de la persona existente.";

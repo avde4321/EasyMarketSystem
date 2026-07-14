@@ -12,6 +12,7 @@ namespace TestDeIa.Api.Controllers;
 
 [ApiController]
 [Route("api/security/usuarios-admin")]
+[Authorize(Roles = SecurityRoleNames.Administrador)]
 [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
 public sealed class SecurityUsuariosAdminController : ControllerBase
 {
@@ -178,3 +179,5 @@ public sealed class SecurityUsuariosAdminController : ControllerBase
             : null;
     }
 }
+
+

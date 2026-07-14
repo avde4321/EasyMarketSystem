@@ -18,13 +18,14 @@ public sealed class ProductoResponse
 
     public decimal StockActual { get; set; }
 
-    public decimal StockMinimo { get; set; }
+    public decimal? StockMinimo { get; set; }
 
     public bool ControlaStock { get; set; }
 
-    public bool TieneAlertaStockMinimo => ControlaStock && StockActual <= StockMinimo;
+    public bool TieneAlertaStockMinimo => ControlaStock && StockMinimo.HasValue && StockActual <= StockMinimo.Value;
 
     public decimal CostoPromedio { get; set; }
 
     public bool IsActive { get; set; }
 }
+

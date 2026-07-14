@@ -563,7 +563,7 @@ public partial class Inventario
 
         if (!value)
         {
-            productoRequest.StockMinimo = 0;
+            productoRequest.StockMinimo = null;
             productoRequest.StockInicial = 0;
             productoRequest.CostoInicial = 0;
         }

@@ -579,6 +579,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             user.Id,
             user.EmpresaId,
             user.PersonaId,
+            user.Persona.Identificacion,
             user.UserName,
             user.DisplayName,
             user.Email,
@@ -621,3 +622,5 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         throw new InvalidOperationException("No existe una empresa activa para registrar el usuario.");
     }
 }
+
+

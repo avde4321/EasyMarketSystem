@@ -7,7 +7,7 @@
     <header class="module-header">
         <div>
             <h1>Reporte mensual de IVA</h1>
-            <p>Consolidado tributario de ventas y compras alineado a los casilleros base del Formulario 104.</p>
+            <p>Consolidado tributario de ventas, compras y separacion bienes/servicios para Formulario 104.</p>
         </div>
         <button class="primary-action" type="button" @onclick="ConsultarAsync" disabled="@isLoading">
             @(isLoading ? "Consultando..." : "Consultar")
@@ -33,6 +33,14 @@
                         <option value="@anio">@anio</option>
                     }
                 </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Punto de emision</label>
+                <InputText class="form-control" @bind-Value="puntoEmisionFiltro" placeholder="Opcional. Ej. 001" />
+            </div>
+            <div class="form-field">
+                <label>Cajero</label>
+                <InputText class="form-control" @bind-Value="cajeroFiltro" placeholder="Usuario, nombre o cedula" />
             </div>
         </div>
     </section>
@@ -84,6 +92,58 @@
                     @RenderHighlightRow("Compras locales tarifa diferente de 0%", consolidado.Compras.BaseTarifaDiferenteCero, consolidado.Compras.IvaTarifaDiferenteCero)
                 </div>
             </article>
+        </section>
+
+        <section class="iva-panels-grid fiscal-104-grid">
+            <article class="table-card iva-panel goods-panel">
+                <header class="section-header">
+                    <div>
+                        <h2>Casilleros bienes</h2>
+                        <p>Venta de bienes gravados y no gravados segun tipo de item inventariable.</p>
+                    </div>
+                </header>
+                <div class="iva-summary-list">
+                    @RenderTarifaRow("Bienes tarifa 0%", consolidado.VentasBienes.Base0, 0m)
+                    @RenderHighlightRow("Bienes gravados tarifa diferente de 0%", consolidado.VentasBienes.BaseTarifaDiferenteCero, consolidado.VentasBienes.IvaTarifaDiferenteCero)
+                </div>
+            </article>
+
+            <article class="table-card iva-panel services-panel">
+                <header class="section-header">
+                    <div>
+                        <h2>Casilleros servicios</h2>
+                        <p>Prestacion de servicios gravados y no gravados para lectura tributaria.</p>
+                    </div>
+                </header>
+                <div class="iva-summary-list">
+                    @RenderTarifaRow("Servicios tarifa 0%", consolidado.VentasServicios.Base0, 0m)
+                    @RenderHighlightRow("Servicios gravados tarifa diferente de 0%", consolidado.VentasServicios.BaseTarifaDiferenteCero, consolidado.VentasServicios.IvaTarifaDiferenteCero)
+                </div>
+            </article>
+        </section>
+
+        <section class="table-card services-performance-card">
+            <header class="section-header">
+                <div>
+                    <h2>Rendimiento operativo de servicios</h2>
+                    <p>Total facturado en servicios filtrable por punto de emision o cajero.</p>
+                </div>
+                <span class="ia-pill">@consolidado.ServiciosOperativos.FacturasProcesadas factura(s)</span>
+            </header>
+            <div class="result-grid services-result-grid">
+                <div class="result-box result-box-accent">
+                    <span>Total servicios</span>
+                    <strong>@consolidado.ServiciosOperativos.TotalFacturadoServicios.ToString("C2")</strong>
+                </div>
+                <div class="result-box">
+                    <span>Punto de emision</span>
+                    <strong>@(string.IsNullOrWhiteSpace(consolidado.ServiciosOperativos.PuntoEmision) ? "Todos" : consolidado.ServiciosOperativos.PuntoEmision)</strong>
+                </div>
+                <div class="result-box">
+                    <span>Cajero</span>
+                    <strong>@(string.IsNullOrWhiteSpace(consolidado.ServiciosOperativos.Cajero) ? "Todos" : consolidado.ServiciosOperativos.Cajero)</strong>
+                </div>
+            </div>
         </section>
 
         <section class="table-card iva-result-card">

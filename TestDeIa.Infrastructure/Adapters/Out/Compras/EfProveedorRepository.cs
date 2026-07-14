@@ -168,8 +168,6 @@ public sealed class EfProveedorRepository : IProveedorRepository
             entity.Persona.DireccionPrincipal,
             entity.Persona.CorreoElectronicoPrincipal,
             entity.Persona.TelefonoCelular,
-            entity.Persona.FechaNacimiento,
-            entity.Persona.Genero,
             entity.CodigoRetencionIvaDefault,
             entity.CodigoRetencionRentaDefault,
             entity.PermiteCredito,

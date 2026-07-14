@@ -19,11 +19,16 @@ public sealed class FinancieroController : ControllerBase
 
     [HttpGet("iva-mensual")]
     [Authorize(Policy = SecurityPolicyNames.FinancieroIva)]
-    public async Task<IActionResult> GetIvaMensual([FromQuery] int mes, [FromQuery] int anio, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetIvaMensual(
+        [FromQuery] int mes,
+        [FromQuery] int anio,
+        [FromQuery] string? puntoEmision,
+        [FromQuery] string? cajero,
+        CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await financieroReportesUseCase.ObtenerConsolidadoIvaAsync(mes, anio, cancellationToken));
+            return Ok(await financieroReportesUseCase.ObtenerConsolidadoIvaAsync(mes, anio, puntoEmision, cajero, cancellationToken));
         }
         catch (InvalidOperationException exception)
         {

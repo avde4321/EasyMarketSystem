@@ -17,7 +17,7 @@ public sealed class ProductoEntity
 
     public decimal PrecioVenta { get; set; }
 
-    public decimal StockMinimo { get; set; }
+    public decimal? StockMinimo { get; set; }
 
     public decimal CostoPromedio { get; set; }
 
@@ -32,3 +32,4 @@ public sealed class ProductoEntity
     public ICollection<ProductoBodegaEntity> ProductosBodega { get; set; } = [];
     public ICollection<KardexMovimientoEntity> KardexMovimientos { get; set; } = [];
 }
+

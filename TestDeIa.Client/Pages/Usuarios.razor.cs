@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Security;
 using TestDeIa.Client.Services.Catalogos;
+using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Client.Services.Personas;
 using TestDeIa.Client.Services.Security;
 using TestDeIa.Shared.Requests.Security;
@@ -23,6 +24,9 @@ public partial class Usuarios
 
     [Inject]
     private PersonasApiClient PersonasApiClient { get; set; } = default!;
+
+    [Inject]
+    private EmpresaApiClient EmpresaApiClient { get; set; } = default!;
 
     private SecurityUserAdminApiClient UserAdminApiClient => new(HttpClient);
 
@@ -54,6 +58,7 @@ public partial class Usuarios
     private string? profileErrorMessage;
     private string searchTerm = string.Empty;
     private string? pendingState;
+    private string currentEmpresaLabel = "Sin empresa activa";
     private SecurityUserResponse? profileUser;
     private string stateConfirmationMessage = string.Empty;
     private const int PageSize = 10;
@@ -75,6 +80,7 @@ public partial class Usuarios
     protected override async Task OnInitializedAsync()
     {
         await LoadLookupsAsync();
+        await LoadCurrentEmpresaAsync();
         await LoadUsersAsync(resetPaging: true);
     }
 
@@ -87,6 +93,21 @@ public partial class Usuarios
         roles.AddRange(await SecurityApiClient.GetRolesAsync());
         tiposIdentificacion.AddRange(await CatalogosApiClient.GetItemsAsync("TIPO_IDENTIFICACION", true));
         puntosEmisionDisponibles.AddRange(await UserAdminApiClient.GetPuntosEmisionAsync());
+    }
+
+    private async Task LoadCurrentEmpresaAsync()
+    {
+        try
+        {
+            var empresa = await EmpresaApiClient.GetCurrentAsync();
+            currentEmpresaLabel = empresa is null
+                ? "Sin empresa activa"
+                : $"{empresa.RazonSocial} - {empresa.Ruc}";
+        }
+        catch (HttpRequestException)
+        {
+            currentEmpresaLabel = "Sin empresa activa";
+        }
     }
 
     private async Task LoadUsersAsync(bool resetPaging = false)
@@ -390,6 +411,16 @@ public partial class Usuarios
         return Task.CompletedTask;
     }
 
+    private Task OpenToggleStateModal(SecurityUserResponse user)
+    {
+        profileUser = user;
+        var targetState = user.Estado == SecurityUserEstados.Activo
+            ? SecurityUserEstados.Inactivo
+            : SecurityUserEstados.Activo;
+
+        return OpenStateModalAsync(targetState);
+    }
+
     private async Task SaveProfileAsync()
     {
         if (profileUser is null)
@@ -568,5 +599,13 @@ public partial class Usuarios
             _ => "status-pill soft-pill"
         };
 }
+
+
+
+
+
+
+
+
 
 

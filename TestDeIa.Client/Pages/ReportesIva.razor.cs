@@ -24,6 +24,8 @@ public partial class ReportesIva
     private IReadOnlyCollection<string> analysisParagraphs = Array.Empty<string>();
     private int selectedMes = DateTime.Now.Month;
     private int selectedAnio = DateTime.Now.Year;
+    private string puntoEmisionFiltro = string.Empty;
+    private string cajeroFiltro = string.Empty;
     private bool isLoading;
     private bool isLoaded;
     private string? errorMessage;
@@ -40,7 +42,7 @@ public partial class ReportesIva
 
         try
         {
-            consolidado = await FinancieroApiClient.GetConsolidadoIvaAsync(selectedMes, selectedAnio);
+            consolidado = await FinancieroApiClient.GetConsolidadoIvaAsync(selectedMes, selectedAnio, puntoEmisionFiltro, cajeroFiltro);
             analysisParagraphs = consolidado.RazonamientoIA
                 .Split([Environment.NewLine + Environment.NewLine], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             isLoaded = true;

@@ -10,6 +10,7 @@ using TestDeIa.Infrastructure.Persistence.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Security;
 using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Facturacion;
@@ -96,8 +97,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .Where(producto =>
                 producto.IsActive &&
                 (producto.Codigo.Contains(normalizedTerm) ||
-                 producto.Nombre.Contains(normalizedTerm)))
-            ;
+                 producto.Nombre.Contains(normalizedTerm) ||
+                 (producto.Descripcion != null && producto.Descripcion.Contains(normalizedTerm))));
 
         var totalCount = await query.CountAsync(cancellationToken);
         var productos = await query
@@ -137,10 +138,27 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             return Array.Empty<PosPuntoEmisionResponse>();
         }
 
-        var puntos = await dbContext.EmpresaPuntosEmision
+        var usuarioId = tenantContextAccessor.UserId;
+        var roles = await GetCurrentUserRolesAsync(cancellationToken);
+        var isAdmin = roles.Contains(SecurityRoleNames.Administrador, StringComparer.OrdinalIgnoreCase);
+        var isCajero = roles.Contains(SecurityRoleNames.Cajero, StringComparer.OrdinalIgnoreCase);
+
+        var query = dbContext.EmpresaPuntosEmision
             .AsNoTracking()
             .Include(current => current.Bodega)
-            .Where(current => current.EmpresaEmisoraId == empresaActivaId.Value)
+            .Where(current => current.EmpresaEmisoraId == empresaActivaId.Value);
+
+        if (!isAdmin && isCajero && usuarioId.HasValue)
+        {
+            var puntosPermitidos = dbContext.Set<SecurityUserPuntoEmisionEntity>()
+                .AsNoTracking()
+                .Where(current => current.SecurityUserId == usuarioId.Value && current.EmpresaId == empresaActivaId.Value)
+                .Select(current => current.EmpresaPuntoEmisionId);
+
+            query = query.Where(current => puntosPermitidos.Contains(current.Id));
+        }
+
+        var puntos = await query
             .OrderByDescending(current => current.IsDefault)
             .ThenBy(current => current.Establecimiento)
             .ThenBy(current => current.PuntoEmision)
@@ -194,6 +212,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 cancellationToken)
             ?? throw new InvalidOperationException("El establecimiento y punto de emision seleccionados no pertenecen a la empresa activa.");
 
+        await EnsurePuntoEmisionAllowedForCurrentUserAsync(usuarioId, empresaActivaId, puntoEmision.Id, cancellationToken);
+
         if (!puntoEmision.Bodega.IsActive)
         {
             throw new InvalidOperationException($"La bodega {puntoEmision.Bodega.Nombre} asociada al punto de emision no se encuentra activa.");
@@ -212,7 +232,10 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             {
                 ProductoId = group.Key,
                 Cantidad = group.Sum(item => item.Cantidad),
-                Descuento = group.Sum(item => item.Descuento)
+                Descuento = group.Sum(item => item.Descuento),
+                PrecioUnitarioOverride = group
+                    .Select(item => item.PrecioUnitarioOverride)
+                    .LastOrDefault(value => value.HasValue)
             })
             .ToArray();
 
@@ -300,7 +323,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre}.");
             }
 
-            var subtotalBruto = Math.Round(item.Cantidad * producto.PrecioVenta, 2);
+            var precioUnitario = producto.ControlaStock ? producto.PrecioVenta : item.PrecioUnitarioOverride ?? producto.PrecioVenta;
+            var subtotalBruto = Math.Round(item.Cantidad * precioUnitario, 2);
             var descuento = Math.Round(item.Descuento, 2);
             if (descuento > subtotalBruto)
             {
@@ -321,7 +345,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 CodigoIva = producto.CodigoIva,
                 PorcentajeIva = producto.PorcentajeIva,
                 Cantidad = item.Cantidad,
-                PrecioUnitario = producto.PrecioVenta,
+                PrecioUnitario = precioUnitario,
                 Descuento = descuento,
                 Subtotal = subtotal,
                 IvaValor = ivaValor,
@@ -823,6 +847,49 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         }
     }
 
+    private async Task EnsurePuntoEmisionAllowedForCurrentUserAsync(
+        Guid usuarioId,
+        Guid empresaId,
+        Guid puntoEmisionId,
+        CancellationToken cancellationToken)
+    {
+        var roles = await GetCurrentUserRolesAsync(cancellationToken);
+        if (roles.Contains(SecurityRoleNames.Administrador, StringComparer.OrdinalIgnoreCase) ||
+            !roles.Contains(SecurityRoleNames.Cajero, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var isAllowed = await dbContext.Set<SecurityUserPuntoEmisionEntity>()
+            .AsNoTracking()
+            .AnyAsync(current =>
+                current.SecurityUserId == usuarioId &&
+                current.EmpresaId == empresaId &&
+                current.EmpresaPuntoEmisionId == puntoEmisionId,
+                cancellationToken);
+
+        if (!isAllowed)
+        {
+            throw new InvalidOperationException("El cajero autenticado no tiene permiso para operar con el punto de emision seleccionado.");
+        }
+    }
+
+    private async Task<IReadOnlyCollection<string>> GetCurrentUserRolesAsync(CancellationToken cancellationToken)
+    {
+        var usuarioId = tenantContextAccessor.UserId;
+        if (!usuarioId.HasValue)
+        {
+            return Array.Empty<string>();
+        }
+
+        return await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(current => current.Id == usuarioId.Value)
+            .SelectMany(current => current.UserRoles.Select(userRole => userRole.Role.Name))
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
     private static string ToAuditMessage(string mensaje, string? auditoriaJson)
     {
         var value = string.IsNullOrWhiteSpace(auditoriaJson) ? mensaje : auditoriaJson;
@@ -1033,3 +1100,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         return await ResolvePrincipalBodegaIdAsync(cancellationToken);
     }
 }
+
+
+
+
+

@@ -13,8 +13,6 @@ public sealed class Proveedor
         string direccionPrincipal,
         string? correoElectronicoPrincipal,
         string? telefonoCelular,
-        DateOnly? fechaNacimiento,
-        string? genero,
         string codigoRetencionIvaDefault,
         string codigoRetencionRentaDefault,
         bool permiteCredito,
@@ -37,8 +35,6 @@ public sealed class Proveedor
         DireccionPrincipal = direccionPrincipal;
         CorreoElectronicoPrincipal = correoElectronicoPrincipal;
         TelefonoCelular = telefonoCelular;
-        FechaNacimiento = fechaNacimiento;
-        Genero = genero;
         CodigoRetencionIvaDefault = codigoRetencionIvaDefault;
         CodigoRetencionRentaDefault = codigoRetencionRentaDefault;
         PermiteCredito = permiteCredito;
@@ -63,8 +59,6 @@ public sealed class Proveedor
     public string DireccionPrincipal { get; }
     public string? CorreoElectronicoPrincipal { get; }
     public string? TelefonoCelular { get; }
-    public DateOnly? FechaNacimiento { get; }
-    public string? Genero { get; }
     public string CodigoRetencionIvaDefault { get; }
     public string CodigoRetencionRentaDefault { get; }
     public bool PermiteCredito { get; }

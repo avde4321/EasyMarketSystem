@@ -112,14 +112,16 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<SecurityUserEmpresaEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.SecurityUserId == tenantContextAccessor.UserId.Value));
+                entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<EmpresaEmisoraEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.OwnerUserId == tenantContextAccessor.UserId.Value));
+                (tenantContextAccessor.UserId.HasValue && entity.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
         modelBuilder.Entity<EmpresaPuntoEmisionEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.Empresa.OwnerUserId == tenantContextAccessor.UserId.Value));
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
     }
 }
+
+

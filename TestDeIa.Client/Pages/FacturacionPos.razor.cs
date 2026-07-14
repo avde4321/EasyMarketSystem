@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using TestDeIa.Client.Services.Caja;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Catalogos;
@@ -7,6 +9,7 @@ using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Client.Pages;
 
@@ -23,6 +26,9 @@ public partial class FacturacionPos : IDisposable
 
     [Inject]
     private CajaApiClient CajaApiClient { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private readonly List<PosClienteResponse> clienteResults = [];
     private readonly List<PosProductoResponse> productoResults = [];
@@ -42,6 +48,7 @@ public partial class FacturacionPos : IDisposable
     private string? statusMessage;
     private bool isCajaLoading;
     private bool hasCajaActiva;
+    private bool canEditServicePrice;
     private const int SearchPageSize = 8;
     private int clienteSkip;
     private int productoSkip;
@@ -56,9 +63,23 @@ public partial class FacturacionPos : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        await ResolveCurrentUserCapabilitiesAsync();
         await LoadCatalogosAsync();
         await LoadPuntosEmisionAsync();
         await LoadCajaStateAsync();
+    }
+
+    private async Task ResolveCurrentUserCapabilitiesAsync()
+    {
+        if (AuthenticationStateTask is null)
+        {
+            canEditServicePrice = false;
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateTask;
+        var user = authenticationState.User;
+        canEditServicePrice = user.Identity?.IsAuthenticated == true && user.IsInRole(SecurityRoleNames.Administrador);
     }
 
     private async Task LoadCatalogosAsync()
@@ -76,6 +97,7 @@ public partial class FacturacionPos : IDisposable
         if (puntosEmision.Count == 0)
         {
             errorMessage = "La empresa activa no tiene puntos de emision configurados. Debes parametrizarlos antes de facturar.";
+            statusMessage = null;
             showOperationalContextModal = false;
             selectedPuntoEmision = null;
             return;
@@ -232,8 +254,24 @@ public partial class FacturacionPos : IDisposable
             Nombre = producto.Nombre,
             PrecioVenta = producto.PrecioVenta,
             PorcentajeIva = producto.PorcentajeIva,
+            ControlaStock = producto.ControlaStock,
             Cantidad = 1
         });
+    }
+
+    private void IncrementQuantity(CartItemModel item)
+    {
+        item.Cantidad += 1;
+    }
+
+    private void DecrementQuantity(CartItemModel item)
+    {
+        if (item.Cantidad <= 1)
+        {
+            return;
+        }
+
+        item.Cantidad -= 1;
     }
 
     private void RemoveProducto(Guid productoId)
@@ -279,6 +317,12 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        if (cartItems.Any(item => item.IsService && item.PrecioVenta < 0))
+        {
+            errorMessage = "El precio de los servicios no puede ser negativo.";
+            return;
+        }
+
         isSubmitting = true;
 
         try
@@ -294,7 +338,8 @@ public partial class FacturacionPos : IDisposable
                 Items = cartItems.Select(item => new EmitirFacturaDetalleRequest
                 {
                     ProductoId = item.ProductoId,
-                    Cantidad = item.Cantidad
+                    Cantidad = item.Cantidad,
+                    PrecioUnitarioOverride = item.IsService ? item.PrecioVenta : null
                 }).ToArray()
             });
 
@@ -381,6 +426,12 @@ public partial class FacturacionPos : IDisposable
 
     private decimal GetCartIva() => cartItems.Sum(item => item.IvaValor);
 
+    private decimal GetCartSubtotalByRate(decimal rate)
+        => cartItems.Where(item => item.PorcentajeIva == rate).Sum(item => item.Subtotal);
+
+    private decimal GetCartIvaByRate(decimal rate)
+        => cartItems.Where(item => item.PorcentajeIva == rate).Sum(item => item.IvaValor);
+
     private decimal GetCartTotal() => cartItems.Sum(item => item.Total);
 
     public void Dispose()
@@ -401,6 +452,8 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        errorMessage = null;
+        statusMessage = null;
         showOperationalContextModal = false;
     }
 
@@ -438,6 +491,10 @@ public partial class FacturacionPos : IDisposable
         public decimal PrecioVenta { get; set; }
 
         public decimal PorcentajeIva { get; set; }
+
+        public bool ControlaStock { get; set; }
+
+        public bool IsService => !ControlaStock;
 
         public decimal Subtotal => Math.Round(Cantidad * PrecioVenta, 2);
 

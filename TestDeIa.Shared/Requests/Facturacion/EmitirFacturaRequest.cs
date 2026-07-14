@@ -38,4 +38,7 @@ public sealed class EmitirFacturaDetalleRequest
 
     [Range(0, 999999999, ErrorMessage = "El descuento no puede ser negativo.")]
     public decimal Descuento { get; set; }
+
+    [Range(0, 999999999, ErrorMessage = "El precio unitario no puede ser negativo.")]
+    public decimal? PrecioUnitarioOverride { get; set; }
 }

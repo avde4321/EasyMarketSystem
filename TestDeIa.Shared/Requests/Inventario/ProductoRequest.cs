@@ -26,7 +26,7 @@ public sealed class ProductoRequest
     public decimal PrecioVenta { get; set; }
 
     [Range(0, 999999999, ErrorMessage = "El stock minimo no puede ser negativo.")]
-    public decimal StockMinimo { get; set; }
+    public decimal? StockMinimo { get; set; }
 
     [Range(0, 999999999, ErrorMessage = "El costo inicial no puede ser negativo.")]
     public decimal CostoInicial { get; set; }
@@ -38,3 +38,4 @@ public sealed class ProductoRequest
 
     public bool IsActive { get; set; } = true;
 }
+

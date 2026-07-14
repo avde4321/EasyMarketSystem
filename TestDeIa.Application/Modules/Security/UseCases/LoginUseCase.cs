@@ -92,6 +92,7 @@ public sealed class LoginUseCase : ILoginUseCase
             user.Id,
             user.UserName,
             user.DisplayName,
+            user.Identification,
             user.Email,
             user.EmpresasAcceso.FirstOrDefault(current => current.IsDefault)?.EmpresaId ?? user.EmpresasAcceso.FirstOrDefault()?.EmpresaId,
             user.Roles,

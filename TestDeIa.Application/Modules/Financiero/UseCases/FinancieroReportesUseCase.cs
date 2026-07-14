@@ -24,7 +24,12 @@ public sealed class FinancieroReportesUseCase : IFinancieroReportesUseCase
         this.tenantContextAccessor = tenantContextAccessor;
     }
 
-    public async Task<ConsolidadoIvaMensualResponse> ObtenerConsolidadoIvaAsync(int mes, int anio, CancellationToken cancellationToken = default)
+    public async Task<ConsolidadoIvaMensualResponse> ObtenerConsolidadoIvaAsync(
+        int mes,
+        int anio,
+        string? puntoEmision = null,
+        string? cajero = null,
+        CancellationToken cancellationToken = default)
     {
         if (mes is < 1 or > 12)
         {
@@ -36,7 +41,7 @@ public sealed class FinancieroReportesUseCase : IFinancieroReportesUseCase
             throw new InvalidOperationException("El anio solicitado no es valido.");
         }
 
-        var consolidadoBase = await financieroReportesRepository.ObtenerConsolidadoIvaAsync(mes, anio, cancellationToken);
+        var consolidadoBase = await financieroReportesRepository.ObtenerConsolidadoIvaAsync(mes, anio, puntoEmision, cajero, cancellationToken);
         var memoriasHistoricas = await financieroReportesRepository.ObtenerMemoriasHistoricasAsync(mes, anio, 3, cancellationToken);
         var analisis = analizadorFiscalIAService.Analizar(consolidadoBase, memoriasHistoricas);
 
@@ -45,7 +50,10 @@ public sealed class FinancieroReportesUseCase : IFinancieroReportesUseCase
             Mes = consolidadoBase.Mes,
             Anio = consolidadoBase.Anio,
             Ventas = consolidadoBase.Ventas,
+            VentasBienes = consolidadoBase.VentasBienes,
+            VentasServicios = consolidadoBase.VentasServicios,
             Compras = consolidadoBase.Compras,
+            ServiciosOperativos = consolidadoBase.ServiciosOperativos,
             RazonamientoIA = analisis.RazonamientoIA,
             ContextoPrevioUtilizado = analisis.ContextoPrevioUtilizado,
             TieneAprendizajeAcumulado = analisis.TieneAprendizajeAcumulado
@@ -66,11 +74,14 @@ public sealed class FinancieroReportesUseCase : IFinancieroReportesUseCase
                 ResumenNumericoJson = JsonSerializer.Serialize(new
                 {
                     VentasBaseTarifaDiferenteCero = consolidado.Ventas.BaseTarifaDiferenteCero,
+                    VentasBienesBaseTarifaDiferenteCero = consolidado.VentasBienes.BaseTarifaDiferenteCero,
+                    VentasServiciosBaseTarifaDiferenteCero = consolidado.VentasServicios.BaseTarifaDiferenteCero,
                     ComprasBaseTarifaDiferenteCero = consolidado.Compras.BaseTarifaDiferenteCero,
                     consolidado.DebitoFiscal,
                     consolidado.CreditoFiscal,
                     consolidado.IvaNetoPagar,
-                    consolidado.CreditoTributario
+                    consolidado.CreditoTributario,
+                    consolidado.ServiciosOperativos.TotalFacturadoServicios
                 }),
                 RazonamientoIA = consolidado.RazonamientoIA,
                 ContextoPrevioUtilizado = consolidado.ContextoPrevioUtilizado,
@@ -84,7 +95,16 @@ public sealed class FinancieroReportesUseCase : IFinancieroReportesUseCase
             Mes = consolidado.Mes,
             Anio = consolidado.Anio,
             Ventas = MapTarifa(consolidado.Ventas),
+            VentasBienes = MapTarifa(consolidado.VentasBienes),
+            VentasServicios = MapTarifa(consolidado.VentasServicios),
             Compras = MapTarifa(consolidado.Compras),
+            ServiciosOperativos = new ConsolidadoIvaServiciosOperativosResponse
+            {
+                PuntoEmision = consolidado.ServiciosOperativos.PuntoEmision,
+                Cajero = consolidado.ServiciosOperativos.Cajero,
+                TotalFacturadoServicios = consolidado.ServiciosOperativos.TotalFacturadoServicios,
+                FacturasProcesadas = consolidado.ServiciosOperativos.FacturasProcesadas
+            },
             RazonamientoIA = consolidado.RazonamientoIA,
             ContextoPrevioUtilizado = consolidado.ContextoPrevioUtilizado,
             TieneAprendizajeAcumulado = consolidado.TieneAprendizajeAcumulado,

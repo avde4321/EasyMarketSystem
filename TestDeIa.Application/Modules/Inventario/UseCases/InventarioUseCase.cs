@@ -119,7 +119,7 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.PorcentajeIva,
             request.PrecioVenta,
             0,
-            request.ControlaStock ? request.StockMinimo : 0,
+            request.ControlaStock ? request.StockMinimo ?? 0 : null,
             0,
             request.ControlaStock,
             request.IsActive,
@@ -157,7 +157,7 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.PorcentajeIva,
             request.PrecioVenta,
             current.StockActual,
-            request.ControlaStock ? request.StockMinimo : 0,
+            request.ControlaStock ? request.StockMinimo ?? 0 : null,
             current.CostoPromedio,
             request.ControlaStock,
             request.IsActive,
@@ -432,9 +432,19 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("El porcentaje de IVA debe estar entre 0 y 100.");
         }
 
-        if (request.PrecioVenta < 0 || request.StockMinimo < 0 || request.StockInicial < 0 || request.CostoInicial < 0)
+        if (request.PrecioVenta < 0 || request.StockInicial < 0 || request.CostoInicial < 0)
         {
             throw new InvalidOperationException("Los valores de inventario no pueden ser negativos.");
+        }
+
+        if (request.ControlaStock && request.StockMinimo is null)
+        {
+            throw new InvalidOperationException("El stock minimo es obligatorio para items inventariables.");
+        }
+
+        if (request.StockMinimo.HasValue && request.StockMinimo.Value < 0)
+        {
+            throw new InvalidOperationException("El stock minimo no puede ser negativo.");
         }
     }
 
@@ -485,3 +495,4 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
+

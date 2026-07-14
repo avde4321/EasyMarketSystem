@@ -37,7 +37,8 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
             .HasPrecision(18, 6);
 
         builder.Property(producto => producto.StockMinimo)
-            .HasPrecision(18, 4);
+            .HasPrecision(18, 4)
+            .IsRequired(false);
 
         builder.Property(producto => producto.CostoPromedio)
             .HasPrecision(18, 6);

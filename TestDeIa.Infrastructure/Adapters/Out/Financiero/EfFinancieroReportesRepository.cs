@@ -1,5 +1,5 @@
-using TestDeIa.Application.Common;
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Financiero.Ports.Out;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Domain.Modules.Financiero.Entities;
@@ -19,27 +19,39 @@ public sealed class EfFinancieroReportesRepository : IFinancieroReportesReposito
         this.tenantContextAccessor = tenantContextAccessor;
     }
 
-    public async Task<ConsolidadoIvaMensual> ObtenerConsolidadoIvaAsync(int mes, int anio, CancellationToken cancellationToken = default)
+    public async Task<ConsolidadoIvaMensual> ObtenerConsolidadoIvaAsync(
+        int mes,
+        int anio,
+        string? puntoEmision = null,
+        string? cajero = null,
+        CancellationToken cancellationToken = default)
     {
-        var ventas = await dbContext.Facturas
-            .AsNoTracking()
-            .Where(current =>
-                current.FechaEmision.Year == anio &&
-                current.FechaEmision.Month == mes &&
-                current.Estado == FacturaEstado.AUTORIZADO)
-            .GroupBy(_ => 1)
-            .Select(group => new ConsolidadoIvaTarifa
+        var ventasDetallesQuery =
+            from factura in dbContext.Facturas.AsNoTracking()
+            where factura.FechaEmision.Year == anio &&
+                  factura.FechaEmision.Month == mes &&
+                  factura.Estado == FacturaEstado.AUTORIZADO
+            from detalle in factura.Detalles
+            join producto in dbContext.Productos.AsNoTracking() on detalle.ProductoId equals producto.Id
+            join usuario in dbContext.SecurityUsers.AsNoTracking() on factura.UsuarioId equals usuario.Id into usuarios
+            from usuario in usuarios.DefaultIfEmpty()
+            select new VentaDetalleFiscalProjection
             {
-                Base0 = Math.Round(group.Sum(item => item.SubtotalIva0), 2, MidpointRounding.AwayFromZero),
-                Base5 = Math.Round(group.Sum(item => item.SubtotalIva5), 2, MidpointRounding.AwayFromZero),
-                Base8 = Math.Round(group.Sum(item => item.SubtotalIva8), 2, MidpointRounding.AwayFromZero),
-                Base15 = Math.Round(group.Sum(item => item.SubtotalIva15), 2, MidpointRounding.AwayFromZero),
-                Iva5 = Math.Round(group.Sum(item => item.SubtotalIva5 * 0.05m), 2, MidpointRounding.AwayFromZero),
-                Iva8 = Math.Round(group.Sum(item => item.SubtotalIva8 * 0.08m), 2, MidpointRounding.AwayFromZero),
-                Iva15 = Math.Round(group.Sum(item => item.SubtotalIva15 * 0.15m), 2, MidpointRounding.AwayFromZero)
-            })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? new ConsolidadoIvaTarifa();
+                FacturaId = factura.Id,
+                PuntoEmision = factura.PuntoEmision,
+                UsuarioUserName = usuario != null ? usuario.UserName : string.Empty,
+                UsuarioDisplayName = usuario != null ? usuario.DisplayName : string.Empty,
+                UsuarioIdentificacion = usuario != null ? usuario.Persona.Identificacion : string.Empty,
+                ControlaStock = producto.ControlaStock,
+                PorcentajeIva = detalle.PorcentajeIva,
+                BaseImponible = detalle.Subtotal,
+                IvaValor = detalle.IvaValor,
+                TotalLinea = detalle.Total
+            };
+
+        var ventas = await BuildConsolidadoAsync(ventasDetallesQuery, cancellationToken);
+        var ventasBienes = await BuildConsolidadoAsync(ventasDetallesQuery.Where(current => current.ControlaStock), cancellationToken);
+        var ventasServicios = await BuildConsolidadoAsync(ventasDetallesQuery.Where(current => !current.ControlaStock), cancellationToken);
 
         var compras = await dbContext.Compras
             .AsNoTracking()
@@ -61,12 +73,47 @@ public sealed class EfFinancieroReportesRepository : IFinancieroReportesReposito
             .FirstOrDefaultAsync(cancellationToken)
             ?? new ConsolidadoIvaTarifa();
 
+        var serviciosOperativosQuery = ventasDetallesQuery.Where(current => !current.ControlaStock);
+
+        var puntoEmisionNormalizado = puntoEmision?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(puntoEmisionNormalizado))
+        {
+            serviciosOperativosQuery = serviciosOperativosQuery.Where(current => current.PuntoEmision == puntoEmisionNormalizado);
+        }
+
+        var cajeroNormalizado = cajero?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(cajeroNormalizado))
+        {
+            var cajeroUpper = cajeroNormalizado.ToUpperInvariant();
+            serviciosOperativosQuery = serviciosOperativosQuery.Where(current =>
+                current.UsuarioUserName.ToUpper().Contains(cajeroUpper) ||
+                current.UsuarioDisplayName.ToUpper().Contains(cajeroUpper) ||
+                current.UsuarioIdentificacion.Contains(cajeroNormalizado));
+        }
+
+        var serviciosOperativos = new ConsolidadoIvaServiciosOperativos
+        {
+            PuntoEmision = puntoEmisionNormalizado,
+            Cajero = cajeroNormalizado,
+            TotalFacturadoServicios = Math.Round(
+                await serviciosOperativosQuery.SumAsync(current => (decimal?)current.TotalLinea, cancellationToken) ?? 0m,
+                2,
+                MidpointRounding.AwayFromZero),
+            FacturasProcesadas = await serviciosOperativosQuery
+                .Select(current => current.FacturaId)
+                .Distinct()
+                .CountAsync(cancellationToken)
+        };
+
         return new ConsolidadoIvaMensual
         {
             Mes = mes,
             Anio = anio,
             Ventas = ventas,
-            Compras = compras
+            VentasBienes = ventasBienes,
+            VentasServicios = ventasServicios,
+            Compras = compras,
+            ServiciosOperativos = serviciosOperativos
         };
     }
 
@@ -126,6 +173,24 @@ public sealed class EfFinancieroReportesRepository : IFinancieroReportesReposito
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private static async Task<ConsolidadoIvaTarifa> BuildConsolidadoAsync(IQueryable<VentaDetalleFiscalProjection> query, CancellationToken cancellationToken)
+    {
+        return await query
+            .GroupBy(_ => 1)
+            .Select(group => new ConsolidadoIvaTarifa
+            {
+                Base0 = Math.Round(group.Sum(item => item.PorcentajeIva == 0m ? item.BaseImponible : 0m), 2, MidpointRounding.AwayFromZero),
+                Base5 = Math.Round(group.Sum(item => item.PorcentajeIva == 5m ? item.BaseImponible : 0m), 2, MidpointRounding.AwayFromZero),
+                Base8 = Math.Round(group.Sum(item => item.PorcentajeIva == 8m ? item.BaseImponible : 0m), 2, MidpointRounding.AwayFromZero),
+                Base15 = Math.Round(group.Sum(item => item.PorcentajeIva == 15m ? item.BaseImponible : 0m), 2, MidpointRounding.AwayFromZero),
+                Iva5 = Math.Round(group.Sum(item => item.PorcentajeIva == 5m ? item.IvaValor : 0m), 2, MidpointRounding.AwayFromZero),
+                Iva8 = Math.Round(group.Sum(item => item.PorcentajeIva == 8m ? item.IvaValor : 0m), 2, MidpointRounding.AwayFromZero),
+                Iva15 = Math.Round(group.Sum(item => item.PorcentajeIva == 15m ? item.IvaValor : 0m), 2, MidpointRounding.AwayFromZero)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? new ConsolidadoIvaTarifa();
+    }
+
     private static MemoriaAnalisisFiscal Map(MemoriaAnalisisFiscalEntity entity)
     {
         return new MemoriaAnalisisFiscal
@@ -142,5 +207,19 @@ public sealed class EfFinancieroReportesRepository : IFinancieroReportesReposito
             UpdatedAt = entity.UpdatedAt,
             UsuarioModificacionId = entity.UsuarioModificacionId
         };
+    }
+
+    private sealed class VentaDetalleFiscalProjection
+    {
+        public Guid FacturaId { get; init; }
+        public string PuntoEmision { get; init; } = string.Empty;
+        public string UsuarioUserName { get; init; } = string.Empty;
+        public string UsuarioDisplayName { get; init; } = string.Empty;
+        public string UsuarioIdentificacion { get; init; } = string.Empty;
+        public bool ControlaStock { get; init; }
+        public decimal PorcentajeIva { get; init; }
+        public decimal BaseImponible { get; init; }
+        public decimal IvaValor { get; init; }
+        public decimal TotalLinea { get; init; }
     }
 }

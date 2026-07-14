@@ -4,7 +4,7 @@
 }
 
 .iva-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 16rem));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .iva-panels-grid {
@@ -16,6 +16,16 @@
 .iva-panel {
     display: grid;
     gap: 1rem;
+}
+
+.fiscal-104-grid .table-card,
+.goods-panel,
+.services-panel {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 248, 255, 0.72));
+}
+
+.services-panel {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(255, 240, 208, 0.38));
 }
 
 .iva-summary-list {
@@ -56,6 +66,10 @@
     gap: 1rem;
 }
 
+.services-result-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .result-box {
     display: grid;
     gap: 0.4rem;
@@ -73,10 +87,15 @@
 .result-box strong {
     color: #124a75;
     font-size: 1.3rem;
+    overflow-wrap: anywhere;
 }
 
 .result-box-accent {
     background: linear-gradient(145deg, rgba(73, 194, 211, 0.14), rgba(255, 240, 208, 0.4));
+}
+
+.services-performance-card {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 240, 208, 0.32));
 }
 
 .ia-card {
@@ -112,9 +131,16 @@
     line-height: 1.65;
 }
 
+@media (max-width: 1120px) {
+    .iva-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 960px) {
     .iva-panels-grid,
-    .result-grid {
+    .result-grid,
+    .services-result-grid {
         grid-template-columns: 1fr;
     }
 }

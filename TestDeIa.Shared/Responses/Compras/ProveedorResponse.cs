@@ -12,8 +12,6 @@ public sealed class ProveedorResponse
     public string DireccionPrincipal { get; set; } = string.Empty;
     public string? CorreoElectronicoPrincipal { get; set; }
     public string? TelefonoCelular { get; set; }
-    public DateOnly? FechaNacimiento { get; set; }
-    public string? Genero { get; set; }
     public string CodigoRetencionIvaDefault { get; set; } = string.Empty;
     public string CodigoRetencionRentaDefault { get; set; } = string.Empty;
     public bool PermiteCredito { get; set; }

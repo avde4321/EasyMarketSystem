@@ -27,6 +27,7 @@ public sealed class DashboardUseCase : IDashboardUseCase
 
         var resumen = await dashboardAnalyticsRepository.GetResumenMensualAsync(periodoInicio, periodoFin, cancellationToken);
         var topProductos = await dashboardAnalyticsRepository.GetTopProductosVendidosAsync(periodoInicio, periodoFin, 5, cancellationToken);
+        var topServicios = await dashboardAnalyticsRepository.GetTopServiciosVendidosAsync(periodoInicio, periodoFin, 5, cancellationToken);
         var historial = await dashboardAnalyticsRepository.GetConsumoHistoricoAsync(periodoPrediccionInicio, periodoFin, 15, cancellationToken);
         var alertas = await inventarioPredictivoService.PredecirAlertasAsync(historial, cancellationToken);
 
@@ -35,10 +36,13 @@ public sealed class DashboardUseCase : IDashboardUseCase
             ResumenFinanciero = new DashboardFinancialSummaryResponse
             {
                 TotalVentasFacturadas = resumen.TotalVentasFacturadas,
+                VentasInventario = resumen.VentasInventario,
+                IngresosPorServicios = resumen.IngresosPorServicios,
                 TotalComprasRegistradas = resumen.TotalComprasRegistradas,
                 MargenGananciaEstimado = resumen.MargenGananciaEstimado
             },
             TopProductos = topProductos.Select(MapTopProducto).ToArray(),
+            TopServicios = topServicios.Select(MapTopProducto).ToArray(),
             AlertasPredictivas = alertas.Select(MapAlerta).ToArray()
         };
     }

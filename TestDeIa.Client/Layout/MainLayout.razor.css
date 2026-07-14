@@ -20,15 +20,56 @@
 .top-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 1rem;
     min-width: 0;
+    flex-wrap: wrap;
+}
+
+.user-context-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid #d7e9f4;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #f8fcff 0%, #eef8fb 100%);
+    color: #124a75;
+}
+
+.compact-user-card {
+    min-width: 11rem;
+    max-width: 12.5rem;
+}
+
+.user-context-card strong {
+    font-size: 1rem;
+    line-height: 1.1;
+}
+
+.user-context-card small {
+    color: #5a7895;
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.summary-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #4c92d3;
+    text-transform: uppercase;
 }
 
 .company-switch {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    min-width: 18rem;
+    min-width: 16rem;
+    max-width: 23rem;
+    flex: 1 1 18rem;
 }
 
 .company-switch label {
@@ -46,6 +87,7 @@
     color: #124a75;
     padding: 0 0.9rem;
     font-weight: 600;
+    width: 100%;
 }
 
 .mobile-menu-button,
@@ -80,14 +122,11 @@
         align-items: stretch;
     }
 
+    .user-context-card,
     .company-switch {
         min-width: 0;
         width: 100%;
-    }
-
-    .top-accent {
-        width: 100%;
-        text-align: center;
+        max-width: none;
     }
 }
 
@@ -145,13 +184,6 @@
     .company-select {
         width: 100%;
         max-width: 100%;
-    }
-
-    .top-accent {
-        min-height: 2.45rem;
-        padding: 0.55rem 0.8rem;
-        font-size: 0.82rem;
-        white-space: normal;
     }
 }
 

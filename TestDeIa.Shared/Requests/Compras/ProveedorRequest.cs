@@ -30,11 +30,6 @@ public sealed class ProveedorRequest
     [StringLength(40, ErrorMessage = "El telefono celular no puede superar 40 caracteres.")]
     public string? TelefonoCelular { get; set; }
 
-    public DateOnly? FechaNacimiento { get; set; }
-
-    [StringLength(30, ErrorMessage = "El genero no puede superar 30 caracteres.")]
-    public string? Genero { get; set; }
-
     [Required(ErrorMessage = "El codigo de retencion IVA es obligatorio.")]
     [StringLength(20, ErrorMessage = "El codigo de retencion IVA no puede superar 20 caracteres.")]
     public string CodigoRetencionIvaDefault { get; set; } = "0";

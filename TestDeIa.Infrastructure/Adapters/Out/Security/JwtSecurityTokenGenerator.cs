@@ -39,7 +39,8 @@ public sealed class JwtSecurityTokenGenerator : ISecurityTokenGenerator
             new(JwtRegisteredClaimNames.Iat, issuedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.DisplayName),
-            new(ClaimTypes.Email, user.Email)
+            new(ClaimTypes.Email, user.Email),
+            new(SecurityClaimTypes.Identification, user.Identification)
         };
 
         if (user.DefaultEmpresaId.HasValue)

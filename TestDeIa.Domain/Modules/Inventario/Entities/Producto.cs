@@ -11,7 +11,7 @@ public sealed class Producto
         decimal porcentajeIva,
         decimal precioVenta,
         decimal stockActual,
-        decimal stockMinimo,
+        decimal? stockMinimo,
         decimal costoPromedio,
         bool controlaStock,
         bool isActive,
@@ -50,7 +50,7 @@ public sealed class Producto
 
     public decimal StockActual { get; }
 
-    public decimal StockMinimo { get; }
+    public decimal? StockMinimo { get; }
 
     public decimal CostoPromedio { get; }
 
@@ -62,3 +62,4 @@ public sealed class Producto
 
     public DateTimeOffset? UpdatedAt { get; }
 }
+

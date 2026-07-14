@@ -262,7 +262,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     producto.Id,
                     producto.Codigo,
                     producto.Nombre,
-                    producto.StockMinimo,
+                    producto.StockMinimo ?? 0,
                     bodegasActivas.Sum(current => current.StockActual),
                     bodegasActivas);
             })
@@ -937,3 +937,4 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.UpdatedAt);
     }
 }
+

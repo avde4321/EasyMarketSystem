@@ -5,10 +5,21 @@ namespace TestDeIa.Client.Services.Financiero;
 
 public sealed class FinancieroApiClient(HttpClient httpClient)
 {
-    public async Task<ConsolidadoIvaMensualResponse> GetConsolidadoIvaAsync(int mes, int anio)
+    public async Task<ConsolidadoIvaMensualResponse> GetConsolidadoIvaAsync(int mes, int anio, string? puntoEmision = null, string? cajero = null)
     {
-        return await httpClient.GetFromJsonAsync<ConsolidadoIvaMensualResponse>(
-                   $"api/financiero/reportes/iva-mensual?mes={mes}&anio={anio}")
+        var url = $"api/financiero/reportes/iva-mensual?mes={mes}&anio={anio}";
+
+        if (!string.IsNullOrWhiteSpace(puntoEmision))
+        {
+            url += $"&puntoEmision={Uri.EscapeDataString(puntoEmision.Trim())}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(cajero))
+        {
+            url += $"&cajero={Uri.EscapeDataString(cajero.Trim())}";
+        }
+
+        return await httpClient.GetFromJsonAsync<ConsolidadoIvaMensualResponse>(url)
                ?? new ConsolidadoIvaMensualResponse();
     }
 }

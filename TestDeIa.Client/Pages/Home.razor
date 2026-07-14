@@ -29,7 +29,7 @@
     }
     else
     {
-        <section class="kpi-grid">
+        <section class="kpi-grid kpi-grid-extended">
             <article class="kpi-card sales-card">
                 <div class="kpi-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" role="img">
@@ -39,6 +39,28 @@
                 <span class="kpi-label">Ventas facturadas</span>
                 <strong>@overview.ResumenFinanciero.TotalVentasFacturadas.ToString("C2")</strong>
                 <small>Emitidas durante el mes en curso.</small>
+            </article>
+
+            <article class="kpi-card inventory-sales-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M4 7h16v10H4zM8 7V5h8v2M8 17v2h8v-2" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Venta de inventario</span>
+                <strong>@overview.ResumenFinanciero.VentasInventario.ToString("C2")</strong>
+                <small>Bienes inventariables facturados.</small>
+            </article>
+
+            <article class="kpi-card services-card">
+                <div class="kpi-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img">
+                        <path d="M6 18h12M7 14h10M9 10h6M12 4v3m-5 2 2 2m8-2-2 2" />
+                    </svg>
+                </div>
+                <span class="kpi-label">Ingresos por servicios</span>
+                <strong>@overview.ResumenFinanciero.IngresosPorServicios.ToString("C2")</strong>
+                <small>Servicios e intangibles facturados.</small>
             </article>
 
             <article class="kpi-card purchases-card">
@@ -117,6 +139,41 @@
                                 }
                             </tbody>
                         </table>
+                    </div>
+                }
+            </section>
+
+            <section class="dashboard-section top-services-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Top 5 servicios mas vendidos</h2>
+                        <p>Lectura mensual de servicios con barras de participacion.</p>
+                    </div>
+                </header>
+
+                @if (overview.TopServicios.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">Todavia no hay servicios facturados para consolidar un ranking.</div>
+                }
+                else
+                {
+                    <div class="service-bars">
+                        @foreach (var servicio in overview.TopServicios)
+                        {
+                            <article class="service-bar-card">
+                                <div class="service-bar-head">
+                                    <div>
+                                        <strong>@servicio.Nombre</strong>
+                                        <small>@servicio.Codigo</small>
+                                    </div>
+                                    <span>@servicio.TotalVendido.ToString("C2")</span>
+                                </div>
+                                <div class="service-bar-track" aria-hidden="true">
+                                    <div class="service-bar-fill" style="width: @GetTopServiceWidth(servicio)%"></div>
+                                </div>
+                                <small>@servicio.CantidadVendida.ToString("0.##") unidades/servicios facturados</small>
+                            </article>
+                        }
                     </div>
                 }
             </section>

@@ -29,6 +29,22 @@ public partial class Home
         }
     }
 
+    private decimal GetTopServiceWidth(DashboardTopProductoResponse servicio)
+    {
+        if (overview.TopServicios.Count == 0)
+        {
+            return 0m;
+        }
+
+        var maximo = overview.TopServicios.Max(current => current.TotalVendido);
+        if (maximo <= 0m)
+        {
+            return 0m;
+        }
+
+        return Math.Round((servicio.TotalVendido / maximo) * 100m, 2, MidpointRounding.AwayFromZero);
+    }
+
     private static string GetRiskCssClass(string riesgo)
     {
         return riesgo switch

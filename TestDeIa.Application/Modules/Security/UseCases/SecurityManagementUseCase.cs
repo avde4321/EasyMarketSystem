@@ -126,6 +126,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             Guid.NewGuid(),
             Guid.Empty,
             persona.Id,
+            persona.Identificacion,
             request.UserName.Trim(),
             persona.RazonSocialONombresCompletos,
             persona.CorreoElectronicoPrincipal!.Trim(),
@@ -187,6 +188,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             current.Id,
             current.EmpresaId,
             current.PersonaId,
+            updatedPersona.Identificacion,
             request.UserName.Trim(),
             updatedPersona.RazonSocialONombresCompletos,
             updatedPersona.CorreoElectronicoPrincipal!.Trim(),
@@ -396,5 +398,7 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
         return SecurityUserEstados.Activo;
     }
 }
+
+
 
 

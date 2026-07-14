@@ -34,16 +34,29 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
         var totalVentas = await ventasQuery.SumAsync(current => (decimal?)current.Total, cancellationToken) ?? 0m;
         var totalCompras = await comprasQuery.SumAsync(current => (decimal?)current.ImporteTotal, cancellationToken) ?? 0m;
 
-        var costoVentas = await (
+        var detallesVentasQuery =
             from factura in ventasQuery
             from detalle in factura.Detalles
             join producto in dbContext.Productos.AsNoTracking() on detalle.ProductoId equals producto.Id
-            select detalle.Cantidad * producto.CostoPromedio)
-            .SumAsync(current => (decimal?)current, cancellationToken) ?? 0m;
+            select new { detalle, producto };
+
+        var ventasInventario = await detallesVentasQuery
+            .Where(current => current.producto.ControlaStock)
+            .SumAsync(current => (decimal?)current.detalle.Total, cancellationToken) ?? 0m;
+
+        var ingresosPorServicios = await detallesVentasQuery
+            .Where(current => !current.producto.ControlaStock)
+            .SumAsync(current => (decimal?)current.detalle.Total, cancellationToken) ?? 0m;
+
+        var costoVentas = await detallesVentasQuery
+            .Where(current => current.producto.ControlaStock)
+            .SumAsync(current => (decimal?)(current.detalle.Cantidad * current.producto.CostoPromedio), cancellationToken) ?? 0m;
 
         return new DashboardResumenFinanciero
         {
             TotalVentasFacturadas = Math.Round(totalVentas, 2, MidpointRounding.AwayFromZero),
+            VentasInventario = Math.Round(ventasInventario, 2, MidpointRounding.AwayFromZero),
+            IngresosPorServicios = Math.Round(ingresosPorServicios, 2, MidpointRounding.AwayFromZero),
             TotalComprasRegistradas = Math.Round(totalCompras, 2, MidpointRounding.AwayFromZero),
             MargenGananciaEstimado = Math.Round(totalVentas - costoVentas, 2, MidpointRounding.AwayFromZero)
         };
@@ -79,6 +92,40 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
                     grouped.Sum(current => current.detalle.Cantidad * current.producto.CostoPromedio),
                     2,
                     MidpointRounding.AwayFromZero)
+            })
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return items;
+    }
+
+    public async Task<IReadOnlyCollection<DashboardTopProducto>> GetTopServiciosVendidosAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, int take, CancellationToken cancellationToken = default)
+    {
+        var items = await (
+            from factura in dbContext.Facturas.AsNoTracking()
+            where factura.FechaEmision >= periodoInicio &&
+                  factura.FechaEmision < periodoFin &&
+                  (factura.Estado == FacturaEstado.AUTORIZADO || factura.Estado == FacturaEstado.PENDIENTE)
+            from detalle in factura.Detalles
+            join producto in dbContext.Productos.AsNoTracking() on detalle.ProductoId equals producto.Id
+            where !producto.ControlaStock
+            group new { detalle, producto } by new
+            {
+                detalle.ProductoId,
+                detalle.CodigoProducto,
+                detalle.NombreProducto
+            } into grouped
+            orderby grouped.Sum(current => current.detalle.Total) descending,
+                    grouped.Sum(current => current.detalle.Cantidad) descending
+            select new DashboardTopProducto
+            {
+                ProductoId = grouped.Key.ProductoId,
+                Codigo = grouped.Key.CodigoProducto,
+                Nombre = grouped.Key.NombreProducto,
+                CantidadVendida = Math.Round(grouped.Sum(current => current.detalle.Cantidad), 2, MidpointRounding.AwayFromZero),
+                TotalVendido = Math.Round(grouped.Sum(current => current.detalle.Total), 2, MidpointRounding.AwayFromZero),
+                CostoEstimado = 0m,
+                MargenEstimado = Math.Round(grouped.Sum(current => current.detalle.Total), 2, MidpointRounding.AwayFromZero)
             })
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -153,7 +200,7 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
                     NombreProducto = existencia.Producto.Nombre,
                     BodegaNombre = existencia.Bodega.Nombre,
                     StockActual = existencia.StockActual,
-                    StockMinimo = existencia.Producto.StockMinimo,
+                    StockMinimo = existencia.Producto.StockMinimo ?? 0,
                     CostoPromedio = existencia.Producto.CostoPromedio,
                     ConsumosDiarios = consumos
                 };
