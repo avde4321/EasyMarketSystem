@@ -1,0 +1,290 @@
+@page "/contabilidad/registro-asiento"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Requests.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+
+<PageTitle>Registro de Asiento</PageTitle>
+
+<section class="module-page registro-asiento-page">
+    <header class="module-header registro-asiento-header">
+        <div>
+            <h1>Registro manual de asientos</h1>
+            <p>Motor de partida doble y libro diario manual para la empresa activa.</p>
+        </div>
+        <div class="plan-summary-pill">
+            <span>Asientos recientes</span>
+            <strong>@libroDiario.Count</strong>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="status-banner dynamic-status-banner">@statusMessage</div>
+    }
+
+    <section class="table-card registro-asiento-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Nuevo asiento</h2>
+                <p>Agrega líneas contables aceptables y mantén el Debe y Haber cuadrados en tiempo real.</p>
+            </div>
+        </header>
+
+        <EditForm Model="request" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            <div class="form-grid asiento-form-grid">
+                <div class="form-field">
+                    <label>Fecha contable</label>
+                    <InputDate class="form-control" @bind-Value="request.FechaContable" />
+                </div>
+                <div class="form-field">
+                    <label>Estado</label>
+                    <InputSelect class="form-control" @bind-Value="request.Estado">
+                        <option value="Posteado">Posteado</option>
+                        <option value="Borrador">Borrador</option>
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Módulo origen</label>
+                    <InputSelect class="form-control" @bind-Value="request.ModuloOrigen">
+                        <option value="Diario">Diario</option>
+                        <option value="Pos">POS</option>
+                        <option value="Compras">Compras</option>
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Documento soporte</label>
+                    <InputText class="form-control" @bind-Value="request.DocumentoSoporte" />
+                </div>
+                <div class="form-field full">
+                    <label>Concepto</label>
+                    <InputText class="form-control" @bind-Value="request.Concepto" />
+                    <ValidationMessage For="@(() => request.Concepto)" />
+                </div>
+            </div>
+
+            <div class="table-scroll asiento-detail-scroll">
+                <table class="data-table responsive-table pastel-entry-table">
+                    <thead>
+                        <tr>
+                            <th>Cuenta</th>
+                            <th>Debe</th>
+                            <th>Haber</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var index = 0; index < request.Detalles.Count; index++)
+                        {
+                            var detalle = request.Detalles[index];
+                            <tr>
+                                <td data-label="Cuenta">
+                                    <InputSelect class="form-control" @bind-Value="detalle.CuentaContableId">
+                                        <option value="@Guid.Empty">Selecciona una cuenta aceptable</option>
+                                        @foreach (var cuenta in cuentasAceptables)
+                                        {
+                                            <option value="@cuenta.Id">@cuenta.Codigo - @cuenta.Nombre</option>
+                                        }
+                                    </InputSelect>
+                                </td>
+                                <td data-label="Debe">
+                                    <InputNumber class="form-control" @bind-Value="detalle.Debe" @bind-Value:after="StateHasChanged" />
+                                </td>
+                                <td data-label="Haber">
+                                    <InputNumber class="form-control" @bind-Value="detalle.Haber" @bind-Value:after="StateHasChanged" />
+                                </td>
+                                <td data-label="Acciones">
+                                    <button class="danger-button" type="button" @onclick="() => RemoveRow(index)" disabled="@(request.Detalles.Count == 1)">Quitar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="inline-pager compact-inline-actions">
+                <button class="secondary-action" type="button" @onclick="AddRow">Agregar fila</button>
+            </div>
+
+            <div class="totals-grid asiento-totals-grid">
+                <div class="totals-box">
+                    <span>Debe</span>
+                    <strong>@TotalDebe.ToString("0.00")</strong>
+                </div>
+                <div class="totals-box">
+                    <span>Haber</span>
+                    <strong>@TotalHaber.ToString("0.00")</strong>
+                </div>
+                <div class="totals-box @(Diferencia == 0m ? "totals-box-accent" : string.Empty)">
+                    <span>Diferencia</span>
+                    <strong>@Diferencia.ToString("0.00")</strong>
+                </div>
+            </div>
+
+            <footer class="modal-actions inline-modal-actions">
+                <button class="secondary-action" type="button" @onclick="ResetForm">Nuevo</button>
+                <button class="primary-action" type="submit" disabled="@(isSaving || !CanSave)">
+                    @(isSaving ? "Guardando..." : "Guardar")
+                </button>
+            </footer>
+        </EditForm>
+    </section>
+
+    <section class="table-card registro-asiento-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Libro diario reciente</h2>
+                <p>Consulta de los últimos asientos manuales y originados desde otros módulos.</p>
+            </div>
+            <button class="ghost-button" type="button" @onclick="LoadAsync" disabled="@isLoading">@(isLoading ? "Actualizando..." : "Actualizar")</button>
+        </header>
+
+        @if (isLoading && libroDiario.Count == 0)
+        {
+            <div class="empty-state">Cargando libro diario...</div>
+        }
+        else if (libroDiario.Count == 0)
+        {
+            <div class="empty-state">Todavía no existen asientos contables registrados.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Fecha</th>
+                            <th>Concepto</th>
+                            <th>Módulo</th>
+                            <th>Estado</th>
+                            <th>Debe</th>
+                            <th>Haber</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var asiento in libroDiario)
+                        {
+                            <tr>
+                                <td data-label="Número">@asiento.NumeroAsiento</td>
+                                <td data-label="Fecha">@asiento.FechaContable.ToString("yyyy-MM-dd")</td>
+                                <td data-label="Concepto">@asiento.Concepto</td>
+                                <td data-label="Módulo">@asiento.ModuloOrigen</td>
+                                <td data-label="Estado"><span class="status-pill @(asiento.Estado == "Posteado" ? "is-active" : string.Empty)">@asiento.Estado</span></td>
+                                <td data-label="Debe">@asiento.TotalDebe.ToString("0.00")</td>
+                                <td data-label="Haber">@asiento.TotalHaber.ToString("0.00")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly List<CuentaContableResponse> cuentasAceptables = [];
+    private readonly List<AsientoContableResponse> libroDiario = [];
+    private CrearAsientoRequest request = BuildEmptyRequest();
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? statusMessage;
+    private decimal TotalDebe => decimal.Round(request.Detalles.Sum(current => current.Debe), 2, MidpointRounding.AwayFromZero);
+    private decimal TotalHaber => decimal.Round(request.Detalles.Sum(current => current.Haber), 2, MidpointRounding.AwayFromZero);
+    private decimal Diferencia => decimal.Round(TotalDebe - TotalHaber, 2, MidpointRounding.AwayFromZero);
+    private bool CanSave => Diferencia == 0m && request.Detalles.Any(current => current.CuentaContableId != Guid.Empty && (current.Debe > 0m || current.Haber > 0m));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            cuentasAceptables.Clear();
+            cuentasAceptables.AddRange(await ContabilidadApiClient.GetCuentasAceptablesAsync());
+            libroDiario.Clear();
+            libroDiario.AddRange(await ContabilidadApiClient.GetLibroDiarioAsync());
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo cargar la información contable de la empresa activa.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void AddRow() => request.Detalles.Add(new CrearAsientoDetalleRequest());
+
+    private void RemoveRow(int index)
+    {
+        if (request.Detalles.Count == 1)
+        {
+            return;
+        }
+
+        request.Detalles.RemoveAt(index);
+    }
+
+    private void ResetForm()
+    {
+        request = BuildEmptyRequest();
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave)
+        {
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            var numeroAsiento = await ContabilidadApiClient.CrearAsientoAsync(request);
+            statusMessage = $"Asiento {numeroAsiento} registrado correctamente.";
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static CrearAsientoRequest BuildEmptyRequest() => new()
+    {
+        FechaContable = DateTime.Today,
+        Concepto = string.Empty,
+        ModuloOrigen = "Diario",
+        Estado = "Posteado",
+        Detalles = [new CrearAsientoDetalleRequest()]
+    };
+}

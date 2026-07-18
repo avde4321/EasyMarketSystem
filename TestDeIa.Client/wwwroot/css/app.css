@@ -598,6 +598,111 @@ textarea.form-control {
     outline: 1px solid rgba(241, 150, 145, 0.95);
 }
 
+.popup-messages-enabled .alert-message,
+.popup-messages-enabled .feedback-banner,
+.popup-messages-enabled .login-error,
+.popup-messages-enabled .dynamic-status-banner {
+    display: none !important;
+}
+
+.global-popup-stack {
+    position: fixed;
+    top: 1.15rem;
+    right: 1.15rem;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: min(92vw, 24rem);
+    pointer-events: none;
+}
+
+.global-popup {
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.8rem;
+    align-items: start;
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(18, 74, 117, 0.14);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 44px rgba(18, 74, 117, 0.18);
+    backdrop-filter: blur(14px);
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.global-popup.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.global-popup.is-leaving {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+}
+
+.global-popup-content {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.global-popup-content strong {
+    color: var(--text-strong);
+    font-size: 0.83rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.global-popup-content span {
+    color: var(--text-body);
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.global-popup-close {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 1.1rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.global-popup-error {
+    border-color: rgba(241, 150, 145, 0.45);
+    background: linear-gradient(180deg, rgba(255, 245, 245, 0.98), rgba(255, 232, 229, 0.98));
+}
+
+.global-popup-error .global-popup-content strong,
+.global-popup-error .global-popup-close {
+    color: #944246;
+}
+
+.global-popup-success {
+    border-color: rgba(31, 150, 145, 0.32);
+    background: linear-gradient(180deg, rgba(241, 253, 249, 0.98), rgba(223, 247, 239, 0.98));
+}
+
+.global-popup-success .global-popup-content strong,
+.global-popup-success .global-popup-close {
+    color: #1d665f;
+}
+
+.global-popup-info {
+    border-color: rgba(76, 146, 211, 0.28);
+    background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), rgba(232, 242, 250, 0.98));
+}
+
+.global-popup-info .global-popup-content strong,
+.global-popup-info .global-popup-close {
+    color: var(--brand-blue);
+}
 .empty-state,
 .alert-message,
 .status-banner {

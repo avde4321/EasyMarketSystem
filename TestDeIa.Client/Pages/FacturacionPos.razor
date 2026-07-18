@@ -54,7 +54,7 @@
 
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
-        <div class="status-banner">@statusMessage</div>
+        <div class="status-banner dynamic-status-banner">@statusMessage</div>
     }
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -79,7 +79,7 @@
 
                 @if (productoResults.Count > 0)
                 {
-                    <div class="result-list soft-result-list">
+                    <div class="result-list soft-result-list pos-context-list">
                         @foreach (var producto in productoResults)
                         {
                             <button class="result-item product-item soft-product-item" @onclick="() => AddProducto(producto)">
@@ -315,8 +315,8 @@
 @if (showOperationalContextModal)
 {
     <div class="modal-backdrop">
-        <section class="modal-card narrow">
-            <header class="modal-header">
+        <section class="modal-card narrow pos-context-modal">
+            <header class="modal-header pos-context-header">
                 <div>
                     <h2>Selecciona tu punto de venta</h2>
                     <p>El POS queda bloqueado hasta que definas con que establecimiento y punto de emision trabajara esta caja.</p>
@@ -330,10 +330,10 @@
             }
             else
             {
-                <div class="result-list soft-result-list">
+                <div class="result-list soft-result-list pos-context-list">
                     @foreach (var punto in puntosEmision)
                     {
-                        <button class="result-item @(selectedPuntoEmision?.DisplayName == punto.DisplayName ? "is-selected-context" : string.Empty)" type="button" @onclick="() => SelectPuntoEmision(punto)">
+                        <button class="result-item pos-context-item @(selectedPuntoEmision?.DisplayName == punto.DisplayName ? "is-selected-context" : string.Empty)" type="button" @onclick="() => SelectPuntoEmision(punto)">
                             <strong>@punto.DisplayName</strong>
                             <span>@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion registrada" : punto.DireccionEstablecimiento)</span>
                             <small>@($"Bodega: {punto.BodegaNombre ?? "Sin asignar"}")</small>
@@ -343,7 +343,7 @@
                 </div>
             }
 
-            <footer class="modal-actions">
+            <footer class="modal-actions pos-context-actions">
                 <button class="secondary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Cerrar</button>
                 <button class="primary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Usar este punto</button>
             </footer>

@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogoUseCase, CatalogoUseCase>();
         services.AddScoped<ICajaSesionUseCase, CajaSesionUseCase>();
         services.AddScoped<IClienteUseCase, ClienteUseCase>();
+        services.AddScoped<IContabilidadService, ContabilidadService>();
         services.AddScoped<IContabilidadUseCase, ContabilidadUseCase>();
         services.AddScoped<ICompraUseCase, CompraUseCase>();
         services.AddScoped<IEstudioMercadoUseCase, EstudioMercadoUseCase>();
@@ -57,3 +58,4 @@ public static class DependencyInjection
         return services;
     }
 }
+

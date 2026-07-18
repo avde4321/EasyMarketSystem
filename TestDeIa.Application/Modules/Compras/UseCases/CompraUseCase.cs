@@ -1,5 +1,6 @@
 using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Application.Modules.Compras.Ports.Out;
+using TestDeIa.Application.Modules.Contabilidad.Ports.In;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
@@ -23,6 +24,7 @@ public sealed class CompraUseCase : ICompraUseCase
     private readonly IEmpresaRepository empresaRepository;
     private readonly IInventarioRepository inventarioRepository;
     private readonly ICurrentUserAccessor currentUserAccessor;
+    private readonly IContabilidadService contabilidadService;
 
     public CompraUseCase(
         ICompraRepository compraRepository,
@@ -31,7 +33,8 @@ public sealed class CompraUseCase : ICompraUseCase
         IProveedorRepository proveedorRepository,
         IEmpresaRepository empresaRepository,
         IInventarioRepository inventarioRepository,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IContabilidadService contabilidadService)
     {
         this.compraRepository = compraRepository;
         this.cuentaPorPagarRepository = cuentaPorPagarRepository;
@@ -40,6 +43,7 @@ public sealed class CompraUseCase : ICompraUseCase
         this.empresaRepository = empresaRepository;
         this.inventarioRepository = inventarioRepository;
         this.currentUserAccessor = currentUserAccessor;
+        this.contabilidadService = contabilidadService;
     }
 
     public async Task<CompraResponse> RegistrarAsync(RegistrarCompraRequest request, CancellationToken cancellationToken = default)
@@ -194,6 +198,8 @@ public sealed class CompraUseCase : ICompraUseCase
         {
             compraBackgroundQueue.Enqueue(persisted.Id);
         }
+
+        await contabilidadService.GenerarAsientoDesdeOrigenAsync(persisted.Id, "Compras", cancellationToken);
 
         return MapToResponse(persisted);
     }
@@ -430,3 +436,4 @@ public sealed class CompraUseCase : ICompraUseCase
         };
     }
 }
+

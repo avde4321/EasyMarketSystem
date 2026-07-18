@@ -11,22 +11,32 @@ public sealed class CatalogoNiifSeed
         new("1.1", "Activo Corriente", 2, TipoCuentaContable.Activo, false),
         new("1.1.01", "Efectivo y Equivalentes", 3, TipoCuentaContable.Activo, false),
         new("1.1.01.01", "Caja General", 4, TipoCuentaContable.Activo, true),
+        new("1.1.01.02", "Bancos", 4, TipoCuentaContable.Activo, true),
         new("1.1.02", "Cuentas por Cobrar Tributarias", 3, TipoCuentaContable.Activo, false),
         new("1.1.02.01", "Credito Tributario IVA Compras", 4, TipoCuentaContable.Activo, true),
+        new("1.1.03", "Cuentas por Cobrar Comerciales", 3, TipoCuentaContable.Activo, false),
+        new("1.1.03.01", "Cuentas por Cobrar Clientes", 4, TipoCuentaContable.Activo, true),
         new("1.1.04", "Inventarios", 3, TipoCuentaContable.Activo, false),
         new("1.1.04.01", "Inventario de Mercaderias", 4, TipoCuentaContable.Activo, true),
         new("2", "Pasivo", 1, TipoCuentaContable.Pasivo, false),
         new("2.1", "Pasivo Corriente", 2, TipoCuentaContable.Pasivo, false),
+        new("2.1.01", "Cuentas por Pagar Comerciales", 3, TipoCuentaContable.Pasivo, false),
+        new("2.1.01.01", "Cuentas por Pagar Proveedores", 4, TipoCuentaContable.Pasivo, true),
         new("2.1.03", "Impuestos por Pagar", 3, TipoCuentaContable.Pasivo, false),
         new("2.1.03.01", "IVA Ventas por Pagar", 4, TipoCuentaContable.Pasivo, true),
         new("3", "Patrimonio", 1, TipoCuentaContable.Patrimonio, false),
         new("3.1", "Capital", 2, TipoCuentaContable.Patrimonio, false),
         new("4", "Ingresos", 1, TipoCuentaContable.Ingreso, false),
         new("4.1", "Ingresos Operacionales", 2, TipoCuentaContable.Ingreso, false),
+        new("4.1.01", "Ventas", 3, TipoCuentaContable.Ingreso, false),
+        new("4.1.01.01", "Ingreso por Ventas", 4, TipoCuentaContable.Ingreso, true),
         new("5", "Gastos", 1, TipoCuentaContable.Gasto, false),
         new("5.1", "Gastos Administrativos", 2, TipoCuentaContable.Gasto, false),
+        new("5.1.01", "Gastos Operativos", 3, TipoCuentaContable.Gasto, false),
+        new("5.1.01.01", "Gastos por Compras y Servicios", 4, TipoCuentaContable.Gasto, true),
         new("6", "Costos", 1, TipoCuentaContable.Costo, false),
-        new("6.1", "Costo de Ventas", 2, TipoCuentaContable.Costo, false)
+        new("6.1", "Costo de Ventas", 2, TipoCuentaContable.Costo, false),
+        new("6.1.01", "Costo de Ventas - Mercaderias", 3, TipoCuentaContable.Costo, true)
     ];
 
     public IReadOnlyCollection<CuentaContableEntity> BuildForEmpresa(Guid empresaId)

@@ -3,13 +3,16 @@
 
 <PageTitle>Empresa</PageTitle>
 
-<section class="module-page">
+<section class="module-page empresa-page">
     <header class="module-header">
         <div>
             <h1>Mis Empresas</h1>
-            <p>Administra multiples RUCs, firmas .p12 y parametros tributarios por empresa.</p>
+            <p>Administra múltiples RUCs, firmas .p12 y parámetros tributarios por empresa.</p>
         </div>
-        <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
+        <div class="header-actions empresa-header-actions">
+            <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">@(selectedEmpresaId.HasValue ? "Continuar edición" : "Iniciar configuración")</button>
+            <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
+        </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -19,12 +22,45 @@
 
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
-        <div class="status-banner">@statusMessage</div>
+        <div class="status-banner dynamic-status-banner">@statusMessage</div>
     }
+
+    <section class="table-card empresa-summary-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Resumen principal</h2>
+                <p>Consulta la empresa activa y abre el asistente para configurar datos generales, certificado y puntos de emisión.</p>
+            </div>
+            <button class="ghost-button" type="button" @onclick="OpenWorkflowModal">Abrir asistente</button>
+        </header>
+
+        <div class="summary-grid empresa-summary-grid">
+            <div class="summary-card accent">
+                <span>Empresa</span>
+                <strong>@(empresaActual?.RazonSocial ?? "Nueva configuración")</strong>
+                <small>@(empresaActual?.Ruc ?? "Completa la razón social y el RUC en el asistente")</small>
+            </div>
+            <div class="summary-card">
+                <span>Ambiente</span>
+                <strong>@GetAmbienteLabel(empresaRequest.AmbienteSri)</strong>
+                <small>Tipo emisión: @GetTipoEmisionLabel(empresaRequest.TipoEmision)</small>
+            </div>
+            <div class="summary-card">
+                <span>Certificado</span>
+                <strong>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Pendiente" : "Configurado")</strong>
+                <small>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Sube el .p12 en el paso 2" : certificadoNombreArchivoActual)</small>
+            </div>
+            <div class="summary-card">
+                <span>Puntos de emisión</span>
+                <strong>@empresaRequest.PuntosEmision.Count</strong>
+                <small>@GetPuntosResumenDraft()</small>
+            </div>
+        </div>
+    </section>
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razon social, ambiente o puntos de emision..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razón social, ambiente o puntos de emisión..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         <div class="table-scroll">
@@ -32,9 +68,9 @@
                 <thead>
                     <tr>
                         <th>RUC</th>
-                        <th>Razon social</th>
+                        <th>Razón social</th>
                         <th>Ambiente</th>
-                        <th>Emision</th>
+                        <th>Emisión</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
@@ -43,7 +79,7 @@
                     @if (empresas.Count == 0)
                     {
                         <tr>
-                            <td colspan="6" class="empty-state-cell">Todavia no tienes empresas registradas.</td>
+                            <td colspan="6" class="empty-state-cell">Todavía no tienes empresas registradas.</td>
                         </tr>
                     }
                     else
@@ -52,9 +88,9 @@
                         {
                             <tr class="@(selectedEmpresaId == empresa.Id ? "is-selected-row" : string.Empty)">
                                 <td data-label="RUC">@empresa.Ruc</td>
-                                <td data-label="Razon social">@empresa.RazonSocial</td>
+                                <td data-label="Razón social">@empresa.RazonSocial</td>
                                 <td data-label="Ambiente">@GetAmbienteLabel(empresa.AmbienteSri)</td>
-                                <td data-label="Emision">
+                                <td data-label="Emisión">
                                     @GetPuntosResumen(empresa)
                                     <small>@($"{empresa.PuntosEmision.Count} punto(s) configurado(s)")</small>
                                 </td>
@@ -86,144 +122,258 @@
             </footer>
         }
     </section>
+</section>
 
-    <section class="table-card">
-        <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
+@if (showWorkflowModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card empresa-workflow-modal">
+            <header class="modal-header workflow-header">
+                <div>
+                    <h2>@(selectedEmpresaId.HasValue ? "Editar empresa" : "Nueva empresa")</h2>
+                    <p class="modal-subtitle">Avanza y regresa entre pasos sin perder los cambios ya cargados.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseWorkflowModal">x</button>
+            </header>
 
-            @if (empresaActual is not null)
-            {
-                <div class="status-banner">
-                    Empresa actual: @empresaActual.RazonSocial |
-                    Ambiente actual: @GetAmbienteLabel(empresaActual.AmbienteSri) |
-                    Certificado: @(empresaActual.TieneCertificadoConfigurado ? "Configurado" : "Pendiente") |
-                    Estado: @(empresaActual.IsActive ? "Activo" : "Inactivo")
-                </div>
-            }
-
-            <div class="form-grid empresa-grid">
-                <div class="form-field full">
-                    <label>Razon social</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.RazonSocial" />
-                    <ValidationMessage For="@(() => empresaRequest.RazonSocial)" />
-                </div>
-                <div class="form-field full">
-                    <label>Nombre comercial</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.NombreComercial" />
-                </div>
-                <div class="form-field">
-                    <label>RUC</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.Ruc" />
-                    <ValidationMessage For="@(() => empresaRequest.Ruc)" />
-                </div>
-                <div class="form-field">
-                    <label>Ambiente SRI</label>
-                    <InputSelect class="form-control" @bind-Value="empresaRequest.AmbienteSri">
-                        @foreach (var item in ambientesSri)
-                        {
-                            <option value="@item.Codigo">@item.Nombre</option>
-                        }
-                    </InputSelect>
-                    <small class="file-hint">Pruebas usa codigo 1 y Produccion usa codigo 2 en la clave de acceso.</small>
-                </div>
-                <div class="form-field">
-                    <label>Tipo de emision</label>
-                    <InputSelect class="form-control" @bind-Value="empresaRequest.TipoEmision">
-                        @foreach (var item in tiposEmision)
-                        {
-                            <option value="@item.Codigo">@item.Nombre</option>
-                        }
-                    </InputSelect>
-                </div>
-                <div class="form-field">
-                    <label>Modo desarrollo interno</label>
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ModoDesarrollo" />
-                        <span class="form-check-label">Mantener simulacion interna activa</span>
-                    </label>
-                    <small class="file-hint">Si esta activo, la empresa debe permanecer en ambiente de Pruebas.</small>
-                </div>
-                <div class="form-field full">
-                    <label>Direccion matriz</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.DireccionMatriz" />
-                    <ValidationMessage For="@(() => empresaRequest.DireccionMatriz)" />
-                </div>
-                <div class="form-field full">
-                    <div class="puntos-summary-card">
-                        <div>
-                            <label class="summary-label">Puntos de emision</label>
-                            <p class="summary-text">
-                                @(empresaRequest.PuntosEmision.Count == 0
-                                    ? "Todavia no hay puntos configurados."
-                                    : $"{empresaRequest.PuntosEmision.Count} punto(s) configurado(s). Predeterminado: {(empresaRequest.PuntosEmision.FirstOrDefault(p => p.IsDefault)?.Establecimiento ?? "001")}-{(empresaRequest.PuntosEmision.FirstOrDefault(p => p.IsDefault)?.PuntoEmision ?? "001")}")
-                            </p>
-                        </div>
-                        <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Puntos de emision</button>
-                    </div>
-                </div>
-                <div class="form-field">
-                    <label>Obligado a llevar contabilidad</label>
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ObligadoContabilidad" />
-                        <span class="form-check-label">Si</span>
-                    </label>
-                </div>
-                <div class="form-field">
-                    <label>Activo</label>
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.IsActive" />
-                        <span class="form-check-label">Configuracion activa</span>
-                    </label>
-                </div>
-                <div class="form-field">
-                    <label>Contribuyente especial</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.ContribuyenteEspecial" />
-                </div>
-                <div class="form-field">
-                    <label>Regimen RIMPE</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.RegimenRimpe" />
-                </div>
-                <div class="form-field">
-                    <label>Agente de retencion</label>
-                    <InputText class="form-control" @bind-Value="empresaRequest.AgenteRetencionResolucion" />
-                </div>
-                <div class="form-field full">
-                    <label>Certificado .p12</label>
-                    <InputFile class="form-control" OnChange="OnCertificadoSelectedAsync" accept=".p12" />
-                    @if (!string.IsNullOrWhiteSpace(certificadoNombreArchivoActual))
-                    {
-                        <small class="file-hint">
-                            Archivo actual: @certificadoNombreArchivoActual
-                        </small>
-                    }
-                </div>
-                <div class="form-field full">
-                    <label>Clave certificado .p12</label>
-                    <InputText class="form-control" type="password" @bind-Value="empresaRequest.CertificadoClave" />
-                    <small class="file-hint">En Produccion no deberia quedar vacia si la empresa va a emitir.</small>
-                </div>
+            <div class="workflow-stepper empresa-stepper">
+                @for (var step = 0; step < WorkflowSteps.Length; step++)
+                {
+                    var stepNumber = step + 1;
+                    <button class="workflow-step @(CurrentStep == stepNumber ? "is-active" : CurrentStep > stepNumber ? "is-done" : string.Empty)"
+                            type="button"
+                            @onclick="() => GoToStep(stepNumber)">
+                        <span class="workflow-step-index">@stepNumber</span>
+                        <span class="workflow-step-text">@WorkflowSteps[step]</span>
+                    </button>
+                }
             </div>
 
-            <footer class="module-actions">
-                <button class="primary-action" type="submit" disabled="@isSaving">
-                    @(isSaving ? "Guardando..." : (selectedEmpresaId.HasValue ? "Actualizar empresa" : "Crear empresa"))
-                </button>
-            </footer>
-        </EditForm>
-    </section>
-</section>
+            <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <div class="workflow-carousel empresa-workflow-carousel">
+                    @if (CurrentStep == 1)
+                    {
+                        <section class="workflow-panel">
+                            <header class="section-header compact-section-header">
+                                <div>
+                                    <h3>Datos generales</h3>
+                                    <p>Configura la identidad fiscal y operativa principal de la empresa.</p>
+                                </div>
+                            </header>
+
+                            <div class="form-grid empresa-grid">
+                                <div class="form-field full">
+                                    <label>Razón social</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.RazonSocial" />
+                                    <ValidationMessage For="@(() => empresaRequest.RazonSocial)" />
+                                </div>
+                                <div class="form-field full">
+                                    <label>Nombre comercial</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.NombreComercial" />
+                                </div>
+                                <div class="form-field">
+                                    <label>RUC</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.Ruc" />
+                                    <ValidationMessage For="@(() => empresaRequest.Ruc)" />
+                                </div>
+                                <div class="form-field">
+                                    <label>Ambiente SRI</label>
+                                    <InputSelect class="form-control" @bind-Value="empresaRequest.AmbienteSri">
+                                        @foreach (var item in ambientesSri)
+                                        {
+                                            <option value="@item.Codigo">@item.Nombre</option>
+                                        }
+                                    </InputSelect>
+                                    <small class="file-hint">Pruebas usa código 1 y Producción usa código 2 en la clave de acceso.</small>
+                                </div>
+                                <div class="form-field">
+                                    <label>Tipo de emisión</label>
+                                    <InputSelect class="form-control" @bind-Value="empresaRequest.TipoEmision">
+                                        @foreach (var item in tiposEmision)
+                                        {
+                                            <option value="@item.Codigo">@item.Nombre</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="form-field">
+                                    <label>Modo desarrollo interno</label>
+                                    <label class="form-check soft-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ModoDesarrollo" />
+                                        <span class="form-check-label">Mantener simulación interna activa</span>
+                                    </label>
+                                    <small class="file-hint">Si está activo, la empresa debe permanecer en ambiente de Pruebas.</small>
+                                </div>
+                                <div class="form-field full">
+                                    <label>Dirección matriz</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.DireccionMatriz" />
+                                    <ValidationMessage For="@(() => empresaRequest.DireccionMatriz)" />
+                                </div>
+                                <div class="form-field">
+                                    <label>Obligado a llevar contabilidad</label>
+                                    <label class="form-check soft-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ObligadoContabilidad" />
+                                        <span class="form-check-label">Sí</span>
+                                    </label>
+                                </div>
+                                <div class="form-field">
+                                    <label>Activo</label>
+                                    <label class="form-check soft-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.IsActive" />
+                                        <span class="form-check-label">Configuración activa</span>
+                                    </label>
+                                </div>
+                                <div class="form-field">
+                                    <label>Contribuyente especial</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.ContribuyenteEspecial" />
+                                </div>
+                                <div class="form-field">
+                                    <label>Régimen RIMPE</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.RegimenRimpe" />
+                                </div>
+                                <div class="form-field full">
+                                    <label>Agente de retención</label>
+                                    <InputText class="form-control" @bind-Value="empresaRequest.AgenteRetencionResolucion" />
+                                </div>
+                            </div>
+                        </section>
+                    }
+                    else if (CurrentStep == 2)
+                    {
+                        <section class="workflow-panel">
+                            <header class="section-header compact-section-header">
+                                <div>
+                                    <h3>Certificado y emisión</h3>
+                                    <p>Sube el certificado .p12 y define la clave para procesos de emisión electrónica.</p>
+                                </div>
+                            </header>
+
+                            @if (empresaActual is not null)
+                            {
+                                <div class="soft-info-message compact-message">
+                                    Empresa actual: <strong>@empresaActual.RazonSocial</strong> | Certificado: @(empresaActual.TieneCertificadoConfigurado ? "Configurado" : "Pendiente")
+                                </div>
+                            }
+
+                            <div class="form-grid empresa-grid">
+                                <div class="form-field full">
+                                    <label>Certificado .p12</label>
+                                    <InputFile class="form-control" OnChange="OnCertificadoSelectedAsync" accept=".p12" />
+                                    @if (!string.IsNullOrWhiteSpace(certificadoNombreArchivoActual))
+                                    {
+                                        <small class="file-hint">Archivo actual: @certificadoNombreArchivoActual</small>
+                                    }
+                                </div>
+                                <div class="form-field full">
+                                    <label>Clave certificado .p12</label>
+                                    <InputText class="form-control" type="password" @bind-Value="empresaRequest.CertificadoClave" />
+                                    <small class="file-hint">En Producción no debería quedar vacía si la empresa va a emitir.</small>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                    else
+                    {
+                        <section class="workflow-panel">
+                            <header class="section-header compact-section-header">
+                                <div>
+                                    <h3>Puntos de emisión</h3>
+                                    <p>Consulta los puntos actuales y abre el popup específico para crearlos o editarlos con el mismo diseño general.</p>
+                                </div>
+                            </header>
+
+                            <div class="puntos-summary-card">
+                                <div>
+                                    <label class="summary-label">Resumen de puntos</label>
+                                    <p class="summary-text">@GetPuntosResumenDraft()</p>
+                                </div>
+                                <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Elegir punto de emisión</button>
+                            </div>
+
+                            <section class="table-card embedded-card">
+                                <div class="table-scroll workflow-table-scroll">
+                                    <table class="data-table responsive-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Establecimiento</th>
+                                                <th>Punto</th>
+                                                <th>Bodega</th>
+                                                <th>Dirección</th>
+                                                <th>Estado</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (empresaRequest.PuntosEmision.Count == 0)
+                                            {
+                                                <tr>
+                                                    <td colspan="6" class="empty-state-cell">Todavía no has agregado puntos de emisión.</td>
+                                                </tr>
+                                            }
+                                            else
+                                            {
+                                                @for (var index = 0; index < empresaRequest.PuntosEmision.Count; index++)
+                                                {
+                                                    var punto = empresaRequest.PuntosEmision[index];
+                                                    <tr>
+                                                        <td data-label="Establecimiento">@punto.Establecimiento</td>
+                                                        <td data-label="Punto">@punto.PuntoEmision</td>
+                                                        <td data-label="Bodega">@GetBodegaName(punto.BodegaId)</td>
+                                                        <td data-label="Dirección">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin dirección" : punto.DireccionEstablecimiento)</td>
+                                                        <td data-label="Estado">
+                                                            <span class="status-pill @(punto.IsDefault ? "is-active" : string.Empty)">
+                                                                @(punto.IsDefault ? "Predeterminado" : "Secundario")
+                                                            </span>
+                                                        </td>
+                                                        <td data-label="Acciones">
+                                                            <div class="row-actions">
+                                                                <button class="ghost-button" type="button" @onclick="() => EditPuntoEmision(index)">Editar</button>
+                                                                <button class="secondary-action" type="button" @onclick="() => SetDefaultPuntoEmision(index)">Predeterminar</button>
+                                                                <button class="danger-button" type="button" @onclick="() => RemovePuntoEmision(index)">Quitar</button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </section>
+                    }
+                </div>
+
+                <footer class="modal-actions workflow-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseWorkflowModal">Cerrar</button>
+                    <button class="ghost-button" type="button" @onclick="GoPreviousStep" disabled="@(CurrentStep == 1)">Anterior</button>
+                    @if (CurrentStep < WorkflowSteps.Length)
+                    {
+                        <button class="primary-action" type="button" @onclick="GoNextStep">Siguiente</button>
+                    }
+                    else
+                    {
+                        <button class="primary-action" type="submit" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : (selectedEmpresaId.HasValue ? "Actualizar empresa" : "Crear empresa"))
+                        </button>
+                    }
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
 
 @if (showPuntosEmisionModal)
 {
-    <div class="modal-backdrop">
-        <section class="modal-card">
-            <div class="modal-header">
+    <div class="modal-backdrop nested-modal-backdrop">
+        <section class="modal-card empresa-point-modal">
+            <header class="modal-header">
                 <div>
-                    <h2>Puntos de emision</h2>
-                    <p>Agrega, revisa y marca el punto predeterminado de la empresa.</p>
+                    <h2>@(editingPuntoIndex.HasValue ? "Editar punto de emisión" : "Nuevo punto de emisión")</h2>
+                    <p class="modal-subtitle">Completa establecimiento, punto y bodega asociada manteniendo la misma línea visual de la app.</p>
                 </div>
-                <button class="icon-button" type="button" @onclick="ClosePuntosEmisionModal">X</button>
-            </div>
+                <button class="icon-button" type="button" @onclick="ClosePuntosEmisionModal">x</button>
+            </header>
 
             <div class="form-grid point-grid">
                 <div class="form-field">
@@ -231,22 +381,22 @@
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.Establecimiento" />
                 </div>
                 <div class="form-field">
-                    <label>Punto de emision</label>
+                    <label>Punto de emisión</label>
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.PuntoEmision" />
                 </div>
                 <div class="form-field full">
                     <label>Bodega de despacho por defecto</label>
                     <InputSelect class="form-control" @bind-Value="puntoEmisionDraft.BodegaId">
-                        <option value="">Asignar Principal automaticamente</option>
+                        <option value="">Asignar Principal automáticamente</option>
                         @foreach (var bodega in activeBodegas)
                         {
                             <option value="@bodega.Id">@bodega.Nombre</option>
                         }
                     </InputSelect>
-                    <small class="file-hint">El POS descontara inventario desde esta bodega cuando opere con este punto.</small>
+                    <small class="file-hint">El POS descontará inventario desde esta bodega cuando opere con este punto.</small>
                 </div>
                 <div class="form-field full">
-                    <label>Direccion establecimiento</label>
+                    <label>Dirección establecimiento</label>
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.DireccionEstablecimiento" />
                 </div>
                 <div class="form-field full">
@@ -257,70 +407,16 @@
                 </div>
             </div>
 
-            <div class="modal-actions">
+            <footer class="modal-actions">
                 @if (editingPuntoIndex.HasValue)
                 {
-                    <button class="ghost-button" type="button" @onclick="ResetPuntoEmisionDraft">Cancelar edicion</button>
+                    <button class="ghost-button" type="button" @onclick="ResetPuntoEmisionDraft">Cancelar edición</button>
                 }
+                <button class="secondary-action" type="button" @onclick="ClosePuntosEmisionModal">Cerrar</button>
                 <button class="primary-action" type="button" @onclick="AddPuntoEmision">
                     @(editingPuntoIndex.HasValue ? "Actualizar punto" : "Agregar punto")
                 </button>
-            </div>
-
-            <section class="table-card embedded-card">
-                <div class="table-scroll">
-                    <table class="data-table responsive-table">
-                        <thead>
-                            <tr>
-                                <th>Establecimiento</th>
-                                <th>Punto</th>
-                                <th>Bodega</th>
-                                <th>Direccion</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (empresaRequest.PuntosEmision.Count == 0)
-                            {
-                                <tr>
-                                    <td colspan="6" class="empty-state-cell">Todavia no has agregado puntos de emision.</td>
-                                </tr>
-                            }
-                            else
-                            {
-                                @for (var index = 0; index < empresaRequest.PuntosEmision.Count; index++)
-                                {
-                                    var punto = empresaRequest.PuntosEmision[index];
-
-                                    <tr>
-                                        <td data-label="Establecimiento">@punto.Establecimiento</td>
-                                        <td data-label="Punto">@punto.PuntoEmision</td>
-                                        <td data-label="Bodega">@GetBodegaName(punto.BodegaId)</td>
-                                        <td data-label="Direccion">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion" : punto.DireccionEstablecimiento)</td>
-                                        <td data-label="Estado">
-                                            <span class="status-pill @(punto.IsDefault ? "is-active" : string.Empty)">
-                                                @(punto.IsDefault ? "Predeterminado" : "Secundario")
-                                            </span>
-                                        </td>
-                                        <td data-label="Acciones">
-                                            <div class="row-actions">
-                                                <button class="ghost-button" type="button" @onclick="() => EditPuntoEmision(index)">Editar</button>
-                                                <button class="secondary-action" type="button" @onclick="() => SetDefaultPuntoEmision(index)">Predeterminar</button>
-                                                <button class="danger-button" type="button" @onclick="() => RemovePuntoEmision(index)">Quitar</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <div class="modal-actions">
-                <button class="primary-action" type="button" @onclick="ClosePuntosEmisionModal">Listo</button>
-            </div>
+            </footer>
         </section>
     </div>
 }

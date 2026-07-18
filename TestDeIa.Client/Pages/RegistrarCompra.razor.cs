@@ -3,12 +3,12 @@ using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Compras;
 using TestDeIa.Client.Services.Facturacion;
-using TestDeIa.Shared.Compras;
 using TestDeIa.Client.Services.Inventario;
-using TestDeIa.Shared.Responses.Catalogos;
-using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Compras;
 using TestDeIa.Shared.Requests.Compras;
+using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Compras;
+using TestDeIa.Shared.Responses.Facturacion;
 using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Client.Pages;
@@ -33,6 +33,8 @@ public partial class RegistrarCompra
     [Inject]
     private NavigationManager NavigationManager { get; set; } = default!;
 
+    private static readonly string[] WorkflowSteps = ["Configuración", "Productos", "Detalle"];
+
     private readonly List<ProveedorResponse> proveedores = [];
     private readonly List<BodegaResponse> bodegas = [];
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
@@ -43,14 +45,15 @@ public partial class RegistrarCompra
     private string productSearchTerm = string.Empty;
     private bool isLoadingProducts;
     private bool isSaving;
+    private bool isLiquidacionRoute;
+    private bool isWorkflowModalOpen = true;
+    private int currentStep = 1;
     private string? errorMessage;
     private string? successMessage;
     private DateTime fechaEmisionLocal = DateTime.Today;
-    private bool isLiquidacionRoute;
 
     private bool IsLiquidacion => request.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra;
     private bool IsNotaVenta => request.TipoDocumentoCodigo == CompraDocumentTypes.NotaVentaRimpe;
-    private bool IsFacturaProveedor => request.TipoDocumentoCodigo == CompraDocumentTypes.FacturaProveedor;
     private decimal SubtotalIva0 => CalculateSubtotalByRate(0m);
     private decimal SubtotalIva5 => IsNotaVenta ? 0 : CalculateSubtotalByRate(5m);
     private decimal SubtotalIva8 => IsNotaVenta ? 0 : CalculateSubtotalByRate(8m);
@@ -58,7 +61,27 @@ public partial class RegistrarCompra
     private decimal TotalDescuento => Math.Round(detailRows.Sum(row => SafeValue(row.Descuento)), 2, MidpointRounding.AwayFromZero);
     private decimal TotalImpuestos => Math.Round(detailRows.Sum(row => row.TotalImpuesto), 2, MidpointRounding.AwayFromZero);
     private decimal ImporteTotal => Math.Round(detailRows.Sum(row => row.TotalLinea), 2, MidpointRounding.AwayFromZero);
+    private bool HasSelectedBodega => request.BodegaId != Guid.Empty;
+    private BodegaResponse? selectedBodega => bodegas.FirstOrDefault(current => current.Id == request.BodegaId);
     private bool CanSave => detailRows.Count > 0 && request.ProveedorId != Guid.Empty && request.BodegaId != Guid.Empty && !isLoadingProducts;
+    private int CurrentStep => currentStep;
+
+    private string PageTitleText => IsLiquidacion ? "Liquidaciones de compra" : "Registro de compras";
+    private string PrimaryActionText => IsLiquidacion ? "Emitir liquidación" : "Registrar compra";
+    private string PageDescription => IsLiquidacion
+        ? "Emisión de liquidaciones con impacto directo en bodega, Kardex y costo promedio."
+        : "Ingreso operativo de documentos de proveedor con impacto directo en bodega, Kardex y costo promedio.";
+    private string SummaryDescription => "Trabaja con un asistente por pasos. Puedes regresar entre pantallas sin perder la configuración ni los productos agregados.";
+    private string FlowName => IsLiquidacion ? "Liquidación de compra" : IsNotaVenta ? "Nota de venta proveedor" : "Factura proveedor";
+    private string FlowSummary => IsLiquidacion
+        ? "Emite el documento interno y deja la liquidación en cola para la firma electrónica."
+        : "Registra el documento del proveedor e incrementa inventario en la bodega elegida.";
+    private string SelectedProveedorLabel => proveedores.FirstOrDefault(current => current.Id == request.ProveedorId)?.NombreCompleto ?? "Pendiente de selección";
+    private string SelectedProveedorSupport => proveedores.FirstOrDefault(current => current.Id == request.ProveedorId)?.Identificacion ?? "Define el proveedor en el paso 1";
+    private string SelectedBodegaLabel => selectedBodega?.Nombre ?? "Pendiente de selección";
+    private string SelectedBodegaSupport => selectedBodega?.Direccion ?? "La bodega define dónde subirá el stock";
+    private string SelectedDocumentLabel => IsLiquidacion ? BuildLiquidacionSeriesLabel() : (string.IsNullOrWhiteSpace(request.NumeroComprobante) ? "Pendiente de selección" : request.NumeroComprobante!);
+    private string SelectedDocumentSupport => IsLiquidacion ? "Serie interna de liquidación" : "Número del documento del proveedor";
 
     protected override async Task OnInitializedAsync()
     {
@@ -71,6 +94,7 @@ public partial class RegistrarCompra
 
         await LoadLookupsAsync();
         await LoadProductsAsync();
+        isWorkflowModalOpen = true;
     }
 
     private async Task LoadLookupsAsync()
@@ -83,6 +107,11 @@ public partial class RegistrarCompra
 
             bodegas.Clear();
             bodegas.AddRange((await InventarioApiClient.GetBodegasAsync()).Where(item => item.IsActive));
+
+            if (request.BodegaId == Guid.Empty && bodegas.Count > 0)
+            {
+                request.BodegaId = SelectPreferredBodegaId();
+            }
 
             puntosEmision.Clear();
             puntosEmision.AddRange(await FacturacionApiClient.GetPuntosEmisionAsync());
@@ -100,7 +129,7 @@ public partial class RegistrarCompra
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudieron cargar proveedores, bodegas o puntos de emision.";
+            errorMessage = "No se pudieron cargar proveedores, bodegas o puntos de emisión.";
         }
     }
 
@@ -116,13 +145,20 @@ public partial class RegistrarCompra
 
         try
         {
-            var page = await InventarioApiClient.GetProductosAsync(productSearchTerm, 0, 20, request.BodegaId == Guid.Empty ? null : request.BodegaId);
             productSearchResults.Clear();
+
+            if (!HasSelectedBodega)
+            {
+                return;
+            }
+
+            var page = await InventarioApiClient.GetProductosAsync(productSearchTerm, 0, 20, request.BodegaId);
             productSearchResults.AddRange(page.Items.Where(item => item.IsActive));
+            RefreshDetailRowsFromSearchResults();
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo cargar el catalogo de productos.";
+            errorMessage = "No se pudo cargar el catálogo de productos.";
         }
         finally
         {
@@ -134,6 +170,13 @@ public partial class RegistrarCompra
     {
         errorMessage = null;
         successMessage = null;
+
+        if (!HasSelectedBodega)
+        {
+            errorMessage = "Selecciona primero la bodega destino para agregar productos con el stock correcto.";
+            return;
+        }
+
         var porcentajeIva = IsNotaVenta ? 0m : producto.PorcentajeIva;
         var codigoIva = IsNotaVenta ? "0" : producto.CodigoIva;
 
@@ -144,6 +187,9 @@ public partial class RegistrarCompra
             existing.CostoUnitario = existing.CostoUnitario <= 0 ? SuggestCost(producto) : existing.CostoUnitario;
             existing.PorcentajeIva = porcentajeIva;
             existing.CodigoIva = codigoIva;
+            existing.ControlaStock = producto.ControlaStock;
+            existing.StockActualBodega = producto.StockActual;
+            currentStep = 3;
             return;
         }
 
@@ -156,8 +202,12 @@ public partial class RegistrarCompra
             PorcentajeIva = porcentajeIva,
             Cantidad = 1,
             CostoUnitario = SuggestCost(producto),
-            Descuento = 0
+            Descuento = 0,
+            ControlaStock = producto.ControlaStock,
+            StockActualBodega = producto.StockActual
         });
+
+        currentStep = 3;
     }
 
     private void RemoveProduct(Guid productoId)
@@ -176,7 +226,7 @@ public partial class RegistrarCompra
 
         if (!CanSave)
         {
-            errorMessage = "Completa proveedor, bodega y al menos una linea antes de registrar.";
+            errorMessage = "Completa proveedor, bodega y al menos una línea antes de registrar.";
             return;
         }
 
@@ -211,16 +261,22 @@ public partial class RegistrarCompra
             {
                 request.TipoDocumentoCodigo = CompraDocumentTypes.LiquidacionCompra;
             }
+
+            request.BodegaId = SelectPreferredBodegaId();
             fechaEmisionLocal = DateTime.Today;
             detailRows.Clear();
             productSearchTerm = string.Empty;
+            currentStep = 1;
+
             if (IsLiquidacion && puntosEmision.Count > 0)
             {
                 var punto = puntosEmision.FirstOrDefault(current => current.IsDefault) ?? puntosEmision[0];
                 request.Establecimiento = punto.Establecimiento;
                 request.PuntoEmision = punto.PuntoEmision;
             }
+
             await LoadProductsAsync();
+            isWorkflowModalOpen = false;
         }
         catch (HttpRequestException)
         {
@@ -237,14 +293,14 @@ public partial class RegistrarCompra
         if (!IsLiquidacion &&
             (string.IsNullOrWhiteSpace(request.NumeroComprobante) || request.NumeroComprobante.Count(character => character == '-') != 2))
         {
-            errorMessage = "El numero de comprobante debe usar el formato 001-001-000000001.";
+            errorMessage = "El número de comprobante debe usar el formato 001-001-000000001.";
             return false;
         }
 
         if (IsLiquidacion &&
             (string.IsNullOrWhiteSpace(request.Establecimiento) || string.IsNullOrWhiteSpace(request.PuntoEmision)))
         {
-            errorMessage = "Selecciona el establecimiento y punto de emision para la liquidacion.";
+            errorMessage = "Selecciona el establecimiento y punto de emisión para la liquidación.";
             return false;
         }
 
@@ -258,7 +314,7 @@ public partial class RegistrarCompra
 
             if (SafeValue(row.Descuento) > Math.Round(SafeValue(row.Cantidad) * SafeValue(row.CostoUnitario), 2, MidpointRounding.AwayFromZero))
             {
-                errorMessage = $"El descuento de {row.ProductoNombre} supera el subtotal de la linea.";
+                errorMessage = $"El descuento de {row.ProductoNombre} supera el subtotal de la línea.";
                 return false;
             }
         }
@@ -267,7 +323,7 @@ public partial class RegistrarCompra
         var validationResults = new List<ValidationResult>();
         if (!Validator.TryValidateObject(request, validationContext, validationResults, true))
         {
-            errorMessage = validationResults.FirstOrDefault()?.ErrorMessage ?? "La compra contiene datos invalidos.";
+            errorMessage = validationResults.FirstOrDefault()?.ErrorMessage ?? "La compra contiene datos inválidos.";
             return false;
         }
 
@@ -276,25 +332,26 @@ public partial class RegistrarCompra
 
     private async Task OnBodegaChangedAsync()
     {
+        errorMessage = null;
+        successMessage = null;
+        detailRows.Clear();
         await LoadProductsAsync();
     }
 
     private Task OnProveedorChangedAsync()
     {
         var proveedor = proveedores.FirstOrDefault(current => current.Id == request.ProveedorId);
-        if (proveedor is null || !proveedor.PermiteCredito)
-        {
-            request.DiasCredito = 0;
-            return Task.CompletedTask;
-        }
+        request.DiasCredito = proveedor is not null && proveedor.PermiteCredito
+            ? Math.Max(0, proveedor.DiasCredito)
+            : 0;
 
-        request.DiasCredito = Math.Max(0, proveedor.DiasCredito);
         return Task.CompletedTask;
     }
 
-    private void OnNumeroComprobanteChanged(string? value)
+    private Task OnNumeroComprobanteBoundAsync()
     {
-        request.NumeroComprobante = FormatNumeroComprobante(value);
+        request.NumeroComprobante = FormatNumeroComprobante(request.NumeroComprobante);
+        return Task.CompletedTask;
     }
 
     private Task OnTipoDocumentoChangedAfterAsync()
@@ -338,6 +395,61 @@ public partial class RegistrarCompra
         return Task.CompletedTask;
     }
 
+    private void OpenWorkflowModal()
+    {
+        isWorkflowModalOpen = true;
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private void CloseWorkflowModal()
+    {
+        isWorkflowModalOpen = false;
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step < 1 || step > WorkflowSteps.Length)
+        {
+            return;
+        }
+
+        if (step > currentStep + 1 && detailRows.Count == 0)
+        {
+            return;
+        }
+
+        currentStep = step;
+    }
+
+    private void GoPreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+        }
+    }
+
+    private void GoNextStep()
+    {
+        if (currentStep == 1 && !HasSelectedBodega)
+        {
+            errorMessage = "Selecciona una bodega antes de continuar.";
+            return;
+        }
+
+        if (currentStep == 2 && detailRows.Count == 0)
+        {
+            errorMessage = "Agrega al menos un producto antes de continuar al detalle.";
+            return;
+        }
+
+        if (currentStep < WorkflowSteps.Length)
+        {
+            currentStep++;
+        }
+    }
+
     private decimal CalculateSubtotalByRate(decimal rate)
     {
         return Math.Round(
@@ -345,6 +457,47 @@ public partial class RegistrarCompra
                 .Sum(row => row.SubtotalSinImpuesto),
             2,
             MidpointRounding.AwayFromZero);
+    }
+
+    private void RefreshDetailRowsFromSearchResults()
+    {
+        if (detailRows.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var row in detailRows)
+        {
+            var producto = productSearchResults.FirstOrDefault(item => item.Id == row.ProductoId);
+            if (producto is null)
+            {
+                continue;
+            }
+
+            row.ControlaStock = producto.ControlaStock;
+            row.StockActualBodega = producto.StockActual;
+            row.CostoUnitario = row.CostoUnitario <= 0 ? SuggestCost(producto) : row.CostoUnitario;
+        }
+    }
+
+    private Guid SelectPreferredBodegaId()
+    {
+        var preferred = bodegas
+            .OrderByDescending(bodega => string.Equals(bodega.Nombre, "Principal", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(bodega => bodega.Nombre)
+            .FirstOrDefault();
+
+        return preferred?.Id ?? Guid.Empty;
+    }
+
+    private string BuildLiquidacionSeriesLabel()
+    {
+        if (string.IsNullOrWhiteSpace(request.Establecimiento) || string.IsNullOrWhiteSpace(request.PuntoEmision))
+        {
+            return "Pendiente de selección";
+        }
+
+        return $"{request.Establecimiento}-{request.PuntoEmision}";
     }
 
     private static decimal SuggestCost(ProductoResponse producto)
@@ -368,12 +521,19 @@ public partial class RegistrarCompra
 
     private string BuildSuccessMessage(CompraResponse compra)
     {
+        var bodegaNombre = selectedBodega?.Nombre ?? "la bodega seleccionada";
+        var totalItemsInventariables = detailRows.Count(row => row.ControlaStock);
+
         if (compra.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra)
         {
-            return $"Liquidacion {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}.";
+            return totalItemsInventariables > 0
+                ? $"Liquidación {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}. El inventario se incrementó en {bodegaNombre}."
+                : $"Liquidación {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}.";
         }
 
-        return $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}.";
+        return totalItemsInventariables > 0
+            ? $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}. El stock ingresó en {bodegaNombre}."
+            : $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}.";
     }
 
     private static string FormatNumeroComprobante(string? value)
@@ -418,6 +578,9 @@ public partial class RegistrarCompra
         public decimal Cantidad { get; set; }
         public decimal CostoUnitario { get; set; }
         public decimal Descuento { get; set; }
+        public bool ControlaStock { get; set; }
+        public decimal StockActualBodega { get; set; }
+        public decimal StockProyectado => ControlaStock ? StockActualBodega + Cantidad : 0;
         public decimal SubtotalSinImpuesto => Math.Round(Math.Max(0, (Cantidad * CostoUnitario) - Descuento), 2, MidpointRounding.AwayFromZero);
         public decimal TotalImpuesto => Math.Round(SubtotalSinImpuesto * (PorcentajeIva / 100m), 2, MidpointRounding.AwayFromZero);
         public decimal TotalLinea => SubtotalSinImpuesto + TotalImpuesto;

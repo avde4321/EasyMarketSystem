@@ -2,6 +2,7 @@ using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Caja.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
+using TestDeIa.Application.Modules.Contabilidad.Ports.In;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Common;
@@ -16,17 +17,20 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
     private readonly IFacturaBackgroundQueue facturaBackgroundQueue;
     private readonly ICatalogoRepository catalogoRepository;
     private readonly ICajaSesionRepository cajaSesionRepository;
+    private readonly IContabilidadService contabilidadService;
 
     public FacturacionUseCase(
         IFacturacionRepository facturacionRepository,
         IFacturaBackgroundQueue facturaBackgroundQueue,
         ICatalogoRepository catalogoRepository,
-        ICajaSesionRepository cajaSesionRepository)
+        ICajaSesionRepository cajaSesionRepository,
+        IContabilidadService contabilidadService)
     {
         this.facturacionRepository = facturacionRepository;
         this.facturaBackgroundQueue = facturaBackgroundQueue;
         this.catalogoRepository = catalogoRepository;
         this.cajaSesionRepository = cajaSesionRepository;
+        this.contabilidadService = contabilidadService;
     }
 
     public Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
@@ -61,6 +65,8 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         {
             facturaBackgroundQueue.Enqueue(response.FacturaId);
         }
+
+        await contabilidadService.GenerarAsientoDesdeOrigenAsync(response.FacturaId, "POS", cancellationToken);
 
         return response;
     }
@@ -115,3 +121,4 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         }
     }
 }
+

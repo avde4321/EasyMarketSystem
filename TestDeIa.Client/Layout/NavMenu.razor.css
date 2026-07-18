@@ -398,3 +398,10 @@
         font-size: 0.86rem;
     }
 }
+
+.nav-section-divider {
+    height: 1px;
+    margin: 0.35rem 0 0.15rem;
+    background: linear-gradient(90deg, rgba(73, 146, 211, 0), rgba(73, 146, 211, 0.18), rgba(73, 146, 211, 0));
+    border-radius: 999px;
+}

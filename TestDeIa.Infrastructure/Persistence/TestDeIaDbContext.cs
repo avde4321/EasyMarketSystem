@@ -39,6 +39,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<MemoriaAnalisisFiscalEntity> MemoriasAnalisisFiscal => Set<MemoriaAnalisisFiscalEntity>();
     public DbSet<CuentaContableEntity> CuentasContables => Set<CuentaContableEntity>();
     public DbSet<PeriodoContableEntity> PeriodosContables => Set<PeriodoContableEntity>();
+    public DbSet<AsientoContableEntity> AsientosContables => Set<AsientoContableEntity>();
+    public DbSet<AsientoDetalleEntity> AsientosDetalle => Set<AsientoDetalleEntity>();
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
@@ -87,6 +89,10 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<PeriodoContableEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<AsientoContableEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<AsientoDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.AsientoContable.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProductoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<BodegaEntity>()
@@ -129,5 +135,6 @@ public sealed class TestDeIaDbContext : DbContext
                 (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
     }
 }
+
 
 

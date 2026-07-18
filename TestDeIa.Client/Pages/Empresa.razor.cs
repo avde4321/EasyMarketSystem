@@ -21,6 +21,8 @@ public partial class Empresa
     [Inject]
     private InventarioApiClient InventarioApiClient { get; set; } = default!;
 
+    private static readonly string[] WorkflowSteps = ["Datos generales", "Certificado", "Puntos de emisión"];
+
     private EmpresaRequest empresaRequest = new();
     private TestDeIa.Shared.Responses.Empresa.EmpresaResponse? empresaActual;
     private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaResponse> empresas = [];
@@ -28,12 +30,14 @@ public partial class Empresa
     private readonly List<CatalogoItemResponse> tiposEmision = [];
     private readonly List<BodegaResponse> bodegas = [];
     private bool isSaving;
+    private bool showWorkflowModal;
+    private bool showPuntosEmisionModal;
+    private int currentStep = 1;
     private string? errorMessage;
     private string? statusMessage;
     private string? certificadoNombreArchivoActual;
     private Guid? selectedEmpresaId;
     private string searchTerm = string.Empty;
-    private bool showPuntosEmisionModal;
     private EmpresaPuntoEmisionRequest puntoEmisionDraft = new() { Establecimiento = "001", PuntoEmision = "001" };
     private int? editingPuntoIndex;
     private const int PageSize = 8;
@@ -45,6 +49,7 @@ public partial class Empresa
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
     private IReadOnlyList<BodegaResponse> activeBodegas => bodegas.Where(current => current.IsActive).OrderBy(current => current.Nombre).ToList();
+    private int CurrentStep => currentStep;
 
     protected override async Task OnInitializedAsync()
     {
@@ -93,11 +98,11 @@ public partial class Empresa
                 ? selectedEmpresaId.Value
                 : empresas[0].Id;
 
-            await SelectEmpresaAsync(targetEmpresaId);
+            await LoadEmpresaIntoEditorAsync(targetEmpresaId, openWorkflow: false);
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo cargar la configuracion de la empresa.";
+            errorMessage = "No se pudo cargar la configuración de la empresa.";
         }
     }
 
@@ -106,10 +111,11 @@ public partial class Empresa
         isSaving = true;
         errorMessage = null;
         statusMessage = null;
+        var isUpdate = selectedEmpresaId.HasValue;
 
         try
         {
-            var result = selectedEmpresaId.HasValue
+            var result = isUpdate && selectedEmpresaId.HasValue
                 ? await EmpresaApiClient.UpdateAsync(selectedEmpresaId.Value, empresaRequest)
                 : await EmpresaApiClient.CreateAsync(empresaRequest);
 
@@ -120,14 +126,17 @@ public partial class Empresa
             }
 
             selectedEmpresaId = result.Data?.Id;
-            statusMessage = selectedEmpresaId.HasValue
-                ? "La empresa fue guardada correctamente."
+            statusMessage = isUpdate
+                ? "La empresa fue actualizada correctamente."
                 : "La empresa fue creada correctamente.";
+            showWorkflowModal = false;
+            showPuntosEmisionModal = false;
+            currentStep = 1;
             await LoadAsync(resetPaging: true);
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo guardar la configuracion de la empresa.";
+            errorMessage = "No se pudo guardar la configuración de la empresa.";
         }
         finally
         {
@@ -148,7 +157,7 @@ public partial class Empresa
 
         if (!file.Name.EndsWith(".p12", StringComparison.OrdinalIgnoreCase))
         {
-            errorMessage = "Selecciona un archivo .p12 valido.";
+            errorMessage = "Selecciona un archivo .p12 válido.";
             return;
         }
 
@@ -162,6 +171,11 @@ public partial class Empresa
     }
 
     private async Task SelectEmpresaAsync(Guid id)
+    {
+        await LoadEmpresaIntoEditorAsync(id, openWorkflow: true);
+    }
+
+    private async Task LoadEmpresaIntoEditorAsync(Guid id, bool openWorkflow)
     {
         selectedEmpresaId = id;
         empresaActual = empresas.FirstOrDefault(current => current.Id == id) ?? await EmpresaApiClient.GetByIdAsync(id);
@@ -201,6 +215,12 @@ public partial class Empresa
         };
 
         certificadoNombreArchivoActual = empresaActual.CertificadoNombreArchivo;
+        currentStep = 1;
+        showPuntosEmisionModal = false;
+        if (openWorkflow)
+        {
+            showWorkflowModal = true;
+        }
         StateHasChanged();
     }
 
@@ -226,6 +246,11 @@ public partial class Empresa
                 }
             ]
         };
+
+        ResetPuntoEmisionDraft();
+        currentStep = 1;
+        showPuntosEmisionModal = false;
+        showWorkflowModal = true;
     }
 
     private void AddPuntoEmision()
@@ -262,13 +287,14 @@ public partial class Empresa
         }
 
         ResetPuntoEmisionDraft();
+        showPuntosEmisionModal = false;
     }
 
     private void RemovePuntoEmision(int index)
     {
         if (empresaRequest.PuntosEmision.Count <= 1)
         {
-            errorMessage = "La empresa debe conservar al menos un punto de emision.";
+            errorMessage = "La empresa debe conservar al menos un punto de emisión.";
             return;
         }
 
@@ -289,18 +315,6 @@ public partial class Empresa
         }
     }
 
-    private void OpenPuntosEmisionModal()
-    {
-        showPuntosEmisionModal = true;
-        ResetPuntoEmisionDraft();
-    }
-
-    private void ClosePuntosEmisionModal()
-    {
-        showPuntosEmisionModal = false;
-        ResetPuntoEmisionDraft();
-    }
-
     private void EditPuntoEmision(int index)
     {
         var punto = empresaRequest.PuntosEmision[index];
@@ -314,6 +328,8 @@ public partial class Empresa
             PuntoEmision = punto.PuntoEmision,
             IsDefault = punto.IsDefault
         };
+
+        showPuntosEmisionModal = true;
     }
 
     private void ResetPuntoEmisionDraft()
@@ -332,10 +348,78 @@ public partial class Empresa
     {
         if (!bodegaId.HasValue || bodegaId.Value == Guid.Empty)
         {
-            return "Se asignara Principal";
+            return "Se asignará Principal";
         }
 
         return activeBodegas.FirstOrDefault(current => current.Id == bodegaId.Value)?.Nombre ?? "Bodega no disponible";
+    }
+
+    private string GetPuntosResumenDraft()
+    {
+        if (empresaRequest.PuntosEmision.Count == 0)
+        {
+            return "Todavía no hay puntos configurados.";
+        }
+
+        var principal = empresaRequest.PuntosEmision.FirstOrDefault(punto => punto.IsDefault) ?? empresaRequest.PuntosEmision.First();
+        return empresaRequest.PuntosEmision.Count == 1
+            ? $"Predeterminado: {principal.Establecimiento}-{principal.PuntoEmision}"
+            : $"Predeterminado: {principal.Establecimiento}-{principal.PuntoEmision} + {empresaRequest.PuntosEmision.Count - 1} adicional(es)";
+    }
+
+    private void OpenWorkflowModal()
+    {
+        if (!selectedEmpresaId.HasValue && empresas.Count == 0)
+        {
+            StartCreate();
+            return;
+        }
+
+        showWorkflowModal = true;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private void CloseWorkflowModal()
+    {
+        showWorkflowModal = false;
+        showPuntosEmisionModal = false;
+    }
+
+    private void OpenPuntosEmisionModal()
+    {
+        ResetPuntoEmisionDraft();
+        showPuntosEmisionModal = true;
+    }
+
+    private void ClosePuntosEmisionModal()
+    {
+        showPuntosEmisionModal = false;
+        ResetPuntoEmisionDraft();
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step >= 1 && step <= WorkflowSteps.Length)
+        {
+            currentStep = step;
+        }
+    }
+
+    private void GoPreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+        }
+    }
+
+    private void GoNextStep()
+    {
+        if (currentStep < WorkflowSteps.Length)
+        {
+            currentStep++;
+        }
     }
 
     private static string GetPuntosResumen(TestDeIa.Shared.Responses.Empresa.EmpresaResponse empresa)
