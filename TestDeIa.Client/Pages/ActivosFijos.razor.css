@@ -1,0 +1,38 @@
+.activos-page .table-card {
+    overflow: visible;
+}
+
+.activo-summary-card {
+    margin-bottom: 1rem;
+}
+
+.activo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.activo-grid .full {
+    grid-column: 1 / -1;
+}
+
+.activo-filter-grid {
+    margin-bottom: 1rem;
+}
+
+.activo-workflow-modal {
+    width: min(100%, 980px);
+    max-width: 980px;
+}
+
+.activo-workflow-carousel {
+    min-height: 18rem;
+}
+
+.activo-sri-preview {
+    margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+    .activo-grid {
+        grid-template-columns: 1fr;
+    }
+}

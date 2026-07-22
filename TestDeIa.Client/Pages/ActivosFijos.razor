@@ -21,8 +21,16 @@
         </AuthorizeView>
     </header>
 
-    <section class="pastel-card filter-card">
-        <div class="form-grid compras-grid">
+    <section class="table-card activo-summary-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Consulta principal</h2>
+                <p>Filtra activos por categoría, custodio o estado y abre la hoja de vida en popup.</p>
+            </div>
+            <button class="ghost-button" type="button" @onclick="LoadAsync">Actualizar</button>
+        </header>
+
+        <div class="form-grid activo-grid activo-filter-grid">
             <div class="form-field">
                 <label>Categoría SRI</label>
                 <InputSelect class="form-control" @bind-Value="categoriaFilter">
@@ -48,13 +56,14 @@
                 </InputSelect>
             </div>
         </div>
+
         <div class="table-toolbar compras-toolbar">
             <button class="secondary-action" type="button" @onclick="LoadAsync">Consultar</button>
             <button class="ghost-button" type="button" @onclick="ClearFilters">Limpiar</button>
         </div>
     </section>
 
-    <section class="pastel-card">
+    <section class="table-card">
         @if (isLoading)
         {
             <p><em>Cargando activos fijos...</em></p>
@@ -109,76 +118,87 @@
 
 @if (isModalOpen)
 {
-    <div class="modal-backdrop modal-backdrop-soft">
-        <section class="workflow-modal activos-modal">
-            <header class="workflow-modal-header">
+    <div class="modal-backdrop">
+        <section class="modal-card activo-workflow-modal">
+            <header class="modal-header workflow-header">
                 <div>
-                    <span class="eyebrow">Hoja de vida</span>
                     <h2>@(editingId.HasValue ? "Editar activo fijo" : "Nuevo activo fijo")</h2>
-                    <p>Los parámetros de vida útil y depreciación se recalculan automáticamente por categoría SRI.</p>
+                    <p class="modal-subtitle">Completa la hoja de vida del bien. Los parámetros SRI se recalculan automáticamente por categoría.</p>
                 </div>
-                <button class="modal-close" type="button" @onclick="CloseModal">×</button>
+                <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <EditForm Model="request" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator />
-                <div class="form-grid compras-grid">
-                    <div class="form-field">
-                        <label>Nombre del activo</label>
-                        <InputText class="form-control" @bind-Value="request.Nombre" />
-                        <ValidationMessage For="@(() => request.Nombre)" />
-                    </div>
-                    <div class="form-field">
-                        <label>Serie / marca</label>
-                        <InputText class="form-control" @bind-Value="request.SerieMarca" />
-                    </div>
-                    <div class="form-field">
-                        <label>Categoría SRI</label>
-                        <InputSelect class="form-control" @bind-Value="request.CategoriaSRI">
-                            @foreach (var categoria in Enum.GetValues<CategoriaSriActivoFijo>())
-                            {
-                                <option value="@categoria">@FormatCategoria(categoria.ToString())</option>
-                            }
-                        </InputSelect>
-                    </div>
-                    <div class="form-field">
-                        <label>Fecha adquisición</label>
-                        <InputDate class="form-control" @bind-Value="request.FechaAdquisicion" />
-                    </div>
-                    <div class="form-field">
-                        <label>Costo inicial</label>
-                        <InputNumber class="form-control" @bind-Value="request.CostoInicial" />
-                    </div>
-                    <div class="form-field">
-                        <label>Valor residual</label>
-                        <InputNumber class="form-control" @bind-Value="request.ValorResidual" />
-                    </div>
-                    <div class="form-field">
-                        <label>Ubicación física</label>
-                        <InputText class="form-control" @bind-Value="request.UbicacionFisica" />
-                    </div>
-                    <div class="form-field">
-                        <label>Custodio responsable</label>
-                        <InputText class="form-control" @bind-Value="request.CustodioResponsable" />
-                    </div>
-                    <div class="form-field">
-                        <label>Estado</label>
-                        <InputSelect class="form-control" @bind-Value="request.EstadoActivo">
-                            @foreach (var estado in Enum.GetValues<EstadoActivoFijo>())
-                            {
-                                <option value="@estado">@FormatEstado(estado.ToString())</option>
-                            }
-                        </InputSelect>
-                    </div>
-                    <div class="form-field">
-                        <label>Parámetro SRI</label>
-                        <div class="soft-info-message compact-message">
-                            @GetParametroPreview(request.CategoriaSRI)
+
+                <div class="workflow-carousel activo-workflow-carousel">
+                    <section class="workflow-panel">
+                        <header class="section-header compact-section-header">
+                            <div>
+                                <h3>Ficha del bien</h3>
+                                <p>Registra datos físicos, custodio y valores base para la depreciación.</p>
+                            </div>
+                        </header>
+
+                        <div class="form-grid activo-grid">
+                            <div class="form-field full">
+                                <label>Nombre del activo</label>
+                                <InputText class="form-control" @bind-Value="request.Nombre" />
+                                <ValidationMessage For="@(() => request.Nombre)" />
+                            </div>
+                            <div class="form-field">
+                                <label>Serie / marca</label>
+                                <InputText class="form-control" @bind-Value="request.SerieMarca" />
+                            </div>
+                            <div class="form-field">
+                                <label>Categoría SRI</label>
+                                <InputSelect class="form-control" @bind-Value="request.CategoriaSRI">
+                                    @foreach (var categoria in Enum.GetValues<CategoriaSriActivoFijo>())
+                                    {
+                                        <option value="@categoria">@FormatCategoria(categoria.ToString())</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="form-field">
+                                <label>Fecha adquisición</label>
+                                <InputDate class="form-control" @bind-Value="request.FechaAdquisicion" />
+                            </div>
+                            <div class="form-field">
+                                <label>Costo inicial</label>
+                                <InputNumber class="form-control" @bind-Value="request.CostoInicial" />
+                            </div>
+                            <div class="form-field">
+                                <label>Valor residual</label>
+                                <InputNumber class="form-control" @bind-Value="request.ValorResidual" />
+                            </div>
+                            <div class="form-field">
+                                <label>Ubicación física</label>
+                                <InputText class="form-control" @bind-Value="request.UbicacionFisica" />
+                            </div>
+                            <div class="form-field">
+                                <label>Custodio responsable</label>
+                                <InputText class="form-control" @bind-Value="request.CustodioResponsable" />
+                            </div>
+                            <div class="form-field">
+                                <label>Estado</label>
+                                <InputSelect class="form-control" @bind-Value="request.EstadoActivo">
+                                    @foreach (var estado in Enum.GetValues<EstadoActivoFijo>())
+                                    {
+                                        <option value="@estado">@FormatEstado(estado.ToString())</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="form-field full">
+                                <label>Parámetro SRI</label>
+                                <div class="soft-info-message compact-message activo-sri-preview">
+                                    @GetParametroPreview(request.CategoriaSRI)
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
 
-                <footer class="workflow-modal-footer">
+                <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">Guardar hoja de vida</button>
                 </footer>

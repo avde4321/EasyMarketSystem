@@ -1,12 +1,14 @@
 (function () {
     const selectors = [
         '.alert-message',
+        '.success-message',
         '.feedback-banner',
         '.dynamic-status-banner',
         '.login-error'
     ];
 
     const seenMessages = new WeakMap();
+    const recentMessages = new Map();
     let container = null;
 
     function ensureContainer() {
@@ -28,7 +30,8 @@
             return 'error';
         }
 
-        if (element.classList.contains('success')) {
+        if (element.classList.contains('success') ||
+            element.classList.contains('success-message')) {
             return 'success';
         }
 
@@ -39,19 +42,18 @@
         return (text || '').replace(/\s+/g, ' ').trim();
     }
 
-    function isVisible(element) {
-        if (!element || !element.isConnected) {
-            return false;
-        }
-
-        const styles = window.getComputedStyle(element);
-        return styles.display !== 'none' &&
-            styles.visibility !== 'hidden' &&
-            styles.opacity !== '0';
-    }
-
     function createPopup(message, variant) {
         const safeVariant = ['error', 'success', 'info'].includes(variant) ? variant : 'info';
+        const dedupeKey = `${safeVariant}:${normalizeMessage(message).toLowerCase()}`;
+        const now = Date.now();
+        const previousAt = recentMessages.get(dedupeKey);
+        if (previousAt && now - previousAt < 1200) {
+            return;
+        }
+
+        recentMessages.set(dedupeKey, now);
+        window.setTimeout(() => recentMessages.delete(dedupeKey), 1500);
+
         const host = ensureContainer();
         const popup = document.createElement('div');
         popup.className = `global-popup global-popup-${safeVariant}`;
@@ -94,7 +96,7 @@
     }
 
     function processElement(element) {
-        if (!selectors.some(selector => element.matches(selector)) || !isVisible(element)) {
+        if (!selectors.some(selector => element.matches(selector)) || !element.isConnected) {
             return;
         }
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using TestDeIa.Client.Services;
 using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Shared.Responses.Facturacion;
 
@@ -12,6 +13,9 @@ public partial class ComprobantesMonitor : IAsyncDisposable
 
     [Inject]
     private IJSRuntime JsRuntime { get; set; } = default!;
+
+    [Inject]
+    private PopupNotificationService PopupNotificationService { get; set; } = default!;
 
     private readonly List<FacturaMonitorResponse> facturas = [];
     private bool isLoading = true;
@@ -60,6 +64,7 @@ public partial class ComprobantesMonitor : IAsyncDisposable
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo cargar el monitor de comprobantes.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -138,6 +143,7 @@ public partial class ComprobantesMonitor : IAsyncDisposable
         busyDocumentKind = documentKind;
         errorMessage = null;
         downloadStatusMessage = $"Generando {GetFriendlyDocumentName(documentKind)} de {factura.NumeroComprobante}...";
+        await PopupNotificationService.ShowInfoAsync(downloadStatusMessage);
         await InvokeAsync(StateHasChanged);
 
         try
@@ -148,16 +154,19 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             {
                 errorMessage = result.ErrorMessage ?? $"No se pudo generar {GetFriendlyDocumentName(documentKind)}.";
                 downloadStatusMessage = null;
+                await PopupNotificationService.ShowErrorAsync(errorMessage);
                 return;
             }
 
             await DownloadAsync(fileName, contentType, result.FileBytes);
             downloadStatusMessage = $"{GetFriendlyDocumentName(documentKind)} generado correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(downloadStatusMessage);
         }
         catch (Exception)
         {
             errorMessage = $"Ocurrio un error al generar {GetFriendlyDocumentName(documentKind)}.";
             downloadStatusMessage = null;
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {

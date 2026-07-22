@@ -599,6 +599,7 @@ textarea.form-control {
 }
 
 .popup-messages-enabled .alert-message,
+.popup-messages-enabled .success-message,
 .popup-messages-enabled .feedback-banner,
 .popup-messages-enabled .login-error,
 .popup-messages-enabled .dynamic-status-banner {
