@@ -23,6 +23,20 @@ public sealed class CompraDetalleEntityConfiguration : IEntityTypeConfiguration<
             .HasMaxLength(200)
             .IsRequired();
 
+        builder.Property(detalle => detalle.NaturalezaCompra)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(detalle => detalle.NombreActivo)
+            .HasMaxLength(200);
+
+        builder.Property(detalle => detalle.CategoriaSriActivo)
+            .HasMaxLength(80);
+
+        builder.Property(detalle => detalle.SerieUbicacionActivo)
+            .HasMaxLength(120);
+
         builder.Property(detalle => detalle.CodigoIva)
             .HasMaxLength(10)
             .IsRequired();

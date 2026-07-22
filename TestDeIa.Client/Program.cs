@@ -6,6 +6,7 @@ using TestDeIa.Client.Options;
 using TestDeIa.Client.Security;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Caja;
+using TestDeIa.Client.Services.ActivosFijos;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Compras;
 using TestDeIa.Client.Services.Contabilidad;
@@ -41,6 +42,7 @@ builder.Services.AddScoped(provider => provider.GetRequiredService<IHttpClientFa
 builder.Services.AddScoped<SecurityApiClient>();
 builder.Services.AddScoped<CatalogosApiClient>();
 builder.Services.AddScoped<CajaApiClient>();
+builder.Services.AddScoped<ActivosFijosApiClient>();
 builder.Services.AddScoped<ClientesApiClient>();
 builder.Services.AddScoped<ComprasApiClient>();
 builder.Services.AddScoped<ContabilidadApiClient>();

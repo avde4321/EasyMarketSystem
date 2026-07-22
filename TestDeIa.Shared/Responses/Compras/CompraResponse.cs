@@ -5,7 +5,10 @@ public sealed class CompraResponse
     public Guid Id { get; set; }
     public Guid ProveedorId { get; set; }
     public Guid BodegaId { get; set; }
+    public string NaturalezaCompra { get; set; } = string.Empty;
     public string TipoDocumentoCodigo { get; set; } = string.Empty;
+    public string TipoComprobanteSRI { get; set; } = string.Empty;
+    public string SustentoTributarioSRI { get; set; } = string.Empty;
     public string TipoDocumentoNombre { get; set; } = string.Empty;
     public string NumeroComprobante { get; set; } = string.Empty;
     public string? ClaveAccesoProveedor { get; set; }

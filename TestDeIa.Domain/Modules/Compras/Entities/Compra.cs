@@ -1,3 +1,5 @@
+﻿using TestDeIa.Domain.Modules.Compras.Enums;
+
 namespace TestDeIa.Domain.Modules.Compras.Entities;
 
 public sealed class Compra
@@ -7,7 +9,10 @@ public sealed class Compra
         Guid empresaId,
         Guid proveedorId,
         Guid bodegaId,
+        NaturalezaCompra naturalezaCompra,
         string tipoDocumentoCodigo,
+        string tipoComprobanteSri,
+        string sustentoTributarioSri,
         string establecimiento,
         string puntoEmision,
         string secuencial,
@@ -43,7 +48,10 @@ public sealed class Compra
         EmpresaId = empresaId;
         ProveedorId = proveedorId;
         BodegaId = bodegaId;
+        NaturalezaCompra = naturalezaCompra;
         TipoDocumentoCodigo = tipoDocumentoCodigo;
+        TipoComprobanteSRI = tipoComprobanteSri;
+        SustentoTributarioSRI = sustentoTributarioSri;
         Establecimiento = establecimiento;
         PuntoEmision = puntoEmision;
         Secuencial = secuencial;
@@ -80,7 +88,10 @@ public sealed class Compra
     public Guid EmpresaId { get; }
     public Guid ProveedorId { get; }
     public Guid BodegaId { get; }
+    public NaturalezaCompra NaturalezaCompra { get; }
     public string TipoDocumentoCodigo { get; }
+    public string TipoComprobanteSRI { get; }
+    public string SustentoTributarioSRI { get; }
     public string Establecimiento { get; }
     public string PuntoEmision { get; }
     public string Secuencial { get; }
@@ -113,3 +124,4 @@ public sealed class Compra
     public IReadOnlyCollection<CompraDetalle> Detalles { get; }
     public string NumeroComprobante => $"{Establecimiento}-{PuntoEmision}-{Secuencial}";
 }
+

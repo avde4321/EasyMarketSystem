@@ -6,6 +6,7 @@ using TestDeIa.Domain.Modules.Contabilidad.Entities;
 using TestDeIa.Domain.Modules.Contabilidad.Enums;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Domain.Modules.Compras.Enums;
 using TestDeIa.Shared.Requests.Contabilidad;
 using TestDeIa.Shared.Responses.Contabilidad;
 
@@ -29,10 +30,18 @@ public sealed class EfContabilidadRepository(
         new("1.1.03.01", "Cuentas por Cobrar Clientes", 4, TipoCuentaContable.Activo, true),
         new("1.1.04", "Inventarios", 3, TipoCuentaContable.Activo, false),
         new("1.1.04.01", "Inventario de Mercaderias", 4, TipoCuentaContable.Activo, true),
+        new("1.1.05", "Credito Tributario", 3, TipoCuentaContable.Activo, false),
+        new("1.1.05.01", "Credito Tributario IVA", 4, TipoCuentaContable.Activo, true),
+        new("1.2", "Activo No Corriente", 2, TipoCuentaContable.Activo, false),
+        new("1.2.01", "Propiedad Planta y Equipo", 3, TipoCuentaContable.Activo, false),
+        new("1.2.01.01", "Equipos de Computo", 4, TipoCuentaContable.Activo, true),
+        new("1.2.01.02", "Vehiculos", 4, TipoCuentaContable.Activo, true),
         new("2", "Pasivo", 1, TipoCuentaContable.Pasivo, false),
         new("2.1", "Pasivo Corriente", 2, TipoCuentaContable.Pasivo, false),
         new("2.1.01", "Cuentas por Pagar Comerciales", 3, TipoCuentaContable.Pasivo, false),
         new("2.1.01.01", "Cuentas por Pagar Proveedores", 4, TipoCuentaContable.Pasivo, true),
+        new("2.1.02", "Proveedores", 3, TipoCuentaContable.Pasivo, false),
+        new("2.1.02.01", "Cuentas por Pagar Proveedores", 4, TipoCuentaContable.Pasivo, true),
         new("2.1.03", "Impuestos por Pagar", 3, TipoCuentaContable.Pasivo, false),
         new("2.1.03.01", "IVA Ventas por Pagar", 4, TipoCuentaContable.Pasivo, true),
         new("4", "Ingresos", 1, TipoCuentaContable.Ingreso, false),
@@ -554,26 +563,34 @@ public sealed class EfContabilidadRepository(
         }
 
         var cuentas = await EnsureOperationalAccountsAsync(cancellationToken);
-        var productoIds = compra.Detalles.Select(current => current.ProductoId).Distinct().ToArray();
-        var productos = await dbContext.Productos
-            .AsNoTracking()
-            .Where(current => productoIds.Contains(current.Id))
-            .ToDictionaryAsync(current => current.Id, cancellationToken);
-
         var hasCuentaPorPagar = await dbContext.CuentasPorPagar
             .AsNoTracking()
             .AnyAsync(current => current.CompraId == compra.Id, cancellationToken);
 
         var totalInventario = Math.Round(
             compra.Detalles
-                .Where(detail => productos.TryGetValue(detail.ProductoId, out var producto) && producto.ControlaStock)
+                .Where(detail => detail.NaturalezaCompra == NaturalezaCompra.MercaderiaInventario)
+                .Sum(detail => detail.CostoTotalSinImpuesto),
+            2,
+            MidpointRounding.AwayFromZero);
+
+        var totalActivoFijoComputo = Math.Round(
+            compra.Detalles
+                .Where(detail => detail.NaturalezaCompra == NaturalezaCompra.ActivoFijo && !IsVehicleAsset(detail.CategoriaSriActivo))
+                .Sum(detail => detail.CostoTotalSinImpuesto),
+            2,
+            MidpointRounding.AwayFromZero);
+
+        var totalActivoFijoVehiculos = Math.Round(
+            compra.Detalles
+                .Where(detail => detail.NaturalezaCompra == NaturalezaCompra.ActivoFijo && IsVehicleAsset(detail.CategoriaSriActivo))
                 .Sum(detail => detail.CostoTotalSinImpuesto),
             2,
             MidpointRounding.AwayFromZero);
 
         var totalGasto = Math.Round(
             compra.Detalles
-                .Where(detail => !productos.TryGetValue(detail.ProductoId, out var producto) || !producto.ControlaStock)
+                .Where(detail => detail.NaturalezaCompra == NaturalezaCompra.GastoServicio)
                 .Sum(detail => detail.CostoTotalSinImpuesto),
             2,
             MidpointRounding.AwayFromZero);
@@ -582,6 +599,16 @@ public sealed class EfContabilidadRepository(
         if (totalInventario > 0m)
         {
             detalles.Add(CreateDetalle(cuentas.InventarioMercaderias.Id, totalInventario, 0m));
+        }
+
+        if (totalActivoFijoComputo > 0m)
+        {
+            detalles.Add(CreateDetalle(cuentas.ActivoFijoEquiposComputo.Id, totalActivoFijoComputo, 0m));
+        }
+
+        if (totalActivoFijoVehiculos > 0m)
+        {
+            detalles.Add(CreateDetalle(cuentas.ActivoFijoVehiculos.Id, totalActivoFijoVehiculos, 0m));
         }
 
         if (totalGasto > 0m)
@@ -602,7 +629,7 @@ public sealed class EfContabilidadRepository(
         var request = new CrearAsientoRequest
         {
             FechaContable = compra.FechaEmision.UtcDateTime,
-            Concepto = $"Compra {compra.Establecimiento}-{compra.PuntoEmision}-{compra.Secuencial} | {originMarker}",
+            Concepto = $"Compra {compra.NaturalezaCompra} {compra.Establecimiento}-{compra.PuntoEmision}-{compra.Secuencial} | {originMarker}",
             ModuloOrigen = ModuloOrigenContable.Compras.ToString(),
             DocumentoSoporte = NormalizeDocumentoSoporte(compra.ClaveAccesoProveedor, compra.ClaveAccesoGenerada, $"{compra.Establecimiento}-{compra.PuntoEmision}-{compra.Secuencial}"),
             Estado = EstadoAsientoContable.Posteado.ToString(),
@@ -674,10 +701,12 @@ public sealed class EfContabilidadRepository(
         return new OperationalAccounts(
             cuentas["1.1.01.01"],
             cuentas["1.1.01.02"],
-            cuentas["1.1.02.01"],
+            cuentas["1.1.05.01"],
             cuentas["1.1.03.01"],
             cuentas["1.1.04.01"],
-            cuentas["2.1.01.01"],
+            cuentas["1.2.01.01"],
+            cuentas["1.2.01.02"],
+            cuentas["2.1.02.01"],
             cuentas["2.1.03.01"],
             cuentas["4.1.01.01"],
             cuentas["5.1.01.01"],
@@ -780,6 +809,11 @@ public sealed class EfContabilidadRepository(
                normalizedName.Contains("cuenta por cobrar", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsVehicleAsset(string? categoriaSriActivo)
+    {
+        return categoriaSriActivo?.Contains("veh", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
     private static decimal ApplySaldo(TipoCuentaContable tipoCuenta, decimal saldoActual, decimal debe, decimal haber)
     {
         return tipoCuenta switch
@@ -798,6 +832,8 @@ public sealed class EfContabilidadRepository(
         CuentaContableEntity CreditoTributarioIvaCompras,
         CuentaContableEntity CuentasPorCobrarClientes,
         CuentaContableEntity InventarioMercaderias,
+        CuentaContableEntity ActivoFijoEquiposComputo,
+        CuentaContableEntity ActivoFijoVehiculos,
         CuentaContableEntity CuentasPorPagarProveedores,
         CuentaContableEntity IvaVentasPorPagar,
         CuentaContableEntity IngresoPorVentas,
@@ -808,6 +844,7 @@ public sealed class EfContabilidadRepository(
         CuentaContableEntity InventarioMercaderias,
         CuentaContableEntity GastoMermasInventario);
 }
+
 
 
 

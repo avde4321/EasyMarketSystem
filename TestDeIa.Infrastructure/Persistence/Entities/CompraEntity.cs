@@ -1,3 +1,5 @@
+﻿using TestDeIa.Domain.Modules.Compras.Enums;
+
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
 public sealed class CompraEntity
@@ -8,7 +10,10 @@ public sealed class CompraEntity
     public ProveedorEntity Proveedor { get; set; } = default!;
     public Guid BodegaId { get; set; }
     public BodegaEntity Bodega { get; set; } = default!;
+    public NaturalezaCompra NaturalezaCompra { get; set; } = NaturalezaCompra.MercaderiaInventario;
     public string TipoDocumentoCodigo { get; set; } = string.Empty;
+    public string TipoComprobanteSRI { get; set; } = string.Empty;
+    public string SustentoTributarioSRI { get; set; } = string.Empty;
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;
     public string Secuencial { get; set; } = string.Empty;
@@ -40,3 +45,7 @@ public sealed class CompraEntity
     public Guid? UsuarioModificacionId { get; set; }
     public ICollection<CompraDetalleEntity> Detalles { get; set; } = [];
 }
+
+
+
+

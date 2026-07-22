@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722055053_AddCompraFiscalClassificationStage111")]
+    partial class AddCompraFiscalClassificationStage111
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,86 +24,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ActivoFijoEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CategoriaSRI")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("CodigoActivo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<Guid?>("CompraDetalleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("CostoInicial")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CustodioResponsable")
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("EstadoActivo")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTime>("FechaAdquisicion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
-
-                    b.Property<decimal>("PorcentajeDepreciacionAnual")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("decimal(8,2)");
-
-                    b.Property<string>("SerieMarca")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("UbicacionFisica")
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal>("ValorResidual")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("VidaUtilAnios")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompraDetalleId")
-                        .IsUnique()
-                        .HasFilter("[CompraDetalleId] IS NOT NULL");
-
-                    b.HasIndex("EmpresaId", "CodigoActivo")
-                        .IsUnique();
-
-                    b.ToTable("ActivosFijos", (string)null);
-                });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.AsientoContableEntity", b =>
                 {
@@ -2847,16 +2770,6 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                             UserId = new Guid("11111111-1111-1111-1111-111111111111"),
                             RoleId = new Guid("22222222-2222-2222-2222-222222222222")
                         });
-                });
-
-            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ActivoFijoEntity", b =>
-                {
-                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CompraDetalleEntity", "CompraDetalle")
-                        .WithOne()
-                        .HasForeignKey("TestDeIa.Infrastructure.Persistence.Entities.ActivoFijoEntity", "CompraDetalleId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("CompraDetalle");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.AsientoDetalleEntity", b =>

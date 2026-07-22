@@ -22,6 +22,21 @@ public sealed class CompraEntityConfiguration : IEntityTypeConfiguration<CompraE
             .HasMaxLength(2)
             .IsRequired();
 
+        builder.Property(compra => compra.NaturalezaCompra)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(compra => compra.TipoComprobanteSRI)
+            .HasMaxLength(2)
+            .HasDefaultValue("01")
+            .IsRequired();
+
+        builder.Property(compra => compra.SustentoTributarioSRI)
+            .HasMaxLength(2)
+            .HasDefaultValue("01")
+            .IsRequired();
+
         builder.Property(compra => compra.Establecimiento)
             .HasMaxLength(3)
             .IsRequired();

@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Compras.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Application.Modules.ActivosFijos.UseCases;
 using TestDeIa.Domain.Modules.Compras.Entities;
+using TestDeIa.Domain.Modules.Compras.Enums;
+using TestDeIa.Domain.Modules.ActivosFijos.Enums;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
-using TestDeIa.Shared.Compras;
+using CompraDocumentTypes = TestDeIa.Shared.Compras.CompraDocumentTypes;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Compras;
 
@@ -13,11 +16,13 @@ public sealed class EfCompraRepository : ICompraRepository
 {
     private readonly TestDeIaDbContext dbContext;
     private readonly IInventarioRepository inventarioRepository;
+    private readonly ActivoFijoService activoFijoService;
 
-    public EfCompraRepository(TestDeIaDbContext dbContext, IInventarioRepository inventarioRepository)
+    public EfCompraRepository(TestDeIaDbContext dbContext, IInventarioRepository inventarioRepository, ActivoFijoService activoFijoService)
     {
         this.dbContext = dbContext;
         this.inventarioRepository = inventarioRepository;
+        this.activoFijoService = activoFijoService;
     }
 
     public async Task<Compra> CreateAsync(Compra compra, CancellationToken cancellationToken = default)
@@ -69,14 +74,20 @@ public sealed class EfCompraRepository : ICompraRepository
                 continue;
             }
 
-            await inventarioRepository.RegistrarCompraAsync(
-                detalle.ProductoId,
-                compra.BodegaId,
-                detalle.Cantidad,
-                detalle.CostoUnitario,
-                $"{CompraDocumentTypes.GetName(compra.TipoDocumentoCodigo).ToUpperInvariant()} {entity.Establecimiento}-{entity.PuntoEmision}-{entity.Secuencial}",
-                cancellationToken);
+            if (detalle.NaturalezaCompra == NaturalezaCompra.MercaderiaInventario &&
+                detalle.ProductoId.HasValue)
+            {
+                await inventarioRepository.RegistrarCompraAsync(
+                    detalle.ProductoId.Value,
+                    compra.BodegaId,
+                    detalle.Cantidad,
+                    detalle.CostoUnitario,
+                    $"{CompraDocumentTypes.GetName(compra.TipoDocumentoCodigo).ToUpperInvariant()} {entity.Establecimiento}-{entity.PuntoEmision}-{entity.Secuencial}",
+                    cancellationToken);
+            }
         }
+
+        await CreateActivosFijosAsync(entity, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -86,6 +97,51 @@ public sealed class EfCompraRepository : ICompraRepository
             .FirstAsync(current => current.Id == compra.Id, cancellationToken);
 
         return Map(persisted);
+    }
+
+    private async Task CreateActivosFijosAsync(CompraEntity compra, CancellationToken cancellationToken)
+    {
+        var detallesActivoFijo = compra.Detalles
+            .Where(detalle => detalle.NaturalezaCompra == NaturalezaCompra.ActivoFijo)
+            .ToArray();
+
+        if (detallesActivoFijo.Length == 0)
+        {
+            return;
+        }
+
+        var currentCount = await dbContext.ActivosFijos
+            .IgnoreQueryFilters()
+            .CountAsync(current => current.EmpresaId == compra.EmpresaId && current.CodigoActivo.StartsWith($"AF-{compra.FechaEmision.Year}-"), cancellationToken);
+
+        foreach (var detalle in detallesActivoFijo)
+        {
+            var categoria = activoFijoService.ResolveCategoriaFromSriCode(detalle.CategoriaSriActivo);
+            var parametros = activoFijoService.GetParametrosSri(categoria);
+            currentCount++;
+
+            dbContext.ActivosFijos.Add(new ActivoFijoEntity
+            {
+                Id = Guid.NewGuid(),
+                EmpresaId = compra.EmpresaId,
+                CompraDetalleId = detalle.Id,
+                CodigoActivo = $"AF-{compra.FechaEmision.Year}-{currentCount:000}",
+                Nombre = string.IsNullOrWhiteSpace(detalle.NombreActivo) ? detalle.ProductoNombre : detalle.NombreActivo.Trim(),
+                SerieMarca = detalle.SerieUbicacionActivo,
+                CategoriaSRI = categoria,
+                FechaAdquisicion = compra.FechaEmision.Date,
+                CostoInicial = detalle.CostoTotalSinImpuesto,
+                ValorResidual = 0m,
+                VidaUtilAnios = parametros.VidaUtilAnios,
+                PorcentajeDepreciacionAnual = parametros.PorcentajeDepreciacionAnual,
+                UbicacionFisica = detalle.SerieUbicacionActivo,
+                CustodioResponsable = null,
+                EstadoActivo = EstadoActivoFijo.Activo,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<Guid>> GetPendingLiquidacionIdsAsync(int batchSize, DateTimeOffset now, CancellationToken cancellationToken = default)
@@ -299,7 +355,10 @@ public sealed class EfCompraRepository : ICompraRepository
             EmpresaId = compra.EmpresaId,
             ProveedorId = compra.ProveedorId,
             BodegaId = compra.BodegaId,
+            NaturalezaCompra = compra.NaturalezaCompra,
             TipoDocumentoCodigo = compra.TipoDocumentoCodigo,
+            TipoComprobanteSRI = compra.TipoComprobanteSRI,
+            SustentoTributarioSRI = compra.SustentoTributarioSRI,
             Establecimiento = compra.Establecimiento,
             PuntoEmision = compra.PuntoEmision,
             Secuencial = secuencial,
@@ -338,6 +397,10 @@ public sealed class EfCompraRepository : ICompraRepository
                 ProductoId = detalle.ProductoId,
                 ProductoCodigo = detalle.ProductoCodigo,
                 ProductoNombre = detalle.ProductoNombre,
+                NaturalezaCompra = detalle.NaturalezaCompra,
+                NombreActivo = detalle.NombreActivo,
+                CategoriaSriActivo = detalle.CategoriaSriActivo,
+                SerieUbicacionActivo = detalle.SerieUbicacionActivo,
                 CodigoIva = detalle.CodigoIva,
                 PorcentajeIva = detalle.PorcentajeIva,
                 Cantidad = detalle.Cantidad,
@@ -396,7 +459,10 @@ public sealed class EfCompraRepository : ICompraRepository
             entity.EmpresaId,
             entity.ProveedorId,
             entity.BodegaId,
+            entity.NaturalezaCompra,
             entity.TipoDocumentoCodigo,
+            entity.TipoComprobanteSRI,
+            entity.SustentoTributarioSRI,
             entity.Establecimiento,
             entity.PuntoEmision,
             entity.Secuencial,
@@ -434,6 +500,10 @@ public sealed class EfCompraRepository : ICompraRepository
                     detalle.ProductoId,
                     detalle.ProductoCodigo,
                     detalle.ProductoNombre,
+                    detalle.NaturalezaCompra,
+                    detalle.NombreActivo,
+                    detalle.CategoriaSriActivo,
+                    detalle.SerieUbicacionActivo,
                     detalle.CodigoIva,
                     detalle.PorcentajeIva,
                     detalle.Cantidad,

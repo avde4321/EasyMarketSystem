@@ -3,7 +3,11 @@ namespace TestDeIa.Shared.Responses.Compras;
 public sealed class CompraDetalleResponse
 {
     public Guid Id { get; set; }
-    public Guid ProductoId { get; set; }
+    public Guid? ProductoId { get; set; }
+    public string NaturalezaCompra { get; set; } = string.Empty;
+    public string? NombreActivo { get; set; }
+    public string? CategoriaSriActivo { get; set; }
+    public string? SerieUbicacionActivo { get; set; }
     public string ProductoCodigo { get; set; } = string.Empty;
     public string ProductoNombre { get; set; } = string.Empty;
     public string CodigoIva { get; set; } = string.Empty;

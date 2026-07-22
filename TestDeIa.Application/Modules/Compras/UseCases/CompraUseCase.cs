@@ -5,6 +5,7 @@ using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Compras.Entities;
+using DomainNaturalezaCompra = TestDeIa.Domain.Modules.Compras.Enums.NaturalezaCompra;
 using TestDeIa.Shared.Compras;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Responses.Common;
@@ -75,37 +76,76 @@ public sealed class CompraUseCase : ICompraUseCase
         var isLiquidacion = tipoDocumento == CompraDocumentTypes.LiquidacionCompra;
         var isNotaVenta = tipoDocumento == CompraDocumentTypes.NotaVentaRimpe;
 
+        var naturalezaCompra = ToDomainNaturaleza(request.NaturalezaCompra);
+        request.TipoComprobanteSRI = string.IsNullOrWhiteSpace(request.TipoComprobanteSRI)
+            ? tipoDocumento
+            : request.TipoComprobanteSRI.Trim();
+
         var detalles = new List<CompraDetalle>(request.Detalles.Count);
         foreach (var detalleRequest in request.Detalles)
         {
-            var producto = await inventarioRepository.GetProductoByIdAsync(detalleRequest.ProductoId, cancellationToken)
-                ?? throw new InvalidOperationException("Uno de los productos seleccionados no existe.");
-
-            if (!producto.IsActive)
+            var detalleNaturaleza = ToDomainNaturaleza(detalleRequest.NaturalezaCompra);
+            if (detalleNaturaleza != naturalezaCompra)
             {
-                throw new InvalidOperationException($"El producto {producto.Nombre} esta inactivo.");
+                detalleNaturaleza = naturalezaCompra;
             }
 
-            if (!SupportedIvaRates.Contains(producto.PorcentajeIva))
+            Guid? productoId = null;
+            string productoCodigo;
+            string productoNombre;
+            string codigoIva;
+            decimal porcentajeIva;
+
+            if (detalleNaturaleza == DomainNaturalezaCompra.MercaderiaInventario)
             {
-                throw new InvalidOperationException($"El producto {producto.Nombre} tiene una tarifa IVA no soportada para compras.");
+                if (!detalleRequest.ProductoId.HasValue || detalleRequest.ProductoId.Value == Guid.Empty)
+                {
+                    throw new InvalidOperationException("Todas las lineas de inventario deben tener un producto valido.");
+                }
+
+                var producto = await inventarioRepository.GetProductoByIdAsync(detalleRequest.ProductoId.Value, cancellationToken)
+                    ?? throw new InvalidOperationException("Uno de los productos seleccionados no existe.");
+
+                if (!producto.IsActive)
+                {
+                    throw new InvalidOperationException($"El producto {producto.Nombre} esta inactivo.");
+                }
+
+                if (!SupportedIvaRates.Contains(producto.PorcentajeIva))
+                {
+                    throw new InvalidOperationException($"El producto {producto.Nombre} tiene una tarifa IVA no soportada para compras.");
+                }
+
+                productoId = producto.Id;
+                productoCodigo = producto.Codigo;
+                productoNombre = producto.Nombre;
+                porcentajeIva = isNotaVenta ? 0m : producto.PorcentajeIva;
+                codigoIva = isNotaVenta ? "0" : producto.CodigoIva;
+            }
+            else
+            {
+                productoCodigo = detalleNaturaleza == DomainNaturalezaCompra.ActivoFijo ? "ACT-FIJO" : "GASTO";
+                productoNombre = NormalizeOptional(detalleRequest.NombreActivo) ?? (detalleNaturaleza == DomainNaturalezaCompra.ActivoFijo ? "Activo fijo" : "Gasto / servicio");
+                porcentajeIva = isNotaVenta ? 0m : 15m;
+                codigoIva = isNotaVenta ? "0" : "4";
             }
 
             var subtotalSinImpuesto = Math.Round((detalleRequest.Cantidad * detalleRequest.CostoUnitario) - detalleRequest.Descuento, 2, MidpointRounding.AwayFromZero);
             if (subtotalSinImpuesto < 0)
             {
-                throw new InvalidOperationException($"El descuento de {producto.Nombre} no puede superar el subtotal de la linea.");
+                throw new InvalidOperationException($"El descuento de {productoNombre} no puede superar el subtotal de la linea.");
             }
-
-            var porcentajeIva = isNotaVenta ? 0m : producto.PorcentajeIva;
-            var codigoIva = isNotaVenta ? "0" : producto.CodigoIva;
 
             detalles.Add(new CompraDetalle(
                 Guid.NewGuid(),
                 Guid.Empty,
-                producto.Id,
-                producto.Codigo,
-                producto.Nombre,
+                productoId,
+                productoCodigo,
+                productoNombre,
+                detalleNaturaleza,
+                NormalizeOptional(detalleRequest.NombreActivo),
+                NormalizeOptional(detalleRequest.CategoriaSriActivo),
+                NormalizeOptional(detalleRequest.SerieUbicacionActivo),
                 codigoIva,
                 porcentajeIva,
                 detalleRequest.Cantidad,
@@ -125,13 +165,16 @@ public sealed class CompraUseCase : ICompraUseCase
             currentUserAccessor.GetRequiredEmpresaId(),
             proveedor.Id,
             request.BodegaId,
+            naturalezaCompra,
             tipoDocumento,
+            request.TipoComprobanteSRI,
+            request.SustentoTributarioSRI.Trim(),
             establecimiento,
             puntoEmision,
             secuencial,
             NormalizeOptional(request.ClaveAccesoProveedor),
             null,
-            null,
+            NormalizeOptional(request.NumeroAutorizacion),
             isLiquidacion ? Domain.Modules.Facturacion.Entities.FacturaEstado.PENDIENTE : null,
             isLiquidacion ? "Liquidacion registrada y en cola para firma electronica." : null,
             formaPagoSri,
@@ -161,6 +204,10 @@ public sealed class CompraUseCase : ICompraUseCase
                 detalle.ProductoId,
                 detalle.ProductoCodigo,
                 detalle.ProductoNombre,
+                detalle.NaturalezaCompra,
+                detalle.NombreActivo,
+                detalle.CategoriaSriActivo,
+                detalle.SerieUbicacionActivo,
                 detalle.CodigoIva,
                 detalle.PorcentajeIva,
                 detalle.Cantidad,
@@ -227,6 +274,22 @@ public sealed class CompraUseCase : ICompraUseCase
             throw new InvalidOperationException("El tipo de documento seleccionado no esta soportado.");
         }
 
+        if (!Enum.IsDefined(request.NaturalezaCompra))
+        {
+            throw new InvalidOperationException("La naturaleza fiscal de la compra no es valida.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SustentoTributarioSRI))
+        {
+            throw new InvalidOperationException("El sustento tributario SRI es obligatorio.");
+        }
+
+        if (tipoDocumento == CompraDocumentTypes.FacturaProveedor &&
+            string.IsNullOrWhiteSpace(request.ClaveAccesoProveedor))
+        {
+            throw new InvalidOperationException("La clave de acceso del proveedor es obligatoria para factura de proveedor.");
+        }
+
         if (tipoDocumento != CompraDocumentTypes.LiquidacionCompra &&
             string.IsNullOrWhiteSpace(request.NumeroComprobante))
         {
@@ -235,9 +298,16 @@ public sealed class CompraUseCase : ICompraUseCase
 
         foreach (var detalle in request.Detalles)
         {
-            if (detalle.ProductoId == Guid.Empty)
+            if (request.NaturalezaCompra == NaturalezaCompra.MercaderiaInventario &&
+                (!detalle.ProductoId.HasValue || detalle.ProductoId.Value == Guid.Empty))
             {
                 throw new InvalidOperationException("Todos los productos de la compra deben ser validos.");
+            }
+
+            if (request.NaturalezaCompra == NaturalezaCompra.ActivoFijo &&
+                (string.IsNullOrWhiteSpace(detalle.NombreActivo) || string.IsNullOrWhiteSpace(detalle.CategoriaSriActivo)))
+            {
+                throw new InvalidOperationException("El activo fijo requiere nombre del bien y categoria SRI.");
             }
 
             if (detalle.Cantidad <= 0)
@@ -321,7 +391,10 @@ public sealed class CompraUseCase : ICompraUseCase
             Id = compra.Id,
             ProveedorId = compra.ProveedorId,
             BodegaId = compra.BodegaId,
+            NaturalezaCompra = compra.NaturalezaCompra.ToString(),
             TipoDocumentoCodigo = compra.TipoDocumentoCodigo,
+            TipoComprobanteSRI = compra.TipoComprobanteSRI,
+            SustentoTributarioSRI = compra.SustentoTributarioSRI,
             TipoDocumentoNombre = CompraDocumentTypes.GetName(compra.TipoDocumentoCodigo),
             NumeroComprobante = compra.NumeroComprobante,
             ClaveAccesoProveedor = compra.ClaveAccesoProveedor,
@@ -345,6 +418,10 @@ public sealed class CompraUseCase : ICompraUseCase
             {
                 Id = detalle.Id,
                 ProductoId = detalle.ProductoId,
+                NaturalezaCompra = detalle.NaturalezaCompra.ToString(),
+                NombreActivo = detalle.NombreActivo,
+                CategoriaSriActivo = detalle.CategoriaSriActivo,
+                SerieUbicacionActivo = detalle.SerieUbicacionActivo,
                 ProductoCodigo = detalle.ProductoCodigo,
                 ProductoNombre = detalle.ProductoNombre,
                 CodigoIva = detalle.CodigoIva,
@@ -360,6 +437,16 @@ public sealed class CompraUseCase : ICompraUseCase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static DomainNaturalezaCompra ToDomainNaturaleza(NaturalezaCompra naturalezaCompra)
+    {
+        return naturalezaCompra switch
+        {
+            NaturalezaCompra.ActivoFijo => DomainNaturalezaCompra.ActivoFijo,
+            NaturalezaCompra.GastoServicio => DomainNaturalezaCompra.GastoServicio,
+            _ => DomainNaturalezaCompra.MercaderiaInventario
+        };
+    }
 
     public async Task<PagedResultResponse<CuentaPorPagarResponse>> GetCuentasPorPagarAsync(string? term, Guid? proveedorId, int skip, int take, CancellationToken cancellationToken = default)
     {

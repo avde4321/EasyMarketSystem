@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+Ôªøusing System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Compras;
@@ -37,7 +37,7 @@ public partial class RegistrarCompra
     [Inject]
     private PopupNotificationService PopupNotificationService { get; set; } = default!;
 
-    private static readonly string[] WorkflowSteps = ["ConfiguraciÛn", "Productos", "Detalle"];
+    private static readonly string[] WorkflowSteps = ["Configuraci√≥n", "Productos", "Detalle"];
 
     private readonly List<ProveedorResponse> proveedores = [];
     private readonly List<BodegaResponse> bodegas = [];
@@ -55,9 +55,18 @@ public partial class RegistrarCompra
     private string? errorMessage;
     private string? successMessage;
     private DateTime fechaEmisionLocal = DateTime.Today;
+    private string nonInventoryName = string.Empty;
+    private string nonInventoryCategory = "1.2.01.01";
+    private string nonInventoryLocation = string.Empty;
+    private decimal nonInventoryQuantity = 1m;
+    private decimal nonInventoryCost;
+    private decimal nonInventoryDiscount;
 
     private bool IsLiquidacion => request.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra;
     private bool IsNotaVenta => request.TipoDocumentoCodigo == CompraDocumentTypes.NotaVentaRimpe;
+    private bool IsInventarioCompra => request.NaturalezaCompra == NaturalezaCompra.MercaderiaInventario;
+    private bool IsActivoFijoCompra => request.NaturalezaCompra == NaturalezaCompra.ActivoFijo;
+    private bool IsGastoServicioCompra => request.NaturalezaCompra == NaturalezaCompra.GastoServicio;
     private decimal SubtotalIva0 => CalculateSubtotalByRate(0m);
     private decimal SubtotalIva5 => IsNotaVenta ? 0 : CalculateSubtotalByRate(5m);
     private decimal SubtotalIva8 => IsNotaVenta ? 0 : CalculateSubtotalByRate(8m);
@@ -71,21 +80,21 @@ public partial class RegistrarCompra
     private int CurrentStep => currentStep;
 
     private string PageTitleText => IsLiquidacion ? "Liquidaciones de compra" : "Registro de compras";
-    private string PrimaryActionText => IsLiquidacion ? "Emitir liquidaciÛn" : "Registrar compra";
+    private string PrimaryActionText => IsLiquidacion ? "Emitir liquidaci√≥n" : "Registrar compra";
     private string PageDescription => IsLiquidacion
-        ? "EmisiÛn de liquidaciones con impacto directo en bodega, Kardex y costo promedio."
+        ? "Emisi√≥n de liquidaciones con impacto directo en bodega, Kardex y costo promedio."
         : "Ingreso operativo de documentos de proveedor con impacto directo en bodega, Kardex y costo promedio.";
-    private string SummaryDescription => "Trabaja con un asistente por pasos. Puedes regresar entre pantallas sin perder la configuraciÛn ni los productos agregados.";
-    private string FlowName => IsLiquidacion ? "LiquidaciÛn de compra" : IsNotaVenta ? "Nota de venta proveedor" : "Factura proveedor";
+    private string SummaryDescription => "Trabaja con un asistente por pasos. Puedes regresar entre pantallas sin perder la configuraci√≥n ni los productos agregados.";
+    private string FlowName => IsLiquidacion ? "Liquidaci√≥n de compra" : IsNotaVenta ? "Nota de venta proveedor" : "Factura proveedor";
     private string FlowSummary => IsLiquidacion
-        ? "Emite el documento interno y deja la liquidaciÛn en cola para la firma electrÛnica."
+        ? "Emite el documento interno y deja la liquidaci√≥n en cola para la firma electr√≥nica."
         : "Registra el documento del proveedor e incrementa inventario en la bodega elegida.";
-    private string SelectedProveedorLabel => proveedores.FirstOrDefault(current => current.Id == request.ProveedorId)?.NombreCompleto ?? "Pendiente de selecciÛn";
+    private string SelectedProveedorLabel => proveedores.FirstOrDefault(current => current.Id == request.ProveedorId)?.NombreCompleto ?? "Pendiente de selecci√≥n";
     private string SelectedProveedorSupport => proveedores.FirstOrDefault(current => current.Id == request.ProveedorId)?.Identificacion ?? "Define el proveedor en el paso 1";
-    private string SelectedBodegaLabel => selectedBodega?.Nombre ?? "Pendiente de selecciÛn";
-    private string SelectedBodegaSupport => selectedBodega?.Direccion ?? "La bodega define dÛnde subir· el stock";
-    private string SelectedDocumentLabel => IsLiquidacion ? BuildLiquidacionSeriesLabel() : (string.IsNullOrWhiteSpace(request.NumeroComprobante) ? "Pendiente de selecciÛn" : request.NumeroComprobante!);
-    private string SelectedDocumentSupport => IsLiquidacion ? "Serie interna de liquidaciÛn" : "N˙mero del documento del proveedor";
+    private string SelectedBodegaLabel => selectedBodega?.Nombre ?? "Pendiente de selecci√≥n";
+    private string SelectedBodegaSupport => selectedBodega?.Direccion ?? "La bodega define d√≥nde subir√° el stock";
+    private string SelectedDocumentLabel => IsLiquidacion ? BuildLiquidacionSeriesLabel() : (string.IsNullOrWhiteSpace(request.NumeroComprobante) ? "Pendiente de selecci√≥n" : request.NumeroComprobante!);
+    private string SelectedDocumentSupport => IsLiquidacion ? "Serie interna de liquidaci√≥n" : "N√∫mero del documento del proveedor";
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,7 +142,7 @@ public partial class RegistrarCompra
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudieron cargar proveedores, bodegas o puntos de emisiÛn.";
+            errorMessage = "No se pudieron cargar proveedores, bodegas o puntos de emisi√≥n.";
         }
     }
 
@@ -156,13 +165,18 @@ public partial class RegistrarCompra
                 return;
             }
 
+            if (!IsInventarioCompra)
+            {
+                return;
+            }
+
             var page = await InventarioApiClient.GetProductosAsync(productSearchTerm, 0, 20, request.BodegaId);
             productSearchResults.AddRange(page.Items.Where(item => item.IsActive));
             RefreshDetailRowsFromSearchResults();
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo cargar el cat·logo de productos.";
+            errorMessage = "No se pudo cargar el cat√°logo de productos.";
         }
         finally
         {
@@ -178,6 +192,12 @@ public partial class RegistrarCompra
         if (!HasSelectedBodega)
         {
             errorMessage = "Selecciona primero la bodega destino para agregar productos con el stock correcto.";
+            return;
+        }
+
+        if (!IsInventarioCompra)
+        {
+            errorMessage = "Para activos fijos o gastos usa el formulario de detalle de esta pantalla.";
             return;
         }
 
@@ -200,6 +220,7 @@ public partial class RegistrarCompra
         detailRows.Add(new CompraDetalleRowModel
         {
             ProductoId = producto.Id,
+            NaturalezaCompra = NaturalezaCompra.MercaderiaInventario,
             ProductoCodigo = producto.Codigo,
             ProductoNombre = producto.Nombre,
             CodigoIva = codigoIva,
@@ -214,13 +235,62 @@ public partial class RegistrarCompra
         currentStep = 3;
     }
 
-    private void RemoveProduct(Guid productoId)
+    private void AddNonInventoryLine()
     {
-        var row = detailRows.FirstOrDefault(item => item.ProductoId == productoId);
-        if (row is not null)
+        errorMessage = null;
+        successMessage = null;
+
+        if (IsInventarioCompra)
         {
-            detailRows.Remove(row);
+            return;
         }
+
+        if (string.IsNullOrWhiteSpace(nonInventoryName))
+        {
+            errorMessage = IsActivoFijoCompra
+                ? "Ingresa el nombre del activo fijo."
+                : "Ingresa el concepto del gasto o servicio.";
+            return;
+        }
+
+        if (IsActivoFijoCompra && string.IsNullOrWhiteSpace(nonInventoryCategory))
+        {
+            errorMessage = "Selecciona la categor√≠a SRI del activo fijo.";
+            return;
+        }
+
+        if (SafeValue(nonInventoryQuantity) <= 0 || SafeValue(nonInventoryCost) <= 0)
+        {
+            errorMessage = "Revisa cantidad y costo antes de agregar la l√≠nea.";
+            return;
+        }
+
+        var porcentajeIva = IsNotaVenta ? 0m : 15m;
+        var codigoIva = IsNotaVenta ? "0" : "4";
+        detailRows.Add(new CompraDetalleRowModel
+        {
+            ProductoId = null,
+            NaturalezaCompra = request.NaturalezaCompra,
+            ProductoCodigo = IsActivoFijoCompra ? "ACT-FIJO" : "GASTO",
+            ProductoNombre = nonInventoryName.Trim(),
+            CodigoIva = codigoIva,
+            PorcentajeIva = porcentajeIva,
+            Cantidad = SafeValue(nonInventoryQuantity),
+            CostoUnitario = SafeValue(nonInventoryCost),
+            Descuento = SafeValue(nonInventoryDiscount),
+            ControlaStock = false,
+            NombreActivo = nonInventoryName.Trim(),
+            CategoriaSriActivo = nonInventoryCategory,
+            SerieUbicacionActivo = string.IsNullOrWhiteSpace(nonInventoryLocation) ? null : nonInventoryLocation.Trim()
+        });
+
+        ResetNonInventoryDraft();
+        currentStep = 3;
+    }
+
+    private void RemoveProduct(CompraDetalleRowModel row)
+    {
+        detailRows.Remove(row);
     }
 
     private async Task SaveAsync()
@@ -230,13 +300,17 @@ public partial class RegistrarCompra
 
         if (!CanSave)
         {
-            errorMessage = "Completa proveedor, bodega y al menos una lÌnea antes de registrar.";
+            errorMessage = "Completa proveedor, bodega y al menos una l√≠nea antes de registrar.";
             return;
         }
 
         request.Detalles = detailRows.Select(row => new RegistrarCompraDetalleRequest
         {
             ProductoId = row.ProductoId,
+            NaturalezaCompra = row.NaturalezaCompra,
+            NombreActivo = row.NombreActivo,
+            CategoriaSriActivo = row.CategoriaSriActivo,
+            SerieUbicacionActivo = row.SerieUbicacionActivo,
             Cantidad = SafeValue(row.Cantidad),
             CostoUnitario = SafeValue(row.CostoUnitario),
             Descuento = SafeValue(row.Descuento)
@@ -299,14 +373,14 @@ public partial class RegistrarCompra
         if (!IsLiquidacion &&
             (string.IsNullOrWhiteSpace(request.NumeroComprobante) || request.NumeroComprobante.Count(character => character == '-') != 2))
         {
-            errorMessage = "El n˙mero de comprobante debe usar el formato 001-001-000000001.";
+            errorMessage = "El n√∫mero de comprobante debe usar el formato 001-001-000000001.";
             return false;
         }
 
         if (IsLiquidacion &&
             (string.IsNullOrWhiteSpace(request.Establecimiento) || string.IsNullOrWhiteSpace(request.PuntoEmision)))
         {
-            errorMessage = "Selecciona el establecimiento y punto de emisiÛn para la liquidaciÛn.";
+            errorMessage = "Selecciona el establecimiento y punto de emisi√≥n para la liquidaci√≥n.";
             return false;
         }
 
@@ -320,7 +394,14 @@ public partial class RegistrarCompra
 
             if (SafeValue(row.Descuento) > Math.Round(SafeValue(row.Cantidad) * SafeValue(row.CostoUnitario), 2, MidpointRounding.AwayFromZero))
             {
-                errorMessage = $"El descuento de {row.ProductoNombre} supera el subtotal de la lÌnea.";
+                errorMessage = $"El descuento de {row.ProductoNombre} supera el subtotal de la l√≠nea.";
+                return false;
+            }
+
+            if (row.NaturalezaCompra == NaturalezaCompra.ActivoFijo &&
+                (string.IsNullOrWhiteSpace(row.NombreActivo) || string.IsNullOrWhiteSpace(row.CategoriaSriActivo)))
+            {
+                errorMessage = "Cada activo fijo debe tener nombre y categor√≠a SRI.";
                 return false;
             }
         }
@@ -329,7 +410,7 @@ public partial class RegistrarCompra
         var validationResults = new List<ValidationResult>();
         if (!Validator.TryValidateObject(request, validationContext, validationResults, true))
         {
-            errorMessage = validationResults.FirstOrDefault()?.ErrorMessage ?? "La compra contiene datos inv·lidos.";
+            errorMessage = validationResults.FirstOrDefault()?.ErrorMessage ?? "La compra contiene datos inv√°lidos.";
             return false;
         }
 
@@ -341,6 +422,7 @@ public partial class RegistrarCompra
         errorMessage = null;
         successMessage = null;
         detailRows.Clear();
+        ResetNonInventoryDraft();
         await LoadProductsAsync();
     }
 
@@ -370,6 +452,7 @@ public partial class RegistrarCompra
 
         request.TipoDocumentoCodigo = isLiquidacionRoute ? CompraDocumentTypes.LiquidacionCompra : normalized;
         detailRows.Clear();
+        ResetNonInventoryDraft();
 
         if (IsNotaVenta)
         {
@@ -399,6 +482,17 @@ public partial class RegistrarCompra
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task OnNaturalezaCompraChangedAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        detailRows.Clear();
+        productSearchResults.Clear();
+        productSearchTerm = string.Empty;
+        ResetNonInventoryDraft();
+        await LoadProductsAsync();
     }
 
     private void OpenWorkflowModal()
@@ -500,7 +594,7 @@ public partial class RegistrarCompra
     {
         if (string.IsNullOrWhiteSpace(request.Establecimiento) || string.IsNullOrWhiteSpace(request.PuntoEmision))
         {
-            return "Pendiente de selecciÛn";
+            return "Pendiente de selecci√≥n";
         }
 
         return $"{request.Establecimiento}-{request.PuntoEmision}";
@@ -525,6 +619,16 @@ public partial class RegistrarCompra
         };
     }
 
+    private void ResetNonInventoryDraft()
+    {
+        nonInventoryName = string.Empty;
+        nonInventoryCategory = IsGastoServicioCompra ? "5.1.01.01" : "1.2.01.01";
+        nonInventoryLocation = string.Empty;
+        nonInventoryQuantity = 1m;
+        nonInventoryCost = 0m;
+        nonInventoryDiscount = 0m;
+    }
+
     private string BuildSuccessMessage(CompraResponse compra)
     {
         var bodegaNombre = selectedBodega?.Nombre ?? "la bodega seleccionada";
@@ -533,13 +637,13 @@ public partial class RegistrarCompra
         if (compra.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra)
         {
             return totalItemsInventariables > 0
-                ? $"LiquidaciÛn {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}. El inventario se incrementÛ en {bodegaNombre}."
-                : $"LiquidaciÛn {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}.";
+                ? $"Liquidaci√≥n {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}. El inventario se increment√≥ en {bodegaNombre}."
+                : $"Liquidaci√≥n {compra.NumeroComprobante} registrada por {compra.ImporteTotal:0.00}. Estado fiscal: {compra.EstadoSri ?? "PENDIENTE"}.";
         }
 
         return totalItemsInventariables > 0
-            ? $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}. El stock ingresÛ en {bodegaNombre}."
-            : $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}.";
+            ? $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}. El stock ingres√≥ en {bodegaNombre}."
+            : $"{compra.TipoDocumentoNombre} {compra.NumeroComprobante} registrada correctamente por {compra.ImporteTotal:0.00}. Clasificaci√≥n: {compra.NaturalezaCompra}.";
     }
 
     private static string FormatNumeroComprobante(string? value)
@@ -576,9 +680,13 @@ public partial class RegistrarCompra
 
     private sealed class CompraDetalleRowModel
     {
-        public Guid ProductoId { get; set; }
+        public Guid? ProductoId { get; set; }
+        public NaturalezaCompra NaturalezaCompra { get; set; } = NaturalezaCompra.MercaderiaInventario;
         public string ProductoCodigo { get; set; } = string.Empty;
         public string ProductoNombre { get; set; } = string.Empty;
+        public string? NombreActivo { get; set; }
+        public string? CategoriaSriActivo { get; set; }
+        public string? SerieUbicacionActivo { get; set; }
         public string CodigoIva { get; set; } = string.Empty;
         public decimal PorcentajeIva { get; set; }
         public decimal Cantidad { get; set; }
@@ -592,6 +700,7 @@ public partial class RegistrarCompra
         public decimal TotalLinea => SubtotalSinImpuesto + TotalImpuesto;
     }
 }
+
 
 
 

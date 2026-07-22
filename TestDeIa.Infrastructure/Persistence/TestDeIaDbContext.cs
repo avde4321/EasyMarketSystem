@@ -31,6 +31,7 @@ public sealed class TestDeIaDbContext : DbContext
 
     public DbSet<EmpleadoEntity> Empleados => Set<EmpleadoEntity>();
     public DbSet<ProveedorEntity> Proveedores => Set<ProveedorEntity>();
+    public DbSet<ActivoFijoEntity> ActivosFijos => Set<ActivoFijoEntity>();
     public DbSet<CompraEntity> Compras => Set<CompraEntity>();
     public DbSet<CompraDetalleEntity> CompraDetalles => Set<CompraDetalleEntity>();
     public DbSet<EstudioMercadoCompraEntity> EstudiosMercadoCompra => Set<EstudioMercadoCompraEntity>();
@@ -72,6 +73,8 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<EmpleadoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProveedorEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ActivoFijoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<CompraEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
