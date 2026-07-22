@@ -1,0 +1,150 @@
+@page "/contabilidad/libro-mayor"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+
+<PageTitle>Libro Mayor</PageTitle>
+
+<section class="module-page financial-page">
+    <header class="module-header">
+        <div>
+            <h1>Libro Mayor</h1>
+            <p>Consulta por cuenta aceptable con saldo inicial, movimientos y saldo final.</p>
+        </div>
+        <button class="primary-action rounded-xl-button" type="button" @onclick="LoadMayorAsync" disabled="@isLoading">
+            @(isLoading ? "Consultando..." : "Consultar")
+        </button>
+    </header>
+
+    <section class="form-card financial-filters">
+        <label>
+            Cuenta contable
+            <select class="soft-input" @bind="cuentaSeleccionadaId">
+                @foreach (var cuenta in cuentas)
+                {
+                    <option value="@cuenta.Id">@cuenta.Codigo - @cuenta.Nombre</option>
+                }
+            </select>
+        </label>
+        <label>
+            Desde
+            <InputDate class="soft-input" @bind-Value="desde" />
+        </label>
+        <label>
+            Hasta
+            <InputDate class="soft-input" @bind-Value="hasta" />
+        </label>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (mayor is not null)
+    {
+        <section class="summary-grid">
+            <article class="summary-card"><span>Saldo inicial</span><strong>@mayor.SaldoInicial.ToString("N2")</strong></article>
+            <article class="summary-card"><span>Total debe</span><strong>@mayor.TotalDebe.ToString("N2")</strong></article>
+            <article class="summary-card"><span>Total haber</span><strong>@mayor.TotalHaber.ToString("N2")</strong></article>
+            <article class="summary-card"><span>Saldo final</span><strong>@mayor.SaldoFinal.ToString("N2")</strong></article>
+        </section>
+    }
+
+    <section class="table-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>@(mayor is null ? "Movimientos" : $"{mayor.CuentaCodigo} - {mayor.CuentaNombre}")</h2>
+                <p>Libro mayor acumulado en el período seleccionado.</p>
+            </div>
+        </header>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Asiento</th>
+                        <th>Concepto</th>
+                        <th>Documento SRI</th>
+                        <th class="amount-cell">Debe</th>
+                        <th class="amount-cell">Haber</th>
+                        <th class="amount-cell">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="7" class="empty-state">Cargando libro mayor...</td></tr>
+                    }
+                    else if (mayor?.Movimientos.Count > 0)
+                    {
+                        @foreach (var movimiento in mayor.Movimientos)
+                        {
+                            <tr>
+                                <td>@movimiento.FechaContable.ToString("dd/MM/yyyy")</td>
+                                <td>@movimiento.NumeroAsiento</td>
+                                <td>@movimiento.Concepto</td>
+                                <td>@(movimiento.DocumentoSoporte ?? "—")</td>
+                                <td class="amount-cell">@movimiento.Debe.ToString("N2")</td>
+                                <td class="amount-cell">@movimiento.Haber.ToString("N2")</td>
+                                <td class="amount-cell">@movimiento.SaldoAcumulado.ToString("N2")</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="7" class="empty-state">Seleccione una cuenta y consulte movimientos.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+
+@code {
+    private readonly List<CuentaContableResponse> cuentas = [];
+    private Guid cuentaSeleccionadaId;
+    private DateTime desde = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime hasta = DateTime.Today;
+    private LibroMayorResponse? mayor;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cuentas.AddRange(await ContabilidadApiClient.GetCuentasAceptablesAsync());
+        cuentaSeleccionadaId = cuentas.FirstOrDefault()?.Id ?? Guid.Empty;
+        if (cuentaSeleccionadaId != Guid.Empty)
+        {
+            await LoadMayorAsync();
+        }
+    }
+
+    private async Task LoadMayorAsync()
+    {
+        if (cuentaSeleccionadaId == Guid.Empty)
+        {
+            errorMessage = "No existen cuentas aceptables para consultar el libro mayor.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            mayor = await ContabilidadApiClient.GetLibroMayorAsync(cuentaSeleccionadaId, desde, hasta);
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar el libro mayor.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

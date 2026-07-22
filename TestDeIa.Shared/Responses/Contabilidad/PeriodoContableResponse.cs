@@ -1,9 +1,8 @@
-namespace TestDeIa.Infrastructure.Persistence.Entities;
+namespace TestDeIa.Shared.Responses.Contabilidad;
 
-public sealed class PeriodoContableEntity
+public sealed class PeriodoContableResponse
 {
     public Guid Id { get; set; }
-    public Guid EmpresaId { get; set; }
     public int Anio { get; set; }
     public int Mes { get; set; }
     public bool EstaCerrado { get; set; }

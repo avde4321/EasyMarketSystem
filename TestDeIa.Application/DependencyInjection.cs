@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using TestDeIa.Application.Modules.Catalogos.Ports.In;
 using TestDeIa.Application.Modules.Catalogos.UseCases;
 using TestDeIa.Application.Modules.Caja.Ports.In;
@@ -39,6 +39,9 @@ public static class DependencyInjection
         services.AddScoped<ICajaSesionUseCase, CajaSesionUseCase>();
         services.AddScoped<IClienteUseCase, ClienteUseCase>();
         services.AddScoped<IContabilidadService, ContabilidadService>();
+        services.AddScoped<ReportesFinancierosService>();
+        services.AddScoped<AjusteInventarioContableService>();
+        services.AddScoped<CerrarPeriodoFiscalCommandHandler>();
         services.AddScoped<IContabilidadUseCase, ContabilidadUseCase>();
         services.AddScoped<ICompraUseCase, CompraUseCase>();
         services.AddScoped<IEstudioMercadoUseCase, EstudioMercadoUseCase>();
@@ -58,4 +61,5 @@ public static class DependencyInjection
         return services;
     }
 }
+
 

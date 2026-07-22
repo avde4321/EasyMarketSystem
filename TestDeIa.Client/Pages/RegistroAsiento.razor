@@ -6,6 +6,7 @@
 @using TestDeIa.Shared.Responses.Contabilidad
 @using TestDeIa.Shared.Security
 @inject ContabilidadApiClient ContabilidadApiClient
+@inject TestDeIa.Client.Services.PopupNotificationService PopupNotificationService
 
 <PageTitle>Registro de Asiento</PageTitle>
 
@@ -265,13 +266,15 @@
         try
         {
             var numeroAsiento = await ContabilidadApiClient.CrearAsientoAsync(request);
-            statusMessage = $"Asiento {numeroAsiento} registrado correctamente.";
             ResetForm();
+            statusMessage = $"Asiento {numeroAsiento} registrado correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
             await LoadAsync();
         }
         catch (HttpRequestException exception)
         {
             errorMessage = exception.Message;
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {

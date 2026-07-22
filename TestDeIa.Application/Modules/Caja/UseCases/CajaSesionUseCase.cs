@@ -26,7 +26,9 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
 
     public async Task<CajaSesionResponse> CerrarAsync(CerrarCajaRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.MontoFisicoEfectivoReal < 0 || request.MontoFisicoTarjetaReal < 0)
+        if (request.MontoFisicoEfectivoReal < 0 ||
+            request.MontoFisicoTarjetaReal < 0 ||
+            request.MontoFisicoTransferenciaReal < 0)
         {
             throw new InvalidOperationException("Los montos fisicos no pueden ser negativos.");
         }
@@ -34,6 +36,7 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
         return Map(await cajaSesionRepository.CerrarAsync(
             request.MontoFisicoEfectivoReal,
             request.MontoFisicoTarjetaReal,
+            request.MontoFisicoTransferenciaReal,
             cancellationToken));
     }
 
@@ -49,10 +52,18 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
             MontoApertura = caja.MontoApertura,
             TotalVentasEfectivoCalculado = caja.TotalVentasEfectivoCalculado,
             TotalVentasTarjetaCalculado = caja.TotalVentasTarjetaCalculado,
+            TotalVentasTransferenciaCalculado = caja.TotalVentasTransferenciaCalculado,
             MontoFisicoEfectivoReal = caja.MontoFisicoEfectivoReal,
             MontoFisicoTarjetaReal = caja.MontoFisicoTarjetaReal,
+            MontoFisicoTransferenciaReal = caja.MontoFisicoTransferenciaReal,
+            EfectivoReportado = caja.EfectivoReportado,
+            TarjetaReportada = caja.TarjetaReportada,
+            TransferenciaReportada = caja.TransferenciaReportada,
             DiferenciaEfectivo = caja.DiferenciaEfectivo,
             DiferenciaTarjeta = caja.DiferenciaTarjeta,
+            DiferenciaTransferencia = caja.DiferenciaTransferencia,
+            Diferencia = caja.Diferencia,
+            AsientoContableId = caja.AsientoContableId,
             EstadoCaja = caja.EstadoCaja.ToString()
         };
     }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using TestDeIa.Infrastructure.Persistence;
 namespace TestDeIa.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TestDeIaDbContext))]
-    partial class TestDeIaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722042410_AddCajaCierreDiarioContable")]
+    partial class AddCajaCierreDiarioContable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1818,14 +1821,8 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<DateTimeOffset?>("FechaCierre")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<int>("Mes")
                         .HasColumnType("int");
-
-                    b.Property<Guid?>("UsuarioCierreId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 

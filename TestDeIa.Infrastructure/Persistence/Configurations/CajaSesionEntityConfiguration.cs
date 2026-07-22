@@ -27,10 +27,16 @@ public sealed class CajaSesionEntityConfiguration : IEntityTypeConfiguration<Caj
         builder.Property(entity => entity.TotalVentasTarjetaCalculado)
             .HasPrecision(18, 2);
 
+        builder.Property(entity => entity.TotalVentasTransferenciaCalculado)
+            .HasPrecision(18, 2);
+
         builder.Property(entity => entity.MontoFisicoEfectivoReal)
             .HasPrecision(18, 2);
 
         builder.Property(entity => entity.MontoFisicoTarjetaReal)
+            .HasPrecision(18, 2);
+
+        builder.Property(entity => entity.MontoFisicoTransferenciaReal)
             .HasPrecision(18, 2);
 
         builder.Property(entity => entity.DiferenciaEfectivo)
@@ -39,11 +45,22 @@ public sealed class CajaSesionEntityConfiguration : IEntityTypeConfiguration<Caj
         builder.Property(entity => entity.DiferenciaTarjeta)
             .HasPrecision(18, 2);
 
+        builder.Property(entity => entity.DiferenciaTransferencia)
+            .HasPrecision(18, 2);
+
+        builder.Property(entity => entity.Diferencia)
+            .HasPrecision(18, 2);
+
         builder.Property(entity => entity.EstadoCaja)
             .HasConversion<string>()
             .HasMaxLength(20)
             .IsRequired();
 
         builder.HasIndex(entity => new { entity.EmpresaId, entity.UsuarioId, entity.EstadoCaja });
+
+        builder.HasOne<AsientoContableEntity>()
+            .WithMany()
+            .HasForeignKey(entity => entity.AsientoContableId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

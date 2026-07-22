@@ -4,6 +4,7 @@ using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Compras;
 using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Client.Services.Inventario;
+using TestDeIa.Client.Services;
 using TestDeIa.Shared.Compras;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Responses.Catalogos;
@@ -32,6 +33,9 @@ public partial class RegistrarCompra
 
     [Inject]
     private NavigationManager NavigationManager { get; set; } = default!;
+
+    [Inject]
+    private PopupNotificationService PopupNotificationService { get; set; } = default!;
 
     private static readonly string[] WorkflowSteps = ["Configuración", "Productos", "Detalle"];
 
@@ -256,6 +260,7 @@ public partial class RegistrarCompra
             }
 
             successMessage = BuildSuccessMessage(result.Data);
+            await this.PopupNotificationService.ShowSuccessAsync(successMessage);
             request = BuildEmptyRequest();
             if (isLiquidacionRoute)
             {
@@ -281,6 +286,7 @@ public partial class RegistrarCompra
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo registrar la compra.";
+            await this.PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -586,3 +592,8 @@ public partial class RegistrarCompra
         public decimal TotalLinea => SubtotalSinImpuesto + TotalImpuesto;
     }
 }
+
+
+
+
+

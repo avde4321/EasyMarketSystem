@@ -322,6 +322,58 @@
                                             </span>
                                             <span class="nav-text">Plan de cuentas</span>
                                         </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/registro-asiento" title="Registro de asiento">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M6 5.5h12v13H6z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M9 9h6M9 12h6M9 15h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Registro asiento</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/libro-diario" title="Libro diario">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M7 4.5h10v15H7z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M10 8h4M10 11.5h4M10 15h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Libro diario</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/libro-mayor" title="Libro mayor">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M5.5 6.5h13M5.5 11.5h13M5.5 16.5h13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="M9 4v15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Libro mayor</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/balance-general" title="Balance general">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M7 19V5m10 14V5M5 9h14M5 15h14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Balance general</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/estado-resultados" title="Estado de resultados">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M6 18.5h12M8 15l3-4 3 2 3-6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Estado resultados</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="contabilidad/cierre-periodo" title="Cierre periodo fiscal">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M7 4.5h10v15H7z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M9.5 9h5M9.5 12.5h5M10 16l1.5 1.5L15 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Cierre periodo</span>
+                                        </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="@SecurityPolicyNames.FinancieroIva">
@@ -540,7 +592,7 @@
             "personas" or "clientes" or "empleados" or "proveedores" => "comercial",
             "facturacion/pos" or "caja/control" or "inventario" => "operaciones",
             "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" => "compras",
-            "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
+            "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "contabilidad/libro-diario" or "contabilidad/libro-mayor" or "contabilidad/balance-general" or "contabilidad/estado-resultados" or "contabilidad/cierre-periodo" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
             "empresa" or "usuarios" or "catalogos" or "seguridad/auditoria" => "configuracion",
             _ => expandedGroup
         };

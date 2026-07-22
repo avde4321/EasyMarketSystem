@@ -1,4 +1,4 @@
-using TestDeIa.Application.Modules.Contabilidad.Exceptions;
+ï»¿using TestDeIa.Application.Modules.Contabilidad.Exceptions;
 using TestDeIa.Application.Modules.Contabilidad.Ports.In;
 using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
 using TestDeIa.Domain.Modules.Contabilidad.Entities;
@@ -7,7 +7,9 @@ using TestDeIa.Shared.Responses.Contabilidad;
 
 namespace TestDeIa.Application.Modules.Contabilidad.UseCases;
 
-public sealed class ContabilidadUseCase(IContabilidadRepository contabilidadRepository) : IContabilidadUseCase
+public sealed class ContabilidadUseCase(
+    IContabilidadRepository contabilidadRepository,
+    ReportesFinancierosService reportesFinancierosService) : IContabilidadUseCase
 {
     private const string RootKey = "__root__";
 
@@ -46,7 +48,7 @@ public sealed class ContabilidadUseCase(IContabilidadRepository contabilidadRepo
 
         if (request.Detalles.Count == 0)
         {
-            throw new InvalidOperationException("El asiento debe incluir al menos una línea.");
+            throw new InvalidOperationException("El asiento debe incluir al menos una linea.");
         }
 
         var totalDebe = decimal.Round(request.Detalles.Sum(current => current.Debe), 2, MidpointRounding.AwayFromZero);
@@ -63,6 +65,53 @@ public sealed class ContabilidadUseCase(IContabilidadRepository contabilidadRepo
 
     public Task<IReadOnlyCollection<AsientoContableResponse>> GetLibroDiarioAsync(CancellationToken cancellationToken = default) =>
         contabilidadRepository.GetLibroDiarioAsync(cancellationToken);
+
+    public Task<IReadOnlyCollection<LibroDiarioLineaResponse>> GetLibroDiarioAsync(
+        DateTime desde,
+        DateTime hasta,
+        CancellationToken cancellationToken = default) =>
+        contabilidadRepository.GetLibroDiarioAsync(desde.Date, hasta.Date, cancellationToken);
+
+    public Task<LibroMayorResponse> GetLibroMayorAsync(
+        Guid cuentaContableId,
+        DateTime desde,
+        DateTime hasta,
+        CancellationToken cancellationToken = default) =>
+        contabilidadRepository.GetLibroMayorAsync(cuentaContableId, desde.Date, hasta.Date, cancellationToken);
+
+    public async Task<BalanceGeneralResponse> GetBalanceGeneralAsync(CancellationToken cancellationToken = default)
+    {
+        var cuentas = await contabilidadRepository.GetCuentasParaEstadosFinancierosAsync(cancellationToken);
+        return reportesFinancierosService.GenerarBalanceGeneral(cuentas);
+    }
+
+    public async Task<EstadoResultadosResponse> GetEstadoResultadosAsync(CancellationToken cancellationToken = default)
+    {
+        var cuentas = await contabilidadRepository.GetCuentasParaEstadosFinancierosAsync(cancellationToken);
+        return reportesFinancierosService.GenerarEstadoResultados(cuentas);
+    }
+
+    public Task<IReadOnlyCollection<PeriodoContableResponse>> GetPeriodosAsync(int anio, CancellationToken cancellationToken = default) =>
+        contabilidadRepository.GetPeriodosAsync(anio, cancellationToken);
+
+    public Task<PeriodoContableResponse> CerrarPeriodoFiscalAsync(
+        CerrarPeriodoFiscalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Mes is < 1 or > 12)
+        {
+            throw new InvalidOperationException("El mes fiscal debe estar entre 1 y 12.");
+        }
+
+        return contabilidadRepository.CerrarPeriodoFiscalAsync(request, cancellationToken);
+    }
+
+    public Task<AjusteInventarioContableResponse> AjustarInventarioContableAsync(
+        bool generarAsiento,
+        CancellationToken cancellationToken = default) =>
+        contabilidadRepository.AjustarInventarioContableAsync(generarAsiento, cancellationToken);
 
     private static IReadOnlyCollection<CuentaContableResponse> BuildNodes(
         string parentCode,

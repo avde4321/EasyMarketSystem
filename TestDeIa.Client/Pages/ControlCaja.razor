@@ -12,22 +12,12 @@
         </div>
     </header>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="feedback-banner error">@errorMessage</div>
-    }
-
-    @if (!string.IsNullOrWhiteSpace(statusMessage))
-    {
-        <div class="feedback-banner success">@statusMessage</div>
-    }
-
     <section class="content-grid">
         <article class="table-card">
             <header class="section-header">
                 <div>
                     <h2>@(cajaActiva is null ? "Abrir caja" : "Caja activa")</h2>
-                    <p>@(cajaActiva is null ? "Define el fondo inicial para habilitar el POS." : "Consulta el acumulado y registra los montos fisicos al cerrar.")</p>
+                    <p>@(cajaActiva is null ? "Define el fondo inicial para habilitar el POS." : "Registra efectivo, vouchers y transferencias antes de confirmar el cierre.")</p>
                 </div>
             </header>
 
@@ -66,34 +56,54 @@
                     <div class="summary-card">
                         <span>Ventas tarjeta</span>
                         <strong>@cajaActiva.TotalVentasTarjetaCalculado.ToString("0.00")</strong>
-                        <small>Pagos no efectivos del turno</small>
+                        <small>Vouchers fisicos del turno</small>
+                    </div>
+                    <div class="summary-card">
+                        <span>Transferencias</span>
+                        <strong>@cajaActiva.TotalVentasTransferenciaCalculado.ToString("0.00")</strong>
+                        <small>Comprobantes bancarios del turno</small>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-field">
-                        <label>Efectivo fisico real</label>
+                        <label>Efectivo reportado</label>
                         <InputNumber class="form-control" @bind-Value="montoFisicoEfectivoReal" />
+                        <small>Incluye fondo inicial + efectivo vendido.</small>
                     </div>
                     <div class="form-field">
-                        <label>Tarjeta / transferencias reales</label>
+                        <label>Tarjeta reportada</label>
                         <InputNumber class="form-control" @bind-Value="montoFisicoTarjetaReal" />
+                        <small>Total de vouchers fisicos.</small>
+                    </div>
+                    <div class="form-field">
+                        <label>Transferencia reportada</label>
+                        <InputNumber class="form-control" @bind-Value="montoFisicoTransferenciaReal" />
+                        <small>Total de comprobantes bancarios.</small>
                     </div>
                 </div>
 
                 <div class="summary-grid compact">
-                    <div class="summary-card @(GetDifferenceClass(cajaActiva.DiferenciaEfectivo))">
+                    <div class="summary-card @(GetDifferenceClass(DiferenciaEfectivoPreview))">
                         <span>Diferencia efectivo</span>
-                        <strong>@cajaActiva.DiferenciaEfectivo.ToString("0.00")</strong>
+                        <strong>@DiferenciaEfectivoPreview.ToString("0.00")</strong>
                     </div>
-                    <div class="summary-card @(GetDifferenceClass(cajaActiva.DiferenciaTarjeta))">
+                    <div class="summary-card @(GetDifferenceClass(DiferenciaTarjetaPreview))">
                         <span>Diferencia tarjeta</span>
-                        <strong>@cajaActiva.DiferenciaTarjeta.ToString("0.00")</strong>
+                        <strong>@DiferenciaTarjetaPreview.ToString("0.00")</strong>
+                    </div>
+                    <div class="summary-card @(GetDifferenceClass(DiferenciaTransferenciaPreview))">
+                        <span>Diferencia transferencia</span>
+                        <strong>@DiferenciaTransferenciaPreview.ToString("0.00")</strong>
+                    </div>
+                    <div class="summary-card total @(GetDifferenceClass(DiferenciaTotalPreview))">
+                        <span>@DifferenceLabel</span>
+                        <strong>@DiferenciaTotalPreview.ToString("0.00")</strong>
                     </div>
                 </div>
 
                 <div class="audit-note">
-                    <strong>Listo para auditoria:</strong> el cierre contrasta el acumulado del sistema contra lo declarado fisicamente por el cajero.
+                    <strong>Listo para auditoria:</strong> el cierre toma la fecha del servidor, bloquea la caja y genera el asiento automatico en Libro Diario.
                 </div>
 
                 <div class="modal-actions">

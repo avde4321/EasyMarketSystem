@@ -16,6 +16,7 @@ using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Client.Services.Financiero;
 using TestDeIa.Client.Services.Inventario;
 using TestDeIa.Client.Services.Personas;
+using TestDeIa.Client.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -25,6 +26,7 @@ var apiOptions = builder.Configuration.GetSection("Api").Get<ApiOptions>() ?? ne
 
 builder.Services.AddAuthorizationCore(AuthorizationPolicyRegistration.Register);
 builder.Services.AddScoped<TokenStorageService>();
+builder.Services.AddScoped<PopupNotificationService>();
 builder.Services.AddScoped<EmpresaSessionService>();
 builder.Services.AddScoped<TokenAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
@@ -54,3 +56,4 @@ builder.Services.AddScoped<PersonasApiClient>();
 builder.Services.AddScoped<InventarioApiClient>();
 
 await builder.Build().RunAsync();
+

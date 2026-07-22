@@ -24,6 +24,10 @@ public sealed class PeriodoContableEntityConfiguration : IEntityTypeConfiguratio
         builder.Property(entity => entity.EstaCerrado)
             .HasDefaultValue(false);
 
+        builder.Property(entity => entity.FechaCierre);
+
+        builder.Property(entity => entity.UsuarioCierreId);
+
         builder.HasIndex(entity => new { entity.EmpresaId, entity.Anio, entity.Mes })
             .IsUnique();
     }

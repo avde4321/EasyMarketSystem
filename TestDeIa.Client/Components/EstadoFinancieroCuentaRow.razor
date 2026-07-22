@@ -1,0 +1,41 @@
+@using TestDeIa.Shared.Responses.Contabilidad
+
+<tr class="financial-row @(HasChildren ? "group-row" : "leaf-row")">
+    <td style="padding-left:@Indent">
+        @if (HasChildren)
+        {
+            <button class="tree-toggle" type="button" @onclick="ToggleAsync">
+                @(IsExpanded ? "−" : "+")
+            </button>
+        }
+        <span class="account-code">@Cuenta.Codigo</span>
+        <span>@Cuenta.Nombre</span>
+    </td>
+    <td>@Cuenta.TipoCuenta</td>
+    <td class="amount-cell">@Cuenta.Saldo.ToString("N2")</td>
+</tr>
+
+@if (HasChildren && IsExpanded)
+{
+    @foreach (var child in Cuenta.Hijos)
+    {
+        <EstadoFinancieroCuentaRow Cuenta="child" ExpandedCodes="ExpandedCodes" OnToggle="OnToggle" />
+    }
+}
+
+@code {
+    [Parameter]
+    public EstadoFinancieroCuentaResponse Cuenta { get; set; } = default!;
+
+    [Parameter]
+    public HashSet<string> ExpandedCodes { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<string> OnToggle { get; set; }
+
+    private bool HasChildren => Cuenta.Hijos.Count > 0;
+    private bool IsExpanded => ExpandedCodes.Contains(Cuenta.Codigo);
+    private string Indent => $"{Math.Max(Cuenta.Nivel - 1, 0) * 1.1m}rem";
+
+    private Task ToggleAsync() => OnToggle.InvokeAsync(Cuenta.Codigo);
+}

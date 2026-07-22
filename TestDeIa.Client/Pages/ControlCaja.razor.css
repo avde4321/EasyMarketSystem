@@ -55,6 +55,16 @@
     font-size: 1.45rem;
 }
 
+.summary-card.total {
+    border-color: rgba(42, 157, 143, 0.38);
+    box-shadow: 0 16px 34px rgba(24, 77, 132, 0.08);
+}
+
+.form-field small {
+    color: #6f8298;
+    font-size: 0.82rem;
+}
+
 .audit-note {
     border-radius: 18px;
     padding: 0.95rem 1rem;

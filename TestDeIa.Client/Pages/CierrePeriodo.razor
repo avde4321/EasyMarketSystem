@@ -1,0 +1,180 @@
+@page "/contabilidad/cierre-periodo"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Requests.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject IJSRuntime JsRuntime
+
+<PageTitle>Cierre de periodo fiscal</PageTitle>
+
+<section class="module-page cierre-periodo-page">
+    <header class="module-header">
+        <div>
+            <h1>Cierre de periodo fiscal</h1>
+            <p>Bloquea meses declarados ante el SRI y ejecuta ajustes contables de inventario.</p>
+        </div>
+        <button class="primary-action rounded-xl-button" type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </header>
+
+    <section class="form-card cierre-toolbar">
+        <label>
+            Año fiscal
+            <InputNumber class="soft-input" @bind-Value="anio" />
+        </label>
+        <button class="secondary-action rounded-xl-button" type="button" @onclick="ReconciliarInventarioAsync" disabled="@isSaving">
+            Reconciliar inventario
+        </button>
+        <button class="primary-action rounded-xl-button" type="button" @onclick="GenerarAjusteInventarioAsync" disabled="@isSaving">
+            Generar ajuste por merma
+        </button>
+    </section>
+
+    @if (ajuste is not null)
+    {
+        <section class="summary-grid">
+            <article class="summary-card"><span>Valor Kardex</span><strong>@ajuste.ValorKardex.ToString("N2")</strong></article>
+            <article class="summary-card"><span>Cuenta inventario</span><strong>@ajuste.SaldoCuentaInventario.ToString("N2")</strong></article>
+            <article class="summary-card @(GetDifferenceClass(ajuste.Diferencia))"><span>Diferencia</span><strong>@ajuste.Diferencia.ToString("N2")</strong></article>
+            <article class="summary-card"><span>Asiento</span><strong>@(ajuste.AsientoGenerado ? ajuste.NumeroAsiento : "No generado")</strong></article>
+        </section>
+    }
+
+    <section class="period-grid">
+        @foreach (var periodo in periodos)
+        {
+            <article class="period-card @(periodo.EstaCerrado ? "closed" : "open")">
+                <div>
+                    <span class="month-kicker">@GetMonthName(periodo.Mes)</span>
+                    <h2>@periodo.Mes.ToString("00") / @periodo.Anio</h2>
+                    <p>@(periodo.EstaCerrado ? $"Cerrado {periodo.FechaCierre?.ToLocalTime():dd/MM/yyyy HH:mm}" : "Abierto para registros contables")</p>
+                </div>
+                <span class="status-badge">@(periodo.EstaCerrado ? "Cerrado" : "Abierto")</span>
+                <button class="primary-action rounded-xl-button danger"
+                        type="button"
+                        disabled="@(periodo.EstaCerrado || isSaving)"
+                        @onclick="() => ConfirmarCierreAsync(periodo)">
+                    Cerrar mes
+                </button>
+            </article>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly List<PeriodoContableResponse> periodos = [];
+    private int anio = DateTime.Today.Year;
+    private bool isLoading;
+    private bool isSaving;
+    private AjusteInventarioContableResponse? ajuste;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            periodos.Clear();
+            periodos.AddRange(await ContabilidadApiClient.GetPeriodosAsync(anio));
+        }
+        catch (HttpRequestException exception)
+        {
+            await PopupNotificationService.ShowErrorAsync(exception.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ConfirmarCierreAsync(PeriodoContableResponse periodo)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"El cierre de {GetMonthName(periodo.Mes)} {periodo.Anio} bloqueara asientos nuevos o modificaciones. Esta accion es de control fiscal. Deseas continuar?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            await ContabilidadApiClient.CerrarPeriodoFiscalAsync(new CerrarPeriodoFiscalRequest
+            {
+                Anio = periodo.Anio,
+                Mes = periodo.Mes
+            });
+
+            await PopupNotificationService.ShowSuccessAsync("Periodo fiscal cerrado correctamente.");
+            await LoadAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            await PopupNotificationService.ShowErrorAsync(exception.Message);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ReconciliarInventarioAsync()
+    {
+        await RunInventarioAsync(false);
+    }
+
+    private async Task GenerarAjusteInventarioAsync()
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            "Se generara un asiento contable por merma/deterioro si la cuenta de inventario supera el valor Kardex. Deseas continuar?");
+
+        if (confirmed)
+        {
+            await RunInventarioAsync(true);
+        }
+    }
+
+    private async Task RunInventarioAsync(bool generarAsiento)
+    {
+        isSaving = true;
+        try
+        {
+            ajuste = await ContabilidadApiClient.AjustarInventarioContableAsync(generarAsiento);
+            var message = ajuste.AsientoGenerado
+                ? $"Ajuste generado en asiento {ajuste.NumeroAsiento}."
+                : "Reconciliacion calculada sin asiento generado.";
+            await PopupNotificationService.ShowInfoAsync(message);
+        }
+        catch (HttpRequestException exception)
+        {
+            await PopupNotificationService.ShowErrorAsync(exception.Message);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetMonthName(int mes) => new DateTime(2026, mes, 1).ToString("MMMM");
+
+    private static string GetDifferenceClass(decimal difference)
+    {
+        if (difference == 0m)
+        {
+            return "neutral";
+        }
+
+        return difference > 0m ? "negative" : "positive";
+    }
+}

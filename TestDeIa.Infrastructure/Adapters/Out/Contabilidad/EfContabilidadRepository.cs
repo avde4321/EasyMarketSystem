@@ -1,6 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+Ôªøusing Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
+using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Contabilidad.Entities;
 using TestDeIa.Domain.Modules.Contabilidad.Enums;
 using TestDeIa.Infrastructure.Persistence;
@@ -10,7 +11,10 @@ using TestDeIa.Shared.Responses.Contabilidad;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Contabilidad;
 
-public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor) : IContabilidadRepository
+public sealed class EfContabilidadRepository(
+    TestDeIaDbContext dbContext,
+    ITenantContextAccessor tenantContextAccessor,
+    ICurrentUserAccessor currentUserAccessor) : IContabilidadRepository
 {
     private static readonly AccountTemplate[] AccountTemplates =
     [
@@ -90,7 +94,7 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
         {
             "POS" => await GenerarAsientoDesdePosAsync(transaccionId, cancellationToken),
             "COMPRAS" => await GenerarAsientoDesdeCompraAsync(transaccionId, cancellationToken),
-            _ => throw new InvalidOperationException($"El mÛdulo de origen {moduloOrigen} no est· soportado para contabilizaciÛn autom·tica.")
+            _ => throw new InvalidOperationException($"El m√≥dulo de origen {moduloOrigen} no est√° soportado para contabilizaci√≥n autom√°tica.")
         };
     }
 
@@ -108,7 +112,7 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
 
         if (periodo?.EstaCerrado == true)
         {
-            throw new InvalidOperationException($"El perÌodo {fechaContable:MM/yyyy} se encuentra cerrado y no admite cambios.");
+            throw new InvalidOperationException($"El per√≠odo {fechaContable:MM/yyyy} se encuentra cerrado y no admite cambios.");
         }
 
         var cuentaIds = request.Detalles
@@ -211,6 +215,287 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<LibroDiarioLineaResponse>> GetLibroDiarioAsync(
+        DateTime desde,
+        DateTime hasta,
+        CancellationToken cancellationToken = default)
+    {
+        var fechaDesde = desde.Date;
+        var fechaHasta = hasta.Date;
+
+        return await dbContext.AsientosContables
+            .AsNoTracking()
+            .Where(current =>
+                current.Estado == EstadoAsientoContable.Posteado &&
+                current.FechaContable >= fechaDesde &&
+                current.FechaContable <= fechaHasta)
+            .SelectMany(current => current.Detalles.Select(detail => new LibroDiarioLineaResponse
+            {
+                FechaContable = current.FechaContable,
+                NumeroAsiento = current.NumeroAsiento,
+                CuentaCodigo = detail.CuentaContable.Codigo,
+                CuentaNombre = detail.CuentaContable.Nombre,
+                Concepto = current.Concepto,
+                DocumentoSoporte = current.DocumentoSoporte,
+                Debe = detail.Debe,
+                Haber = detail.Haber
+            }))
+            .OrderBy(current => current.FechaContable)
+            .ThenBy(current => current.NumeroAsiento)
+            .ThenBy(current => current.CuentaCodigo)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<LibroMayorResponse> GetLibroMayorAsync(
+        Guid cuentaContableId,
+        DateTime desde,
+        DateTime hasta,
+        CancellationToken cancellationToken = default)
+    {
+        var fechaDesde = desde.Date;
+        var fechaHasta = hasta.Date;
+        var cuenta = await dbContext.CuentasContables
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == cuentaContableId, cancellationToken)
+            ?? throw new InvalidOperationException("La cuenta contable seleccionada no existe para la empresa activa.");
+
+        var saldosPrevios = await dbContext.AsientosDetalle
+            .AsNoTracking()
+            .Where(detail =>
+                detail.CuentaContableId == cuentaContableId &&
+                detail.AsientoContable.Estado == EstadoAsientoContable.Posteado &&
+                detail.AsientoContable.FechaContable < fechaDesde)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Debe = group.Sum(current => current.Debe),
+                Haber = group.Sum(current => current.Haber)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var saldoInicial = ApplySaldo(cuenta.TipoCuenta, 0m, saldosPrevios?.Debe ?? 0m, saldosPrevios?.Haber ?? 0m);
+
+        var movimientosBase = await dbContext.AsientosDetalle
+            .AsNoTracking()
+            .Where(detail =>
+                detail.CuentaContableId == cuentaContableId &&
+                detail.AsientoContable.Estado == EstadoAsientoContable.Posteado &&
+                detail.AsientoContable.FechaContable >= fechaDesde &&
+                detail.AsientoContable.FechaContable <= fechaHasta)
+            .OrderBy(detail => detail.AsientoContable.FechaContable)
+            .ThenBy(detail => detail.AsientoContable.NumeroAsiento)
+            .Select(detail => new
+            {
+                detail.AsientoContable.FechaContable,
+                detail.AsientoContable.NumeroAsiento,
+                detail.AsientoContable.Concepto,
+                detail.AsientoContable.DocumentoSoporte,
+                detail.Debe,
+                detail.Haber
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var saldoAcumulado = saldoInicial;
+        var movimientos = movimientosBase
+            .Select(current =>
+            {
+                saldoAcumulado = ApplySaldo(cuenta.TipoCuenta, saldoAcumulado, current.Debe, current.Haber);
+                return new LibroMayorMovimientoResponse
+                {
+                    FechaContable = current.FechaContable,
+                    NumeroAsiento = current.NumeroAsiento,
+                    Concepto = current.Concepto,
+                    DocumentoSoporte = current.DocumentoSoporte,
+                    Debe = current.Debe,
+                    Haber = current.Haber,
+                    SaldoAcumulado = saldoAcumulado
+                };
+            })
+            .ToArray();
+
+        return new LibroMayorResponse
+        {
+            CuentaContableId = cuenta.Id,
+            CuentaCodigo = cuenta.Codigo,
+            CuentaNombre = cuenta.Nombre,
+            Desde = fechaDesde,
+            Hasta = fechaHasta,
+            SaldoInicial = saldoInicial,
+            TotalDebe = movimientos.Sum(current => current.Debe),
+            TotalHaber = movimientos.Sum(current => current.Haber),
+            SaldoFinal = saldoAcumulado,
+            Movimientos = movimientos
+        };
+    }
+
+    public async Task<IReadOnlyCollection<CuentaContable>> GetCuentasParaEstadosFinancierosAsync(CancellationToken cancellationToken = default)
+    {
+        return await dbContext.CuentasContables
+            .AsNoTracking()
+            .OrderBy(current => current.Codigo)
+            .Select(current => new CuentaContable(
+                current.Id,
+                current.EmpresaId,
+                current.Codigo,
+                current.Nombre,
+                current.Nivel,
+                current.TipoCuenta,
+                current.EsAceptable,
+                current.SaldoActual))
+            .ToArrayAsync(cancellationToken);
+    }
+    public async Task<IReadOnlyCollection<PeriodoContableResponse>> GetPeriodosAsync(int anio, CancellationToken cancellationToken = default)
+    {
+        if (!tenantContextAccessor.EmpresaId.HasValue)
+        {
+            throw new InvalidOperationException("No existe una empresa activa para consultar periodos fiscales.");
+        }
+
+        var empresaId = tenantContextAccessor.EmpresaId.Value;
+        var existing = await dbContext.PeriodosContables
+            .AsNoTracking()
+            .Where(current => current.EmpresaId == empresaId && current.Anio == anio)
+            .ToDictionaryAsync(current => current.Mes, cancellationToken);
+
+        return Enumerable.Range(1, 12)
+            .Select(mes =>
+            {
+                existing.TryGetValue(mes, out var periodo);
+                return new PeriodoContableResponse
+                {
+                    Id = periodo?.Id ?? Guid.Empty,
+                    Anio = anio,
+                    Mes = mes,
+                    EstaCerrado = periodo?.EstaCerrado ?? false,
+                    FechaCierre = periodo?.FechaCierre,
+                    UsuarioCierreId = periodo?.UsuarioCierreId
+                };
+            })
+            .ToArray();
+    }
+
+    public async Task<PeriodoContableResponse> CerrarPeriodoFiscalAsync(
+        CerrarPeriodoFiscalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenantContextAccessor.EmpresaId.HasValue)
+        {
+            throw new InvalidOperationException("No existe una empresa activa para cerrar el periodo fiscal.");
+        }
+
+        var empresaId = tenantContextAccessor.EmpresaId.Value;
+        var hasDrafts = await dbContext.AsientosContables
+            .AsNoTracking()
+            .AnyAsync(current =>
+                current.EmpresaId == empresaId &&
+                current.Estado == EstadoAsientoContable.Borrador &&
+                current.FechaContable.Year == request.Anio &&
+                current.FechaContable.Month == request.Mes,
+                cancellationToken);
+
+        if (hasDrafts)
+        {
+            throw new InvalidOperationException("No se puede cerrar el periodo fiscal porque existen asientos en borrador.");
+        }
+
+        var periodo = await dbContext.PeriodosContables
+            .FirstOrDefaultAsync(current =>
+                current.EmpresaId == empresaId &&
+                current.Anio == request.Anio &&
+                current.Mes == request.Mes,
+                cancellationToken);
+
+        if (periodo?.EstaCerrado == true)
+        {
+            return MapPeriodo(periodo);
+        }
+
+        if (periodo is null)
+        {
+            periodo = new PeriodoContableEntity
+            {
+                Id = Guid.NewGuid(),
+                EmpresaId = empresaId,
+                Anio = request.Anio,
+                Mes = request.Mes,
+                EstaCerrado = false
+            };
+            dbContext.PeriodosContables.Add(periodo);
+        }
+
+        periodo.EstaCerrado = true;
+        periodo.FechaCierre = DateTimeOffset.UtcNow;
+        periodo.UsuarioCierreId = currentUserAccessor.GetRequiredUserId();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapPeriodo(periodo);
+    }
+
+    public async Task<AjusteInventarioContableResponse> AjustarInventarioContableAsync(
+        bool generarAsiento,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenantContextAccessor.EmpresaId.HasValue)
+        {
+            throw new InvalidOperationException("No existe una empresa activa para reconciliar inventario.");
+        }
+
+        var empresaId = tenantContextAccessor.EmpresaId.Value;
+        var movimientos = await dbContext.KardexMovimientos
+            .AsNoTracking()
+            .Where(current => current.EmpresaId == empresaId)
+            .Select(current => new
+            {
+                current.ProductoId,
+                current.BodegaId,
+                current.FechaMovimiento,
+                current.SaldoValor
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var valorKardex = Math.Round(movimientos
+            .GroupBy(current => new { current.ProductoId, current.BodegaId })
+            .Select(group => group.OrderByDescending(current => current.FechaMovimiento).First().SaldoValor)
+            .Sum(), 2, MidpointRounding.AwayFromZero);
+
+        var cuentas = await EnsureInventoryAdjustmentAccountsAsync(empresaId, cancellationToken);
+        var saldoCuenta = Math.Round(cuentas.InventarioMercaderias.SaldoActual, 2, MidpointRounding.AwayFromZero);
+        var diferencia = Math.Round(saldoCuenta - valorKardex, 2, MidpointRounding.AwayFromZero);
+
+        if (!generarAsiento || diferencia <= 0m)
+        {
+            return new AjusteInventarioContableResponse
+            {
+                ValorKardex = valorKardex,
+                SaldoCuentaInventario = saldoCuenta,
+                Diferencia = diferencia,
+                AsientoGenerado = false
+            };
+        }
+
+        var request = new CrearAsientoRequest
+        {
+            FechaContable = DateTime.Today,
+            Concepto = $"Ajuste automatico por merma/deterioro de inventario | Kardex {valorKardex:N2} vs cuenta {saldoCuenta:N2}",
+            ModuloOrigen = ModuloOrigenContable.Diario.ToString(),
+            Estado = EstadoAsientoContable.Posteado.ToString(),
+            Detalles =
+            [
+                CreateDetalle(cuentas.GastoMermasInventario.Id, diferencia, 0m),
+                CreateDetalle(cuentas.InventarioMercaderias.Id, 0m, diferencia)
+            ]
+        };
+
+        var numeroAsiento = await CrearAsientoAsync(request, cancellationToken);
+        return new AjusteInventarioContableResponse
+        {
+            ValorKardex = valorKardex,
+            SaldoCuentaInventario = saldoCuenta,
+            Diferencia = diferencia,
+            AsientoGenerado = true,
+            NumeroAsiento = numeroAsiento
+        };
+    }
     private async Task<string> GenerarAsientoDesdePosAsync(Guid facturaId, CancellationToken cancellationToken)
     {
         var factura = await dbContext.Facturas
@@ -399,6 +684,45 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
             cuentas["6.1.01"]);
     }
 
+    private async Task<InventoryAdjustmentAccounts> EnsureInventoryAdjustmentAccountsAsync(Guid empresaId, CancellationToken cancellationToken)
+    {
+        var templates = new[]
+        {
+            new AccountTemplate("1.1.04.01", "Inventario de Mercaderias", 4, TipoCuentaContable.Activo, true),
+            new AccountTemplate("5.1.02", "Gastos por Inventario", 3, TipoCuentaContable.Gasto, false),
+            new AccountTemplate("5.1.02.01", "Gasto por Mermas/Deterioro de Inventario", 4, TipoCuentaContable.Gasto, true)
+        };
+
+        var codes = templates.Select(current => current.Codigo).ToArray();
+        var cuentas = await dbContext.CuentasContables
+            .Where(current => current.EmpresaId == empresaId && codes.Contains(current.Codigo))
+            .ToDictionaryAsync(current => current.Codigo, cancellationToken);
+
+        foreach (var template in templates.Where(current => !cuentas.ContainsKey(current.Codigo)).OrderBy(current => current.Nivel))
+        {
+            var entity = new CuentaContableEntity
+            {
+                Id = Guid.NewGuid(),
+                EmpresaId = empresaId,
+                Codigo = template.Codigo,
+                Nombre = template.Nombre,
+                Nivel = template.Nivel,
+                TipoCuenta = template.TipoCuenta,
+                EsAceptable = template.EsAceptable,
+                SaldoActual = 0m
+            };
+
+            dbContext.CuentasContables.Add(entity);
+            cuentas[template.Codigo] = entity;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new InventoryAdjustmentAccounts(
+            cuentas["1.1.04.01"],
+            cuentas["5.1.02.01"]);
+    }
+
     private async Task<string?> FindExistingNumeroAsientoAsync(ModuloOrigenContable moduloOrigen, string originMarker, CancellationToken cancellationToken)
     {
         return await dbContext.AsientosContables
@@ -416,6 +740,19 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
             CuentaContableId = cuentaContableId,
             Debe = Math.Round(debe, 2, MidpointRounding.AwayFromZero),
             Haber = Math.Round(haber, 2, MidpointRounding.AwayFromZero)
+        };
+    }
+
+    private static PeriodoContableResponse MapPeriodo(PeriodoContableEntity periodo)
+    {
+        return new PeriodoContableResponse
+        {
+            Id = periodo.Id,
+            Anio = periodo.Anio,
+            Mes = periodo.Mes,
+            EstaCerrado = periodo.EstaCerrado,
+            FechaCierre = periodo.FechaCierre,
+            UsuarioCierreId = periodo.UsuarioCierreId
         };
     }
 
@@ -466,5 +803,12 @@ public sealed class EfContabilidadRepository(TestDeIaDbContext dbContext, ITenan
         CuentaContableEntity IngresoPorVentas,
         CuentaContableEntity GastoComprasServicios,
         CuentaContableEntity CostoVentasMercaderias);
+
+    private sealed record InventoryAdjustmentAccounts(
+        CuentaContableEntity InventarioMercaderias,
+        CuentaContableEntity GastoMermasInventario);
 }
+
+
+
 

@@ -5,6 +5,7 @@ using TestDeIa.Client.Services.Caja;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Facturacion;
+using TestDeIa.Client.Services;
 using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Catalogos;
@@ -26,6 +27,9 @@ public partial class FacturacionPos : IDisposable
 
     [Inject]
     private CajaApiClient CajaApiClient { get; set; } = default!;
+
+    [Inject]
+    private PopupNotificationService PopupNotificationService { get; set; } = default!;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
@@ -377,6 +381,7 @@ public partial class FacturacionPos : IDisposable
             }
 
             statusMessage = $"{result.Data?.NumeroComprobante} registrada en estado pendiente. La validacion SRI sigue en segundo plano.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
             cartItems.Clear();
             productoResults.Clear();
             observacion = null;
@@ -385,6 +390,7 @@ public partial class FacturacionPos : IDisposable
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo registrar la factura.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -430,6 +436,7 @@ public partial class FacturacionPos : IDisposable
             }
 
             statusMessage = "La persona ahora quedo habilitada como cliente para la empresa activa.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
             clienteSearchTerm = selectedCliente.Identificacion;
             await SearchClientesAsync();
 
@@ -442,6 +449,7 @@ public partial class FacturacionPos : IDisposable
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo activar la extension de cliente.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -534,3 +542,4 @@ public partial class FacturacionPos : IDisposable
         public decimal Total => Subtotal + IvaValor;
     }
 }
+
