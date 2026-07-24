@@ -65,6 +65,14 @@ public sealed class CompraEntityConfiguration : IEntityTypeConfiguration<CompraE
             .HasMaxLength(2)
             .IsRequired();
 
+        builder.Property(compra => compra.FormaPagoCompra)
+            .HasConversion<string>()
+            .HasMaxLength(40)
+            .IsRequired();
+
+        builder.Property(compra => compra.RequiereBancarizacion)
+            .IsRequired();
+
         builder.Property(compra => compra.Observacion)
             .HasMaxLength(500);
 

@@ -1,13 +1,16 @@
 using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Application.Modules.Compras.Ports.Out;
 using TestDeIa.Application.Modules.Contabilidad.Ports.In;
+using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Compras.Entities;
+using DomainFormaPagoCompra = TestDeIa.Domain.Modules.Compras.Enums.FormaPagoCompra;
 using DomainNaturalezaCompra = TestDeIa.Domain.Modules.Compras.Enums.NaturalezaCompra;
 using TestDeIa.Shared.Compras;
 using TestDeIa.Shared.Requests.Compras;
+using TestDeIa.Shared.Requests.Contabilidad;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Compras;
 using TestDeIa.Shared.Sri;
@@ -26,6 +29,7 @@ public sealed class CompraUseCase : ICompraUseCase
     private readonly IInventarioRepository inventarioRepository;
     private readonly ICurrentUserAccessor currentUserAccessor;
     private readonly IContabilidadService contabilidadService;
+    private readonly IContabilidadRepository contabilidadRepository;
 
     public CompraUseCase(
         ICompraRepository compraRepository,
@@ -35,7 +39,8 @@ public sealed class CompraUseCase : ICompraUseCase
         IEmpresaRepository empresaRepository,
         IInventarioRepository inventarioRepository,
         ICurrentUserAccessor currentUserAccessor,
-        IContabilidadService contabilidadService)
+        IContabilidadService contabilidadService,
+        IContabilidadRepository contabilidadRepository)
     {
         this.compraRepository = compraRepository;
         this.cuentaPorPagarRepository = cuentaPorPagarRepository;
@@ -45,6 +50,7 @@ public sealed class CompraUseCase : ICompraUseCase
         this.inventarioRepository = inventarioRepository;
         this.currentUserAccessor = currentUserAccessor;
         this.contabilidadService = contabilidadService;
+        this.contabilidadRepository = contabilidadRepository;
     }
 
     public async Task<CompraResponse> RegistrarAsync(RegistrarCompraRequest request, CancellationToken cancellationToken = default)
@@ -155,8 +161,22 @@ public sealed class CompraUseCase : ICompraUseCase
         }
 
         var (establecimiento, puntoEmision, secuencial) = await ResolveDocumentSeriesAsync(request, isLiquidacion, cancellationToken);
+        var formaPagoCompra = ToDomainFormaPago(request.FormaPagoCompra);
+        request.FormaPago = ResolveSriFormaPago(request.FormaPagoCompra, request.FormaPago);
         var formaPagoSri = SriCatalogCodes.NormalizeFormaPagoCode(request.FormaPago)
             ?? throw new InvalidOperationException("La forma de pago seleccionada no esta mapeada a un codigo SRI valido.");
+        var importeTotal = Math.Round(detalles.Sum(detalle => detalle.TotalLinea), 2, MidpointRounding.AwayFromZero);
+        var requiereBancarizacion = importeTotal >= 1000m;
+        if (requiereBancarizacion && formaPagoCompra == DomainFormaPagoCompra.ContadoEfectivo)
+        {
+            throw new InvalidOperationException("La compra supera USD 1,000.00 y requiere bancarizacion LRTI. Selecciona transferencia, cheque, tarjeta o credito proveedores.");
+        }
+
+        if (formaPagoCompra == DomainFormaPagoCompra.CreditoProveedores && request.DiasCredito <= 0)
+        {
+            request.DiasCredito = Math.Max(1, proveedor.DiasCredito);
+        }
+
         var compraId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 
@@ -178,6 +198,8 @@ public sealed class CompraUseCase : ICompraUseCase
             isLiquidacion ? Domain.Modules.Facturacion.Entities.FacturaEstado.PENDIENTE : null,
             isLiquidacion ? "Liquidacion registrada y en cola para firma electronica." : null,
             formaPagoSri,
+            formaPagoCompra,
+            requiereBancarizacion,
             NormalizeOptional(request.Observacion),
             null,
             null,
@@ -192,7 +214,7 @@ public sealed class CompraUseCase : ICompraUseCase
             RoundSubtotal(detalles, 15m),
             Math.Round(detalles.Sum(detalle => detalle.Descuento), 2, MidpointRounding.AwayFromZero),
             Math.Round(detalles.Sum(detalle => detalle.TotalImpuesto), 2, MidpointRounding.AwayFromZero),
-            Math.Round(detalles.Sum(detalle => detalle.TotalLinea), 2, MidpointRounding.AwayFromZero),
+            importeTotal,
             EstadoCompra.Registrada,
             now,
             currentUserAccessor.GetRequiredUserId(),
@@ -392,6 +414,8 @@ public sealed class CompraUseCase : ICompraUseCase
             ProveedorId = compra.ProveedorId,
             BodegaId = compra.BodegaId,
             NaturalezaCompra = compra.NaturalezaCompra.ToString(),
+            FormaPagoCompra = compra.FormaPagoCompra.ToString(),
+            RequiereBancarizacion = compra.RequiereBancarizacion,
             TipoDocumentoCodigo = compra.TipoDocumentoCodigo,
             TipoComprobanteSRI = compra.TipoComprobanteSRI,
             SustentoTributarioSRI = compra.SustentoTributarioSRI,
@@ -448,6 +472,30 @@ public sealed class CompraUseCase : ICompraUseCase
         };
     }
 
+    private static DomainFormaPagoCompra ToDomainFormaPago(FormaPagoCompra formaPagoCompra)
+    {
+        return formaPagoCompra switch
+        {
+            FormaPagoCompra.TransferenciaBancaria => DomainFormaPagoCompra.TransferenciaBancaria,
+            FormaPagoCompra.Cheque => DomainFormaPagoCompra.Cheque,
+            FormaPagoCompra.TarjetaCredito => DomainFormaPagoCompra.TarjetaCredito,
+            FormaPagoCompra.CreditoProveedores => DomainFormaPagoCompra.CreditoProveedores,
+            _ => DomainFormaPagoCompra.ContadoEfectivo
+        };
+    }
+
+    private static string ResolveSriFormaPago(FormaPagoCompra formaPagoCompra, string? currentSriCode)
+    {
+        return formaPagoCompra switch
+        {
+            FormaPagoCompra.TransferenciaBancaria => SriCatalogCodes.FormaPagoTransferencia,
+            FormaPagoCompra.Cheque => SriCatalogCodes.FormaPagoTransferencia,
+            FormaPagoCompra.TarjetaCredito => SriCatalogCodes.FormaPagoTarjetaCredito,
+            FormaPagoCompra.CreditoProveedores => SriCatalogCodes.FormaPagoTransferencia,
+            _ => SriCatalogCodes.NormalizeFormaPagoCode(currentSriCode) ?? SriCatalogCodes.FormaPagoEfectivo
+        };
+    }
+
     public async Task<PagedResultResponse<CuentaPorPagarResponse>> GetCuentasPorPagarAsync(string? term, Guid? proveedorId, int skip, int take, CancellationToken cancellationToken = default)
     {
         var page = await cuentaPorPagarRepository.GetPagedAsync(term, proveedorId, skip, take, cancellationToken);
@@ -488,12 +536,63 @@ public sealed class CompraUseCase : ICompraUseCase
             request.FechaPago,
             request.MontoPagado,
             formaPago,
+            request.CuentaContableSalidaId,
+            NormalizeOptional(request.NumeroComprobantePago),
             NormalizeOptional(request.ReferenciaTransaccion),
             DateTimeOffset.UtcNow,
             currentUserAccessor.GetRequiredUserId());
 
         var cuenta = await cuentaPorPagarRepository.RegistrarAbonoAsync(pago, currentUserAccessor.GetRequiredUserId(), cancellationToken);
+        await RegistrarAsientoPagoCxPAsync(cuenta, pago, cancellationToken);
         return MapCuentaResponse(cuenta);
+    }
+
+    private async Task RegistrarAsientoPagoCxPAsync(CuentaPorPagar cuenta, PagoCxP pago, CancellationToken cancellationToken)
+    {
+        var cuentas = await contabilidadRepository.GetCuentasAceptablesAsync(cancellationToken);
+        var cuentaProveedor = cuentas.FirstOrDefault(current => current.Codigo == "2.1.02.01" || current.Codigo == "2.1.01.01")
+            ?? throw new InvalidOperationException("No existe la cuenta contable de Cuentas por Pagar Proveedores.");
+
+        if (!pago.CuentaContableSalidaId.HasValue ||
+            pago.CuentaContableSalidaId.Value == Guid.Empty ||
+            cuentas.All(current => current.Id != pago.CuentaContableSalidaId.Value))
+        {
+            throw new InvalidOperationException("Selecciona una cuenta monetaria valida para registrar el pago.");
+        }
+
+        var documentoSoporte = BuildDocumentoSoporte(pago);
+
+        await contabilidadRepository.CrearAsientoAsync(new CrearAsientoRequest
+        {
+            FechaContable = pago.FechaPago.Date,
+            Concepto = $"Pago proveedor {cuenta.ProveedorNombre} comprobante {cuenta.NumeroComprobante}",
+            ModuloOrigen = "Compras",
+            DocumentoSoporte = documentoSoporte,
+            Estado = "Posteado",
+            Detalles =
+            [
+                new CrearAsientoDetalleRequest
+                {
+                    CuentaContableId = cuentaProveedor.Id,
+                    Debe = pago.MontoPagado,
+                    Haber = 0m
+                },
+                new CrearAsientoDetalleRequest
+                {
+                    CuentaContableId = pago.CuentaContableSalidaId.Value,
+                    Debe = 0m,
+                    Haber = pago.MontoPagado
+                }
+            ]
+        }, cancellationToken);
+    }
+
+    private static string? BuildDocumentoSoporte(PagoCxP pago)
+    {
+        var soporte = NormalizeOptional(pago.NumeroComprobantePago) ?? NormalizeOptional(pago.ReferenciaTransaccion);
+        return soporte is null || soporte.Length <= 49
+            ? soporte
+            : soporte[..49];
     }
 
     private static CuentaPorPagarResponse MapCuentaResponse(CuentaPorPagar cuenta)
@@ -518,6 +617,8 @@ public sealed class CompraUseCase : ICompraUseCase
                 FechaPago = pago.FechaPago,
                 MontoPagado = pago.MontoPagado,
                 FormaPago = pago.FormaPago,
+                CuentaContableSalidaId = pago.CuentaContableSalidaId,
+                NumeroComprobantePago = pago.NumeroComprobantePago,
                 ReferenciaTransaccion = pago.ReferenciaTransaccion
             }).ToArray()
         };

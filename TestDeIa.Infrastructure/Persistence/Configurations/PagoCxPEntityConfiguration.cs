@@ -22,6 +22,14 @@ public sealed class PagoCxPEntityConfiguration : IEntityTypeConfiguration<PagoCx
         builder.Property(entity => entity.ReferenciaTransaccion)
             .HasMaxLength(100);
 
+        builder.Property(entity => entity.NumeroComprobantePago)
+            .HasMaxLength(120);
+
+        builder.HasOne(entity => entity.CuentaContableSalida)
+            .WithMany()
+            .HasForeignKey(entity => entity.CuentaContableSalidaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(entity => new { entity.CuentaPorPagarId, entity.FechaPago });
     }
 }

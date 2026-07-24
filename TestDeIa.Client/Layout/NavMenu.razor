@@ -286,6 +286,20 @@
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
+                                <AuthorizeView Policy="@SecurityPolicyNames.ComprasCuentasPorPagar">
+                                    <Authorized>
+                                        <NavLink class="nav-sublink" href="compras/reporte-fisico-financiero" title="Reporte compras">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M5 18.5h14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="M7.5 15.5V9M12 15.5V5.5M16.5 15.5v-6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="M6.5 7.5h4l2 3 2-2h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Reporte compras</span>
+                                        </NavLink>
+                                    </Authorized>
+                                </AuthorizeView>
                             </div>
                         </div>
                     </section>
@@ -601,7 +615,7 @@
         {
             "personas" or "clientes" or "empleados" or "proveedores" => "comercial",
             "facturacion/pos" or "caja/control" or "inventario" => "operaciones",
-            "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" => "compras",
+            "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "compras/reporte-fisico-financiero" => "compras",
             "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "contabilidad/libro-diario" or "contabilidad/libro-mayor" or "contabilidad/balance-general" or "contabilidad/estado-resultados" or "contabilidad/cierre-periodo" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
             "empresa" or "usuarios" or "catalogos" or "seguridad/auditoria" => "configuracion",
             _ => expandedGroup

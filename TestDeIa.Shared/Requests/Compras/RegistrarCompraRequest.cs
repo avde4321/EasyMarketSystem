@@ -6,6 +6,8 @@ namespace TestDeIa.Shared.Requests.Compras;
 public sealed class RegistrarCompraRequest
 {
     public NaturalezaCompra NaturalezaCompra { get; set; } = NaturalezaCompra.MercaderiaInventario;
+    public FormaPagoCompra FormaPagoCompra { get; set; } = FormaPagoCompra.ContadoEfectivo;
+    public bool RequiereBancarizacion { get; set; }
 
     [Required]
     public Guid ProveedorId { get; set; }

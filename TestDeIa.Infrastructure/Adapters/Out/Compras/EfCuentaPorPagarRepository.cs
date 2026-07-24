@@ -143,6 +143,8 @@ public sealed class EfCuentaPorPagarRepository : ICuentaPorPagarRepository
             FechaPago = pago.FechaPago,
             MontoPagado = pago.MontoPagado,
             FormaPago = pago.FormaPago,
+            CuentaContableSalidaId = pago.CuentaContableSalidaId,
+            NumeroComprobantePago = pago.NumeroComprobantePago,
             ReferenciaTransaccion = pago.ReferenciaTransaccion,
             CreatedAt = pago.CreatedAt,
             UsuarioCreacionId = pago.UsuarioCreacionId
@@ -245,6 +247,8 @@ public sealed class EfCuentaPorPagarRepository : ICuentaPorPagarRepository
                     current.FechaPago,
                     current.MontoPagado,
                     current.FormaPago,
+                    current.CuentaContableSalidaId,
+                    current.NumeroComprobantePago,
                     current.ReferenciaTransaccion,
                     current.CreatedAt,
                     current.UsuarioCreacionId))

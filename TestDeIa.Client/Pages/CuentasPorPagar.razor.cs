@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Components;
+using TestDeIa.Client.Services;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Compras;
+using TestDeIa.Client.Services.Contabilidad;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Compras;
+using TestDeIa.Shared.Responses.Contabilidad;
 
 namespace TestDeIa.Client.Pages;
 
@@ -18,9 +21,16 @@ public partial class CuentasPorPagar
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
 
+    [Inject]
+    private ContabilidadApiClient ContabilidadApiClient { get; set; } = default!;
+
+    [Inject]
+    private PopupNotificationService PopupNotificationService { get; set; } = default!;
+
     private readonly List<CuentaPorPagarResponse> cuentas = [];
     private readonly List<ProveedorResponse> proveedores = [];
     private readonly List<CatalogoItemResponse> formasPago = [];
+    private readonly List<CuentaContableResponse> cuentasMonetarias = [];
     private CuentasPorPagarResumenResponse resumen = new();
     private RegistrarAbonoCxPRequest abonoRequest = new();
     private CuentaPorPagarResponse? selectedCuenta;
@@ -55,6 +65,14 @@ public partial class CuentasPorPagar
 
         formasPago.Clear();
         formasPago.AddRange(await CatalogosApiClient.GetItemsAsync("FORMA_PAGO_SRI", true));
+
+        cuentasMonetarias.Clear();
+        cuentasMonetarias.AddRange((await ContabilidadApiClient.GetCuentasAceptablesAsync())
+            .Where(current =>
+                current.Codigo.StartsWith("1.1.01", StringComparison.OrdinalIgnoreCase) ||
+                current.Nombre.Contains("Caja", StringComparison.OrdinalIgnoreCase) ||
+                current.Nombre.Contains("Banco", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(current => current.Codigo));
     }
 
     private async Task LoadResumenAsync()
@@ -83,6 +101,7 @@ public partial class CuentasPorPagar
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo cargar el monitor de cuentas por pagar.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -125,8 +144,9 @@ public partial class CuentasPorPagar
         abonoRequest = new RegistrarAbonoCxPRequest
         {
             CuentaPorPagarId = cuenta.Id,
-            FormaPago = formasPago.FirstOrDefault()?.Codigo ?? "01",
-            MontoPagado = cuenta.SaldoActual
+            FormaPago = formasPago.FirstOrDefault(current => current.Codigo == "20")?.Codigo ?? formasPago.FirstOrDefault()?.Codigo ?? "01",
+            MontoPagado = cuenta.SaldoActual,
+            CuentaContableSalidaId = cuentasMonetarias.FirstOrDefault()?.Id ?? Guid.Empty
         };
         errorMessage = null;
         successMessage = null;
@@ -150,12 +170,21 @@ public partial class CuentasPorPagar
         if (abonoRequest.MontoPagado <= 0)
         {
             errorMessage = "El abono debe ser mayor a cero.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
             return;
         }
 
         if (abonoRequest.MontoPagado > selectedCuenta.SaldoActual)
         {
             errorMessage = "El abono no puede superar el saldo disponible.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
+            return;
+        }
+
+        if (abonoRequest.CuentaContableSalidaId == Guid.Empty)
+        {
+            errorMessage = "Selecciona la cuenta monetaria de salida.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
             return;
         }
 
@@ -170,10 +199,12 @@ public partial class CuentasPorPagar
             if (!result.Succeeded || result.Data is null)
             {
                 errorMessage = result.ErrorMessage ?? "No se pudo registrar el abono.";
+                await PopupNotificationService.ShowErrorAsync(errorMessage);
                 return;
             }
 
             successMessage = $"Abono aplicado. Nuevo saldo: {result.Data.SaldoActual:0.00}.";
+            await PopupNotificationService.ShowSuccessAsync(successMessage);
             CloseAbonoModal();
             await LoadResumenAsync();
             await LoadCuentasAsync();
@@ -181,6 +212,7 @@ public partial class CuentasPorPagar
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo registrar el abono.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {

@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<CerrarPeriodoFiscalCommandHandler>();
         services.AddScoped<IContabilidadUseCase, ContabilidadUseCase>();
         services.AddScoped<ContabilizarCompraService>();
+        services.AddScoped<CuentaPorPagarService>();
         services.AddScoped<ICompraUseCase, CompraUseCase>();
         services.AddScoped<IEstudioMercadoUseCase, EstudioMercadoUseCase>();
         services.AddScoped<IProveedorUseCase, ProveedorUseCase>();

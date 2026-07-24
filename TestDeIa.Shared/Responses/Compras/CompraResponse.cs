@@ -6,6 +6,8 @@ public sealed class CompraResponse
     public Guid ProveedorId { get; set; }
     public Guid BodegaId { get; set; }
     public string NaturalezaCompra { get; set; } = string.Empty;
+    public string FormaPagoCompra { get; set; } = string.Empty;
+    public bool RequiereBancarizacion { get; set; }
     public string TipoDocumentoCodigo { get; set; } = string.Empty;
     public string TipoComprobanteSRI { get; set; } = string.Empty;
     public string SustentoTributarioSRI { get; set; } = string.Empty;

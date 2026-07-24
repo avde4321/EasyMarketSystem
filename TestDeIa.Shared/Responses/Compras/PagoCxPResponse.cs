@@ -6,5 +6,7 @@ public sealed class PagoCxPResponse
     public DateTimeOffset FechaPago { get; set; }
     public decimal MontoPagado { get; set; }
     public string FormaPago { get; set; } = string.Empty;
+    public Guid? CuentaContableSalidaId { get; set; }
+    public string? NumeroComprobantePago { get; set; }
     public string? ReferenciaTransaccion { get; set; }
 }

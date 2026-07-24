@@ -236,6 +236,19 @@
                                 </div>
 
                                 <div class="form-field">
+                                    <label>Gestión monetaria</label>
+                                    <InputSelect class="form-control"
+                                                 @bind-Value="request.FormaPagoCompra"
+                                                 @bind-Value:after="OnFormaPagoCompraChangedAsync">
+                                        <option value="@FormaPagoCompra.ContadoEfectivo">Contado efectivo</option>
+                                        <option value="@FormaPagoCompra.TransferenciaBancaria">Transferencia bancaria</option>
+                                        <option value="@FormaPagoCompra.Cheque">Cheque</option>
+                                        <option value="@FormaPagoCompra.TarjetaCredito">Tarjeta crédito</option>
+                                        <option value="@FormaPagoCompra.CreditoProveedores">Crédito proveedores</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="form-field">
                                     <label>Días de crédito</label>
                                     <InputNumber class="form-control" @bind-Value="request.DiasCredito" />
                                 </div>

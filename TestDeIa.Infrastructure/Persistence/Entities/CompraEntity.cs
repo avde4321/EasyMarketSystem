@@ -23,6 +23,8 @@ public sealed class CompraEntity
     public TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado? EstadoSri { get; set; }
     public string? MensajeEstado { get; set; }
     public string FormaPagoSriCodigo { get; set; } = string.Empty;
+    public FormaPagoCompra FormaPagoCompra { get; set; } = FormaPagoCompra.ContadoEfectivo;
+    public bool RequiereBancarizacion { get; set; }
     public string? Observacion { get; set; }
     public string? XmlGenerado { get; set; }
     public string? XmlFirmado { get; set; }

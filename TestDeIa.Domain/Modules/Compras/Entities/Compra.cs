@@ -22,6 +22,8 @@ public sealed class Compra
         TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado? estadoSri,
         string? mensajeEstado,
         string formaPagoSriCodigo,
+        FormaPagoCompra formaPagoCompra,
+        bool requiereBancarizacion,
         string? observacion,
         string? xmlGenerado,
         string? xmlFirmado,
@@ -61,6 +63,8 @@ public sealed class Compra
         EstadoSri = estadoSri;
         MensajeEstado = mensajeEstado;
         FormaPagoSriCodigo = formaPagoSriCodigo;
+        FormaPagoCompra = formaPagoCompra;
+        RequiereBancarizacion = requiereBancarizacion;
         Observacion = observacion;
         XmlGenerado = xmlGenerado;
         XmlFirmado = xmlFirmado;
@@ -101,6 +105,8 @@ public sealed class Compra
     public TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado? EstadoSri { get; }
     public string? MensajeEstado { get; }
     public string FormaPagoSriCodigo { get; }
+    public FormaPagoCompra FormaPagoCompra { get; }
+    public bool RequiereBancarizacion { get; }
     public string? Observacion { get; }
     public string? XmlGenerado { get; }
     public string? XmlFirmado { get; }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Security;
+using TestDeIa.Shared.Compras;
 
 namespace TestDeIa.Api.Controllers;
 
@@ -13,11 +14,16 @@ public sealed class ComprasController : ControllerBase
 {
     private readonly ICompraUseCase compraUseCase;
     private readonly IEstudioMercadoUseCase estudioMercadoUseCase;
+    private readonly IReporteComprasConsolidadoService reporteComprasConsolidadoService;
 
-    public ComprasController(ICompraUseCase compraUseCase, IEstudioMercadoUseCase estudioMercadoUseCase)
+    public ComprasController(
+        ICompraUseCase compraUseCase,
+        IEstudioMercadoUseCase estudioMercadoUseCase,
+        IReporteComprasConsolidadoService reporteComprasConsolidadoService)
     {
         this.compraUseCase = compraUseCase;
         this.estudioMercadoUseCase = estudioMercadoUseCase;
+        this.reporteComprasConsolidadoService = reporteComprasConsolidadoService;
     }
 
     [HttpPost]
@@ -42,6 +48,30 @@ public sealed class ComprasController : ControllerBase
         try
         {
             return Ok(await estudioMercadoUseCase.GenerarAsync(mes, anio, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpGet("reporte-fisico-financiero")]
+    [Authorize(Policy = SecurityPolicyNames.ComprasCuentasPorPagar)]
+    public async Task<IActionResult> ConsultarReporteFisicoFinanciero(
+        [FromQuery] DateTime fechaInicio,
+        [FromQuery] DateTime fechaFin,
+        [FromQuery] NaturalezaCompra? naturalezaCompra,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var reporte = await reporteComprasConsolidadoService.ConsultarAsync(
+                fechaInicio,
+                fechaFin,
+                naturalezaCompra,
+                cancellationToken);
+
+            return Ok(reporte);
         }
         catch (InvalidOperationException exception)
         {

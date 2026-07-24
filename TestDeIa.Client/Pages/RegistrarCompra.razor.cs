@@ -484,6 +484,25 @@ public partial class RegistrarCompra
         return Task.CompletedTask;
     }
 
+    private Task OnFormaPagoCompraChangedAsync()
+    {
+        request.FormaPago = request.FormaPagoCompra switch
+        {
+            FormaPagoCompra.TransferenciaBancaria => "20",
+            FormaPagoCompra.Cheque => "20",
+            FormaPagoCompra.TarjetaCredito => "19",
+            FormaPagoCompra.CreditoProveedores => "20",
+            _ => "01"
+        };
+
+        if (request.FormaPagoCompra == FormaPagoCompra.CreditoProveedores && request.DiasCredito <= 0)
+        {
+            request.DiasCredito = 30;
+        }
+
+        return Task.CompletedTask;
+    }
+
     private async Task OnNaturalezaCompraChangedAsync()
     {
         errorMessage = null;

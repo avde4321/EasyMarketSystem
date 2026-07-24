@@ -8,6 +8,7 @@ using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Caja.Ports.Out;
 using TestDeIa.Application.Modules.ActivosFijos.Ports.Out;
+using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Application.Modules.Compras.Ports.Out;
 using TestDeIa.Application.Modules.Dashboard.Ports.Out;
 using TestDeIa.Application.Modules.Empleados.Ports.Out;
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IActivoFijoRepository, EfActivoFijoRepository>();
         services.AddScoped<IContabilidadRepository, EfContabilidadRepository>();
         services.AddScoped<ICompraRepository, EfCompraRepository>();
+        services.AddScoped<IReporteComprasConsolidadoService, ReporteComprasConsolidadoService>();
         services.AddScoped<IEstudioMercadoRepository, EfEstudioMercadoRepository>();
         services.AddScoped<ICuentaPorPagarRepository, EfCuentaPorPagarRepository>();
         services.AddScoped<IDashboardAnalyticsRepository, EfDashboardAnalyticsRepository>();

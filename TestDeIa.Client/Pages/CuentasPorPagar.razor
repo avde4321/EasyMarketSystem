@@ -115,7 +115,10 @@
     <div class="modal-backdrop">
         <section class="modal-card">
             <header class="modal-header">
-                <h2>Registrar abono</h2>
+                <div>
+                    <h2>Registrar abono</h2>
+                    <p class="modal-subtitle">Selecciona la cuenta monetaria de salida y registra el comprobante bancario.</p>
+                </div>
                 <button class="icon-button" @onclick="CloseAbonoModal">x</button>
             </header>
 
@@ -143,13 +146,30 @@
                     </div>
 
                     <div class="form-field">
+                        <label>Cuenta salida</label>
+                        <InputSelect class="form-control" @bind-Value="abonoRequest.CuentaContableSalidaId">
+                            <option value="@Guid.Empty">Selecciona cuenta monetaria</option>
+                            @foreach (var cuenta in cuentasMonetarias)
+                            {
+                                <option value="@cuenta.Id">@cuenta.Codigo - @cuenta.Nombre</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => abonoRequest.CuentaContableSalidaId)" />
+                    </div>
+
+                    <div class="form-field">
                         <label>Monto abonado</label>
                         <InputNumber class="form-control" @bind-Value="abonoRequest.MontoPagado" />
                         <ValidationMessage For="@(() => abonoRequest.MontoPagado)" />
                     </div>
 
                     <div class="form-field">
-                        <label>Referencia</label>
+                        <label>No. comprobante / transferencia</label>
+                        <InputText class="form-control" @bind-Value="abonoRequest.NumeroComprobantePago" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Referencia interna</label>
                         <InputText class="form-control" @bind-Value="abonoRequest.ReferenciaTransaccion" />
                     </div>
                 </div>
@@ -165,6 +185,7 @@
                                         <th>Fecha</th>
                                         <th>Forma pago</th>
                                         <th>Monto</th>
+                                        <th>Comprobante</th>
                                         <th>Referencia</th>
                                     </tr>
                                 </thead>
@@ -175,6 +196,7 @@
                                             <td data-label="Fecha">@pago.FechaPago.LocalDateTime.ToString("yyyy-MM-dd")</td>
                                             <td data-label="Forma pago">@pago.FormaPago</td>
                                             <td data-label="Monto">@pago.MontoPagado.ToString("0.00")</td>
+                                            <td data-label="Comprobante">@pago.NumeroComprobantePago</td>
                                             <td data-label="Referencia">@pago.ReferenciaTransaccion</td>
                                         </tr>
                                     }
