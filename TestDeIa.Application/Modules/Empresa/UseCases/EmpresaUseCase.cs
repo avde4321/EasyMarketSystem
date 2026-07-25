@@ -151,6 +151,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             RazonSocial = empresa.RazonSocial,
             NombreComercial = empresa.NombreComercial,
             Ruc = empresa.Ruc,
+            AmbienteSri = SriCatalogCodes.NormalizeAmbienteCode(empresa.AmbienteSri) ?? empresa.AmbienteSri,
             IsActive = empresa.IsActive
         };
     }

@@ -309,6 +309,11 @@ public partial class FacturacionPos : IDisposable
 
     private async Task CobrarAsync()
     {
+        if (isSubmitting)
+        {
+            return;
+        }
+
         errorMessage = null;
         statusMessage = null;
 
@@ -354,6 +359,9 @@ public partial class FacturacionPos : IDisposable
         }
 
         isSubmitting = true;
+        statusMessage = "Registrando la factura y preparando el RIDE. Por favor espera, no cierres la pantalla.";
+        await PopupNotificationService.ShowInfoAsync(statusMessage);
+        await InvokeAsync(StateHasChanged);
 
         try
         {
@@ -377,6 +385,7 @@ public partial class FacturacionPos : IDisposable
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                await PopupNotificationService.ShowErrorAsync(errorMessage ?? "No se pudo registrar la factura.");
                 return;
             }
 

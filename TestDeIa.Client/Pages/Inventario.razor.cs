@@ -77,6 +77,13 @@ public partial class Inventario
         (movimiento.Referencia?.Contains(kardexSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
         (movimiento.BodegaNombre?.Contains(kardexSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
 
+    private static string GetKardexDocumento(KardexMovimientoResponse movimiento)
+    {
+        return string.IsNullOrWhiteSpace(movimiento.Referencia)
+            ? "Movimiento manual"
+            : movimiento.Referencia;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadBodegasAsync();

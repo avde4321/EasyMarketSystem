@@ -304,8 +304,8 @@
                     </div>
                 </div>
 
-                <button class="checkout-button" @onclick="CobrarAsync" disabled="@(isSubmitting || !CanOperatePos)">
-                    @(isSubmitting ? "Registrando..." : "Cobrar")
+                <button class="checkout-button" type="button" @onclick="CobrarAsync" disabled="@(isSubmitting || !CanOperatePos)">
+                    @(isSubmitting ? "Generando factura..." : "Cobrar")
                 </button>
             </section>
         </aside>

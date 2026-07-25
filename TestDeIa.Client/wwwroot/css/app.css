@@ -157,6 +157,44 @@ main {
     white-space: nowrap;
 }
 
+.sri-environment-badge {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 3.45rem;
+    padding: 0.55rem 0.95rem;
+    border-radius: 1.1rem;
+    border: 1px solid transparent;
+    box-shadow: 0 0.75rem 1.65rem rgba(18, 74, 117, 0.08);
+    white-space: nowrap;
+}
+
+.sri-environment-badge span {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.78;
+}
+
+.sri-environment-badge strong {
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.sri-environment-badge.sri-testing {
+    background: linear-gradient(135deg, rgba(255, 244, 214, 0.96), rgba(255, 226, 168, 0.88));
+    border-color: rgba(221, 143, 24, 0.26);
+    color: #8a5100;
+}
+
+.sri-environment-badge.sri-production {
+    background: linear-gradient(135deg, rgba(218, 247, 231, 0.96), rgba(187, 237, 213, 0.9));
+    border-color: rgba(31, 150, 94, 0.24);
+    color: #12623d;
+}
+
 .content {
     padding: 0 0 1.5rem;
 }

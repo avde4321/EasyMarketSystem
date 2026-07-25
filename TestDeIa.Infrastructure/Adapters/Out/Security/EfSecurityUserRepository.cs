@@ -248,7 +248,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         }
 
         var accessCompanies = user.EmpresasAcceso.Count == 0
-            ? [new UserEmpresaAcceso(entity.EmpresaId, string.Empty, null, string.Empty, true, true)]
+            ? [new UserEmpresaAcceso(entity.EmpresaId, string.Empty, null, string.Empty, "1", true, true)]
             : user.EmpresasAcceso;
 
         foreach (var empresa in accessCompanies)
@@ -594,6 +594,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
                     link.Empresa.RazonSocial,
                     link.Empresa.NombreComercial,
                     link.Empresa.Ruc,
+                    link.Empresa.AmbienteSri,
                     link.Empresa.IsActive,
                     link.IsDefault))
                 .ToArray(),

@@ -117,6 +117,7 @@ public sealed class LoginUseCase : ILoginUseCase
                     RazonSocial = current.RazonSocial,
                     NombreComercial = current.NombreComercial,
                     Ruc = current.Ruc,
+                    AmbienteSri = TestDeIa.Shared.Sri.SriCatalogCodes.NormalizeAmbienteCode(current.AmbienteSri) ?? current.AmbienteSri,
                     IsActive = current.IsActive,
                     IsDefault = current.IsDefault
                 })

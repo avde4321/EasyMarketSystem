@@ -175,6 +175,7 @@
                                     <th>Fecha</th>
                                     <th>Bodega</th>
                                     <th>Tipo</th>
+                                    <th>Factura/Comprobante</th>
                                     <th>Concepto</th>
                                     <th>Entrada</th>
                                     <th>Salida</th>
@@ -189,6 +190,9 @@
                                         <td data-label="Fecha">@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
                                         <td data-label="Bodega">@movimiento.BodegaNombre</td>
                                         <td data-label="Tipo">@movimiento.TipoMovimiento</td>
+                                        <td data-label="Factura/Comprobante">
+                                            <strong>@GetKardexDocumento(movimiento)</strong>
+                                        </td>
                                         <td data-label="Concepto">@movimiento.Concepto</td>
                                         <td data-label="Entrada">@movimiento.CantidadEntrada.ToString("0.####")</td>
                                         <td data-label="Salida">@movimiento.CantidadSalida.ToString("0.####")</td>

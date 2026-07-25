@@ -1,8 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Linq;
-using Microsoft.Extensions.Options;
-using TestDeIa.Infrastructure.Options;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 
@@ -13,13 +11,13 @@ public sealed class SriSoapClient
     private static readonly XNamespace AutorizacionNamespace = "http://ec.gob.sri.ws.autorizacion";
 
     private readonly HttpClient httpClient;
-    private readonly SriSoapOptions options;
+    private readonly SriUrlResolverService urlResolverService;
     private readonly SriResponseParser responseParser;
 
-    public SriSoapClient(HttpClient httpClient, IOptions<SriSoapOptions> options, SriResponseParser responseParser)
+    public SriSoapClient(HttpClient httpClient, SriUrlResolverService urlResolverService, SriResponseParser responseParser)
     {
         this.httpClient = httpClient;
-        this.options = options.Value;
+        this.urlResolverService = urlResolverService;
         this.responseParser = responseParser;
     }
 
@@ -28,8 +26,7 @@ public sealed class SriSoapClient
         byte[] xmlBytes,
         CancellationToken cancellationToken = default)
     {
-        var endpoint = ResolveEnvironment(ambienteSri).RecepcionUrl;
-        EnsureEndpoint(endpoint, "recepcion");
+        var endpoint = urlResolverService.Resolve(ambienteSri).RecepcionUrl;
 
         var body = new XElement(
             RecepcionNamespace + "validarComprobante",
@@ -44,8 +41,7 @@ public sealed class SriSoapClient
         string claveAcceso,
         CancellationToken cancellationToken = default)
     {
-        var endpoint = ResolveEnvironment(ambienteSri).AutorizacionUrl;
-        EnsureEndpoint(endpoint, "autorizacion");
+        var endpoint = urlResolverService.Resolve(ambienteSri).AutorizacionUrl;
 
         var body = new XElement(
             AutorizacionNamespace + "autorizacionComprobante",
@@ -77,24 +73,5 @@ public sealed class SriSoapClient
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadAsStringAsync(cancellationToken);
-    }
-
-    private SriSoapEnvironmentOptions ResolveEnvironment(string ambienteSri)
-    {
-        var code = SriFacturaXmlBuilder.GetAmbienteCode(ambienteSri);
-        return code switch
-        {
-            "1" => options.Pruebas,
-            "2" => options.Produccion,
-            _ => throw new InvalidOperationException("El ambiente SRI configurado para el SOAP no es valido.")
-        };
-    }
-
-    private static void EnsureEndpoint(string endpoint, string serviceName)
-    {
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
-            throw new InvalidOperationException($"No se ha configurado la URL del servicio de {serviceName} del SRI.");
-        }
     }
 }

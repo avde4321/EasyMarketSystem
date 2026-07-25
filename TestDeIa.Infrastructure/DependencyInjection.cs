@@ -74,12 +74,15 @@ public static class DependencyInjection
         services.AddScoped<IEmpleadoRepository, EfEmpleadoRepository>();
         services.AddScoped<IEmpresaRepository, EfEmpresaRepository>();
         services.AddSingleton<CatalogoNiifSeed>();
+        services.AddScoped<DbInitializer>();
         services.AddScoped<IFinancieroReportesRepository, EfFinancieroReportesRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
         services.AddScoped<IComisionesRepository, EfComisionesRepository>();
         services.AddSingleton<SriResponseParser>();
+        services.AddSingleton<ClaveAccesoService>();
+        services.AddSingleton<SriUrlResolverService>();
         services.AddSingleton<SriFacturaXmlSchemaValidator>();
         services.AddSingleton<SriLiquidacionCompraXmlValidator>();
         services.AddSingleton<SriXadesBesSigner>();

@@ -1,6 +1,7 @@
 @using System.IdentityModel.Tokens.Jwt
 @using System.Security.Claims
 @using TestDeIa.Shared.Security
+@using TestDeIa.Shared.Sri
 @inherits LayoutComponentBase
 @inject TestDeIa.Client.Services.Empresa.EmpresaApiClient EmpresaApiClient
 @inject TestDeIa.Client.Services.Empresa.EmpresaSessionService EmpresaSessionService
@@ -32,6 +33,13 @@
                 </div>
             </div>
             <div class="top-actions">
+                @if (selectedEmpresa is not null)
+                {
+                    <div class="sri-environment-badge @GetAmbienteBadgeClass(selectedEmpresa.AmbienteSri)" title="Ambiente activo de emisión SRI">
+                        <span>Ambiente SRI</span>
+                        <strong>@GetAmbienteBadgeText(selectedEmpresa.AmbienteSri)</strong>
+                    </div>
+                }
                 <div class="user-context-card compact-user-card">
                     <span class="summary-label">Usuario</span>
                     <strong>@loggedInUserName</strong>
@@ -69,6 +77,10 @@
     private string loggedInUserName = "Sesion activa";
     private string loggedInIdentification = "Sin identificacion";
     private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse> empresas = [];
+    private TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse? selectedEmpresa =>
+        Guid.TryParse(selectedEmpresaId, out var empresaId)
+            ? empresas.FirstOrDefault(current => current.Id == empresaId)
+            : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -138,5 +150,19 @@
 
         isMobileSidebarOpen = false;
         NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+    }
+
+    private static string GetAmbienteBadgeText(string? ambienteSri)
+    {
+        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri) == "2"
+            ? "PRODUCCION"
+            : "PRUEBAS";
+    }
+
+    private static string GetAmbienteBadgeClass(string? ambienteSri)
+    {
+        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri) == "2"
+            ? "sri-production"
+            : "sri-testing";
     }
 }

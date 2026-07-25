@@ -7,6 +7,7 @@ public sealed class UserEmpresaAcceso
         string razonSocial,
         string? nombreComercial,
         string ruc,
+        string ambienteSri,
         bool isActive,
         bool isDefault)
     {
@@ -14,6 +15,7 @@ public sealed class UserEmpresaAcceso
         RazonSocial = razonSocial;
         NombreComercial = nombreComercial;
         Ruc = ruc;
+        AmbienteSri = ambienteSri;
         IsActive = isActive;
         IsDefault = isDefault;
     }
@@ -22,6 +24,7 @@ public sealed class UserEmpresaAcceso
     public string RazonSocial { get; }
     public string? NombreComercial { get; }
     public string Ruc { get; }
+    public string AmbienteSri { get; }
     public bool IsActive { get; }
     public bool IsDefault { get; }
 }

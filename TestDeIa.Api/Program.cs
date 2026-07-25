@@ -3,8 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using TestDeIa.Api.Messaging;
-using TestDeIa.Api.Reporting;
+using TestDeIa.Api.Configuration;
 using TestDeIa.Api.Middleware;
 using TestDeIa.Api.Security;
 using TestDeIa.Application;
@@ -94,14 +93,11 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization(AuthorizationPolicyRegistration.Register);
-builder.Services.Configure<SmtpEmailOptions>(builder.Configuration.GetSection(SmtpEmailOptions.SectionName));
-builder.Services.AddScoped<FacturaDocumentQueryService>();
-builder.Services.AddSingleton<FacturaRideRdlcRenderer>();
-builder.Services.AddSingleton<SmtpFacturaEmailSender>();
-builder.Services.AddHostedService<FacturacionEmailNotifier>();
+builder.Services.AddApiComposition(builder.Configuration);
 
 var app = builder.Build();
+
+await app.UseDatabaseInitializationAsync();
 
 if (app.Environment.IsDevelopment())
 {

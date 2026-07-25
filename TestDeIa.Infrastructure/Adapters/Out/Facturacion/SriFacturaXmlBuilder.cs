@@ -14,21 +14,16 @@ internal static class SriFacturaXmlBuilder
 
     public static string GenerateClaveAcceso(Factura factura)
     {
-        var ambienteCode = GetAmbienteCode(factura.AmbienteSri);
-        var tipoEmisionCode = GetTipoEmisionCode(factura.TipoEmision);
-
-        var claveSinDigito =
-            $"{factura.FechaEmision:ddMMyyyy}" +
-            $"{CodigoDocumentoFactura}" +
-            $"{factura.RucEmisor}" +
-            $"{ambienteCode}" +
-            $"{factura.Establecimiento}" +
-            $"{factura.PuntoEmision}" +
-            $"{factura.Secuencial:000000000}" +
-            $"{CodigoNumerico}" +
-            $"{tipoEmisionCode}";
-
-        return claveSinDigito + ComputeModulo11Digit(claveSinDigito);
+        return new ClaveAccesoService().Generar(
+            factura.FechaEmision,
+            CodigoDocumentoFactura,
+            factura.RucEmisor,
+            factura.AmbienteSri,
+            factura.Establecimiento,
+            factura.PuntoEmision,
+            factura.Secuencial.ToString("000000000", CultureInfo.InvariantCulture),
+            CodigoNumerico,
+            factura.TipoEmision);
     }
 
     public static string BuildUnsignedXml(Factura factura, string claveAcceso)
@@ -157,40 +152,12 @@ internal static class SriFacturaXmlBuilder
 
     public static string GetAmbienteCode(string ambienteSri)
     {
-        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri)
-            ?? throw new InvalidOperationException("El ambiente SRI de la factura no es valido.");
+        return ClaveAccesoService.GetAmbienteCode(ambienteSri);
     }
 
     public static string GetTipoEmisionCode(string tipoEmision)
     {
-        return SriCatalogCodes.NormalizeTipoEmisionCode(tipoEmision)
-            ?? throw new InvalidOperationException("El tipo de emision de la factura no es valido.");
-    }
-
-    private static int ComputeModulo11Digit(string key)
-    {
-        var factor = 2;
-        var total = 0;
-
-        for (var index = key.Length - 1; index >= 0; index--)
-        {
-            total += (key[index] - '0') * factor;
-            factor++;
-
-            if (factor > 7)
-            {
-                factor = 2;
-            }
-        }
-
-        var modulo = 11 - (total % 11);
-
-        return modulo switch
-        {
-            11 => 0,
-            10 => 1,
-            _ => modulo
-        };
+        return ClaveAccesoService.GetTipoEmisionCode(tipoEmision);
     }
 
     private static object? BuildOptionalElement(string name, string? value)

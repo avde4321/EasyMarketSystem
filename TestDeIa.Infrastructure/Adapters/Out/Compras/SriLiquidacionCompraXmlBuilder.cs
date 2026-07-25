@@ -14,21 +14,16 @@ internal static class SriLiquidacionCompraXmlBuilder
 
     public static string GenerateClaveAcceso(CompraEntity compra, EmpresaEmisoraEntity empresa)
     {
-        var ambienteCode = SriFacturaXmlBuilder.GetAmbienteCode(empresa.AmbienteSri);
-        var tipoEmisionCode = SriFacturaXmlBuilder.GetTipoEmisionCode(empresa.TipoEmision);
-
-        var claveSinDigito =
-            $"{compra.FechaEmision:ddMMyyyy}" +
-            CodigoDocumentoLiquidacionCompra +
-            empresa.Ruc +
-            ambienteCode +
-            compra.Establecimiento +
-            compra.PuntoEmision +
-            compra.Secuencial +
-            CodigoNumerico +
-            tipoEmisionCode;
-
-        return claveSinDigito + ComputeModulo11Digit(claveSinDigito);
+        return new ClaveAccesoService().Generar(
+            compra.FechaEmision,
+            CodigoDocumentoLiquidacionCompra,
+            empresa.Ruc,
+            empresa.AmbienteSri,
+            compra.Establecimiento,
+            compra.PuntoEmision,
+            compra.Secuencial,
+            CodigoNumerico,
+            empresa.TipoEmision);
     }
 
     public static string BuildUnsignedXml(CompraEntity compra, EmpresaEmisoraEntity empresa, ProveedorEntity proveedor)
@@ -170,29 +165,6 @@ internal static class SriLiquidacionCompraXmlBuilder
         return string.IsNullOrWhiteSpace(value) ? null : new XElement(name, value);
     }
 
-    private static int ComputeModulo11Digit(string key)
-    {
-        var factor = 2;
-        var total = 0;
-
-        for (var index = key.Length - 1; index >= 0; index--)
-        {
-            total += (key[index] - '0') * factor;
-            factor++;
-            if (factor > 7)
-            {
-                factor = 2;
-            }
-        }
-
-        var modulo = 11 - (total % 11);
-        return modulo switch
-        {
-            11 => 0,
-            10 => 1,
-            _ => modulo
-        };
-    }
 }
 
 internal static class CompraDetalleEntityExtensions
