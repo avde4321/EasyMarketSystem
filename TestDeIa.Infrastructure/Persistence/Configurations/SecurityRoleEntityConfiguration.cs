@@ -34,9 +34,23 @@ public sealed class SecurityRoleEntityConfiguration : IEntityTypeConfiguration<S
             },
             new SecurityRoleEntity
             {
+                Id = SecuritySeedIds.GerenteRoleId,
+                Name = SecurityRoleNames.Gerente,
+                NormalizedName = SecurityRoleNames.Gerente.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
                 Id = SecuritySeedIds.CajeroRoleId,
                 Name = SecurityRoleNames.Cajero,
                 NormalizedName = SecurityRoleNames.Cajero.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.AsesorComercialRoleId,
+                Name = SecurityRoleNames.AsesorComercial,
+                NormalizedName = SecurityRoleNames.AsesorComercial.ToUpperInvariant(),
                 IsActive = true
             },
             new SecurityRoleEntity

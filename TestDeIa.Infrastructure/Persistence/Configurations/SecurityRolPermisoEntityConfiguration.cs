@@ -33,7 +33,9 @@ public sealed class SecurityRolPermisoEntityConfiguration : IEntityTypeConfigura
         var roleIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase)
         {
             [SecurityRoleNames.Administrador] = SecuritySeedIds.AdministradorRoleId,
+            [SecurityRoleNames.Gerente] = SecuritySeedIds.GerenteRoleId,
             [SecurityRoleNames.Cajero] = SecuritySeedIds.CajeroRoleId,
+            [SecurityRoleNames.AsesorComercial] = SecuritySeedIds.AsesorComercialRoleId,
             [SecurityRoleNames.Bodeguero] = SecuritySeedIds.BodegueroRoleId,
             [SecurityRoleNames.Contador] = SecuritySeedIds.ContadorRoleId
         };

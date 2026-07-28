@@ -3,6 +3,8 @@ using TestDeIa.Application.Modules.Dashboard.Ports.Out;
 using TestDeIa.Domain.Modules.Dashboard.Entities;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Shared.Responses.Dashboard;
+using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Dashboard;
 
@@ -206,5 +208,120 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
                 };
             })
             .ToArray();
+    }
+
+    public async Task<decimal> GetTotalVentasAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, CancellationToken cancellationToken = default)
+    {
+        var total = await dbContext.Facturas
+            .AsNoTracking()
+            .Where(current =>
+                current.FechaEmision >= periodoInicio &&
+                current.FechaEmision < periodoFin &&
+                (current.Estado == FacturaEstado.AUTORIZADO || current.Estado == FacturaEstado.PENDIENTE))
+            .SumAsync(current => (decimal?)current.Total, cancellationToken) ?? 0m;
+
+        return Math.Round(total, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public async Task<IReadOnlyCollection<DashboardProductividadUsuarioResponse>> GetProductividadUsuariosAsync(
+        DateTimeOffset periodoInicio,
+        DateTimeOffset periodoFin,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var usuariosOperativos = await dbContext.SecurityUsers
+            .AsNoTracking()
+            .Where(current =>
+                current.IsActive &&
+                current.UserRoles.Any(userRole =>
+                    userRole.Role.Name == SecurityRoleNames.Cajero ||
+                    userRole.Role.Name == SecurityRoleNames.AsesorComercial))
+            .Select(current => new
+            {
+                current.Id,
+                Usuario = current.DisplayName
+            })
+            .ToListAsync(cancellationToken);
+
+        if (usuariosOperativos.Count == 0)
+        {
+            return Array.Empty<DashboardProductividadUsuarioResponse>();
+        }
+
+        var usuarioIds = usuariosOperativos.Select(current => current.Id).ToArray();
+        var ventasPorUsuario = await dbContext.Facturas
+            .AsNoTracking()
+            .Where(current =>
+                usuarioIds.Contains(current.UsuarioId) &&
+                current.FechaEmision >= periodoInicio &&
+                current.FechaEmision < periodoFin &&
+                (current.Estado == FacturaEstado.AUTORIZADO || current.Estado == FacturaEstado.PENDIENTE))
+            .GroupBy(current => current.UsuarioId)
+            .Select(grouped => new
+            {
+                UsuarioId = grouped.Key,
+                Comprobantes = grouped.Count(),
+                TotalVentas = grouped.Sum(current => current.Total)
+            })
+            .ToDictionaryAsync(current => current.UsuarioId, cancellationToken);
+
+        return usuariosOperativos
+            .Select(usuario =>
+            {
+                ventasPorUsuario.TryGetValue(usuario.Id, out var ventas);
+                return new DashboardProductividadUsuarioResponse
+                {
+                    UsuarioId = usuario.Id,
+                    Usuario = usuario.Usuario,
+                    Comprobantes = ventas?.Comprobantes ?? 0,
+                    TotalVentas = Math.Round(ventas?.TotalVentas ?? 0m, 2, MidpointRounding.AwayFromZero)
+                };
+            })
+            .OrderByDescending(current => current.TotalVentas)
+            .ThenBy(current => current.Usuario)
+            .Take(take)
+            .ToArray();
+    }
+
+    public async Task<DashboardCajeroOverviewResponse> GetCajeroOverviewAsync(
+        Guid usuarioId,
+        DateTimeOffset periodoInicio,
+        DateTimeOffset periodoFin,
+        CancellationToken cancellationToken = default)
+    {
+        var ventas = await dbContext.Facturas
+            .AsNoTracking()
+            .Where(current =>
+                current.UsuarioId == usuarioId &&
+                current.FechaEmision >= periodoInicio &&
+                current.FechaEmision < periodoFin &&
+                (current.Estado == FacturaEstado.AUTORIZADO || current.Estado == FacturaEstado.PENDIENTE))
+            .OrderByDescending(current => current.FechaEmision)
+            .Select(current => new DashboardVentaCajeroResponse
+            {
+                FacturaId = current.Id,
+                NumeroComprobante = $"{current.Establecimiento}-{current.PuntoEmision}-{current.Secuencial.ToString().PadLeft(9, '0')}",
+                FechaEmision = current.FechaEmision,
+                ClienteNombre = current.ClienteNombre,
+                FormaPago = current.FormaPago,
+                Total = current.Total,
+                Estado = current.Estado.ToString()
+            })
+            .ToListAsync(cancellationToken);
+
+        var formaPagoMasUsada = ventas
+            .GroupBy(current => string.IsNullOrWhiteSpace(current.FormaPago) ? "No especificada" : current.FormaPago)
+            .OrderByDescending(current => current.Count())
+            .ThenByDescending(current => current.Sum(item => item.Total))
+            .Select(current => current.Key)
+            .FirstOrDefault() ?? "Sin movimientos";
+
+        return new DashboardCajeroOverviewResponse
+        {
+            VentasDia = Math.Round(ventas.Sum(current => current.Total), 2, MidpointRounding.AwayFromZero),
+            ComprobantesEmitidos = ventas.Count,
+            FormaPagoMasUsada = formaPagoMasUsada,
+            UltimasVentas = ventas.Take(10).ToArray()
+        };
     }
 }

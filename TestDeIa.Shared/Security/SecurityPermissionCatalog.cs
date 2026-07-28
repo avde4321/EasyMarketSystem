@@ -30,6 +30,7 @@ public static class SecurityPermissionCatalog
         new Dictionary<string, IReadOnlyCollection<string>>(StringComparer.OrdinalIgnoreCase)
         {
             [SecurityRoleNames.Administrador] = Definitions.Select(current => current.Id).ToArray(),
+            [SecurityRoleNames.Gerente] = Definitions.Select(current => current.Id).ToArray(),
             [SecurityRoleNames.Cajero] =
             [
                 SecurityPermissions.DashboardView,
@@ -37,6 +38,13 @@ public static class SecurityPermissionCatalog
                 SecurityPermissions.PosFacturar,
                 SecurityPermissions.FacturacionMonitor,
                 SecurityPermissions.CajaOperar
+            ],
+            [SecurityRoleNames.AsesorComercial] =
+            [
+                SecurityPermissions.DashboardView,
+                SecurityPermissions.ClientesView,
+                SecurityPermissions.PosFacturar,
+                SecurityPermissions.FacturacionMonitor
             ],
             [SecurityRoleNames.Bodeguero] =
             [

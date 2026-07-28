@@ -1,0 +1,42 @@
+@using TestDeIa.Shared.Responses.Dashboard
+
+@if (Productos.Count == 0)
+{
+    <div class="empty-state soft-success-state">Todavia no hay ventas suficientes para consolidar un ranking.</div>
+}
+else
+{
+    <div class="table-scroll">
+        <table class="data-table responsive-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Venta</th>
+                    <th>Costo</th>
+                    <th>Margen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var producto in Productos)
+                {
+                    <tr>
+                        <td data-label="Producto">
+                            <strong>@producto.Nombre</strong>
+                            <small>@producto.Codigo</small>
+                        </td>
+                        <td data-label="Cantidad">@producto.CantidadVendida.ToString("0.##")</td>
+                        <td data-label="Venta">@producto.TotalVendido.ToString("C2")</td>
+                        <td data-label="Costo">@producto.CostoEstimado.ToString("C2")</td>
+                        <td data-label="Margen">@producto.MargenEstimado.ToString("C2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyCollection<DashboardTopProductoResponse> Productos { get; set; } = Array.Empty<DashboardTopProductoResponse>();
+}

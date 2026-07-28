@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TestDeIa.Application.Modules.Dashboard.Ports.In;
 using TestDeIa.Shared.Security;
 
@@ -22,5 +23,18 @@ public sealed class DashboardController : ControllerBase
     public async Task<IActionResult> GetOverview(CancellationToken cancellationToken)
     {
         return Ok(await dashboardUseCase.GetOverviewAsync(cancellationToken));
+    }
+
+    [HttpGet("cajero")]
+    [Authorize(Roles = $"{SecurityRoleNames.Cajero},{SecurityRoleNames.AsesorComercial}")]
+    public async Task<IActionResult> GetCajeroOverview(CancellationToken cancellationToken)
+    {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await dashboardUseCase.GetCajeroOverviewAsync(userId, cancellationToken));
     }
 }

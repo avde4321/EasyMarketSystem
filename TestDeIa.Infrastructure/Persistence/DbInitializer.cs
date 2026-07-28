@@ -30,7 +30,8 @@ public sealed class DbInitializer(
 
         await EnsureDefaultCompanyAsync(cancellationToken);
         await geoEcuadorSeed.EnsureSeededAsync(cancellationToken);
-        await EnsureSecurityRoleAsync(cancellationToken);
+        await EnsureSecurityRolesAsync(cancellationToken);
+        await EnsureSecurityRolePermissionsAsync(cancellationToken);
         await EnsureDefaultAdminUserAsync(cancellationToken);
         await EnsureDefaultWarehouseAndPointAsync(cancellationToken);
         await EnsureAdminPointAssignmentAsync(cancellationToken);
@@ -79,22 +80,78 @@ public sealed class DbInitializer(
         empresa.IsActive = true;
     }
 
-    private async Task EnsureSecurityRoleAsync(CancellationToken cancellationToken)
+    private async Task EnsureSecurityRolesAsync(CancellationToken cancellationToken)
     {
-        var normalizedName = SecurityRoleNames.Administrador.ToUpperInvariant();
-        var exists = await dbContext.SecurityRoles
-            .IgnoreQueryFilters()
-            .AnyAsync(current => current.NormalizedName == normalizedName, cancellationToken);
-
-        if (!exists)
+        var roles = new[]
         {
-            dbContext.SecurityRoles.Add(new SecurityRoleEntity
+            new { Id = SecuritySeedIds.AdministradorRoleId, Name = SecurityRoleNames.Administrador },
+            new { Id = SecuritySeedIds.GerenteRoleId, Name = SecurityRoleNames.Gerente },
+            new { Id = SecuritySeedIds.CajeroRoleId, Name = SecurityRoleNames.Cajero },
+            new { Id = SecuritySeedIds.AsesorComercialRoleId, Name = SecurityRoleNames.AsesorComercial },
+            new { Id = SecuritySeedIds.BodegueroRoleId, Name = SecurityRoleNames.Bodeguero },
+            new { Id = SecuritySeedIds.ContadorRoleId, Name = SecurityRoleNames.Contador }
+        };
+
+        foreach (var role in roles)
+        {
+            var normalizedName = role.Name.ToUpperInvariant();
+            var entity = await dbContext.SecurityRoles
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(current => current.Id == role.Id || current.NormalizedName == normalizedName, cancellationToken);
+
+            if (entity is null)
             {
-                Id = SecuritySeedIds.AdministradorRoleId,
-                Name = SecurityRoleNames.Administrador,
-                NormalizedName = normalizedName,
-                IsActive = true
-            });
+                dbContext.SecurityRoles.Add(new SecurityRoleEntity
+                {
+                    Id = role.Id,
+                    Name = role.Name,
+                    NormalizedName = normalizedName,
+                    IsActive = true
+                });
+
+                continue;
+            }
+
+            entity.Name = role.Name;
+            entity.NormalizedName = normalizedName;
+            entity.IsActive = true;
+        }
+    }
+
+    private async Task EnsureSecurityRolePermissionsAsync(CancellationToken cancellationToken)
+    {
+        var roleIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase)
+        {
+            [SecurityRoleNames.Administrador] = SecuritySeedIds.AdministradorRoleId,
+            [SecurityRoleNames.Gerente] = SecuritySeedIds.GerenteRoleId,
+            [SecurityRoleNames.Cajero] = SecuritySeedIds.CajeroRoleId,
+            [SecurityRoleNames.AsesorComercial] = SecuritySeedIds.AsesorComercialRoleId,
+            [SecurityRoleNames.Bodeguero] = SecuritySeedIds.BodegueroRoleId,
+            [SecurityRoleNames.Contador] = SecuritySeedIds.ContadorRoleId
+        };
+
+        foreach (var mapping in SecurityPermissionCatalog.RoleMappings)
+        {
+            if (!roleIds.TryGetValue(mapping.Key, out var roleId))
+            {
+                continue;
+            }
+
+            foreach (var permission in mapping.Value)
+            {
+                var exists = await dbContext.SecurityRolPermisos
+                    .IgnoreQueryFilters()
+                    .AnyAsync(current => current.RoleId == roleId && current.PermisoId == permission, cancellationToken);
+
+                if (!exists)
+                {
+                    dbContext.SecurityRolPermisos.Add(new SecurityRolPermisoEntity
+                    {
+                        RoleId = roleId,
+                        PermisoId = permission
+                    });
+                }
+            }
         }
     }
 

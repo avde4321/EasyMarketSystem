@@ -1,0 +1,92 @@
+@attribute [Authorize(Roles = "Cajero,AsesorComercial")]
+
+<section class="dashboard-page dashboard-cajero">
+    <header class="dashboard-hero cashier-hero">
+        <div class="dashboard-hero-copy">
+            <p class="dashboard-eyebrow">Operacion personal</p>
+            <h1>Tu turno de ventas de hoy.</h1>
+            <span class="dashboard-chip">Resumen automatico del cajero o asesor autenticado</span>
+        </div>
+
+        <div class="dashboard-hero-actions">
+            <a class="hero-link" href="facturacion/pos">Ir al POS / Facturar</a>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+    else if (isLoading)
+    {
+        <section class="dashboard-section">
+            <div class="empty-state">Cargando tu dashboard operativo...</div>
+        </section>
+    }
+    else
+    {
+        <section class="kpi-grid cashier-kpi-grid">
+            <article class="kpi-card sales-card">
+                <span class="kpi-label">Ventas del dia</span>
+                <strong>@overview.VentasDia.ToString("C2")</strong>
+                <small>Total facturado por mi usuario durante hoy.</small>
+            </article>
+
+            <article class="kpi-card services-card">
+                <span class="kpi-label">Comprobantes emitidos</span>
+                <strong>@overview.ComprobantesEmitidos</strong>
+                <small>Facturas y comprobantes operativos del turno.</small>
+            </article>
+
+            <article class="kpi-card margin-card">
+                <span class="kpi-label">Forma de pago mas usada</span>
+                <strong>@overview.FormaPagoMasUsada</strong>
+                <small>Calculada con tus ventas del dia.</small>
+            </article>
+        </section>
+
+        <section class="dashboard-section">
+            <header class="section-header">
+                <div>
+                    <h2>Ultimas ventas emitidas por mi</h2>
+                    <p>Consulta rapida de los comprobantes generados hoy con tu usuario.</p>
+                </div>
+            </header>
+
+            @if (overview.UltimasVentas.Count == 0)
+            {
+                <div class="empty-state soft-success-state">Aun no registras ventas en el turno de hoy.</div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Comprobante</th>
+                                <th>Hora</th>
+                                <th>Cliente</th>
+                                <th>Forma de pago</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var venta in overview.UltimasVentas)
+                            {
+                                <tr>
+                                    <td data-label="Comprobante"><strong>@venta.NumeroComprobante</strong></td>
+                                    <td data-label="Hora">@venta.FechaEmision.ToLocalTime().ToString("HH:mm")</td>
+                                    <td data-label="Cliente">@venta.ClienteNombre</td>
+                                    <td data-label="Forma de pago">@venta.FormaPago</td>
+                                    <td data-label="Total">@venta.Total.ToString("C2")</td>
+                                    <td data-label="Estado"><span class="status-pill">@venta.Estado</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</section>
