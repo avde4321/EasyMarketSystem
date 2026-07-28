@@ -128,6 +128,10 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         persistedEntity.NombreComercial = empresa.NombreComercial;
         persistedEntity.Ruc = empresa.Ruc;
         persistedEntity.DireccionMatriz = empresa.DireccionMatriz;
+        persistedEntity.RegionCodigo = empresa.RegionCodigo;
+        persistedEntity.ProvinciaCodigo = empresa.ProvinciaCodigo;
+        persistedEntity.CiudadCodigo = empresa.CiudadCodigo;
+        persistedEntity.SectorCodigo = empresa.SectorCodigo;
         persistedEntity.DireccionEstablecimiento = empresa.DireccionEstablecimiento;
         persistedEntity.Establecimiento = empresa.Establecimiento;
         persistedEntity.PuntoEmision = empresa.PuntoEmision;
@@ -211,6 +215,10 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             entity.NombreComercial,
             entity.Ruc,
             entity.DireccionMatriz,
+            entity.RegionCodigo,
+            entity.ProvinciaCodigo,
+            entity.CiudadCodigo,
+            entity.SectorCodigo,
             entity.DireccionEstablecimiento,
             entity.Establecimiento,
             entity.PuntoEmision,
@@ -285,8 +293,10 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         {
             Id = Guid.NewGuid(),
             EmpresaId = empresaId,
+            Codigo = "001",
             Nombre = "Principal",
             Direccion = null,
+            EsPrincipal = true,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
         };

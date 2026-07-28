@@ -181,6 +181,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("001");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -190,6 +197,9 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("EsPrincipal")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -203,6 +213,9 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId", "Codigo")
+                        .IsUnique();
 
                     b.HasIndex("EmpresaId", "Nombre")
                         .IsUnique();
@@ -419,7 +432,12 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<int>("Orden")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("ParentItemId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentItemId");
 
                     b.HasIndex("CatalogoId", "Codigo")
                         .IsUnique();
@@ -1182,6 +1200,61 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.ToTable("Empleados", (string)null);
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaClienteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContribuyenteEspecial")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("DireccionMatriz")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("EmailFacturacion")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NombreComercial")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("ObligadoLlevarContabilidad")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RazonSocial")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("RepresentanteLegal")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("Ruc")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId", "Ruc")
+                        .IsUnique();
+
+                    b.ToTable("EmpresasCliente", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1207,6 +1280,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<string>("CertificadoNombreArchivo")
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("CiudadCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("ContribuyenteEspecial")
                         .HasMaxLength(40)
@@ -1252,6 +1329,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ProvinciaCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("PuntoEmision")
                         .IsRequired()
                         .HasMaxLength(3)
@@ -1266,10 +1347,18 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
+                    b.Property<string>("RegionCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("Ruc")
                         .IsRequired()
                         .HasMaxLength(13)
                         .HasColumnType("nvarchar(13)");
+
+                    b.Property<string>("SectorCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("TipoEmision")
                         .IsRequired()
@@ -1294,6 +1383,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
                             AmbienteSri = "1",
+                            CiudadCodigo = "GUAYAQUIL",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 23, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             DireccionEstablecimiento = "Sucursal demo",
                             DireccionMatriz = "Matriz demo",
@@ -1303,9 +1393,12 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                             NombreComercial = "EasyMarket Demo",
                             ObligadoContabilidad = false,
                             OwnerUserId = new Guid("11111111-1111-1111-1111-111111111111"),
+                            ProvinciaCodigo = "GUAYAS",
                             PuntoEmision = "001",
                             RazonSocial = "EasyMarket Demo S.A.",
+                            RegionCodigo = "COSTA",
                             Ruc = "0999999999001",
+                            SectorCodigo = "GUAYAQUIL_NORTE",
                             TipoEmision = "1"
                         });
                 });
@@ -1771,6 +1864,139 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.ToTable("FacturaSriEventos", (string)null);
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoCiudadEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProvinciaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.HasIndex("ProvinciaId");
+
+                    b.ToTable("GeoCiudades", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoProvinciaEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RegionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.HasIndex("RegionId");
+
+                    b.ToTable("GeoProvincias", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoRegionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("GeoRegiones", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoSectorEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CiudadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CiudadId", "Codigo")
+                        .IsUnique();
+
+                    b.ToTable("GeoSectores", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.KardexMovimientoEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1974,6 +2200,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CiudadCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("CorreoElectronicoPrincipal")
                         .HasMaxLength(180)
                         .HasColumnType("nvarchar(180)");
@@ -1988,6 +2218,16 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("EsEmpresa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("EsPersonaJuridica")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<DateOnly?>("FechaNacimiento")
                         .HasColumnType("date");
@@ -2013,10 +2253,22 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("ProvinciaCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("RazonSocialONombresCompletos")
                         .IsRequired()
                         .HasMaxLength(180)
                         .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("RegionCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("SectorCodigo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("TelefonoCelular")
                         .HasMaxLength(40)
@@ -2041,16 +2293,81 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
+                            CiudadCodigo = "QUITO",
                             CorreoElectronicoPrincipal = "admin@testdeia.local",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             DireccionPrincipal = "Sistema",
                             EmpresaId = new Guid("22222222-2222-2222-2222-222222222222"),
+                            EsEmpresa = false,
+                            EsPersonaJuridica = false,
                             Identificacion = "ADMIN",
                             IsActive = true,
                             IsSystemRecord = true,
+                            ProvinciaCodigo = "PICHINCHA",
                             RazonSocialONombresCompletos = "Administrador Sistema",
+                            RegionCodigo = "NORTE",
+                            SectorCodigo = "QUITO_NORTE",
                             TipoIdentificacion = "05"
                         });
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PersonaNaturalEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Direccion")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NumeroDocumento")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
+
+                    b.Property<string>("PrimerApellido")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("PrimerNombre")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("SegundoApellido")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("SegundoNombre")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("TieneRuc")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("TipoDocumento")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId", "NumeroDocumento")
+                        .IsUnique();
+
+                    b.ToTable("PersonasNaturales", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ProductoBodegaEntity", b =>
@@ -2094,6 +2411,9 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<Guid?>("CategoriaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Codigo")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -2113,6 +2433,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
 
+                    b.Property<decimal>("CostoReferencial")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -2125,6 +2449,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("NaturalezaItem")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Mercaderia");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -2146,6 +2477,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<string>("TipoComision")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("UnidadMedida")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)")
+                        .HasDefaultValue("Unidad");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -2866,6 +3204,93 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioDetalleEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("CantidadEnviada")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CantidadRecibida")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CostoUnitario")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TransferenciaInventarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId");
+
+                    b.HasIndex("TransferenciaInventarioId", "ProductoId")
+                        .IsUnique();
+
+                    b.ToTable("TransferenciasInventarioDetalle", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BodegaDestinoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BodegaOrigenId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("FechaEmision")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("FechaTraslado")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("GuiaRemisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MotivoTraslado")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BodegaDestinoId");
+
+                    b.HasIndex("BodegaOrigenId");
+
+                    b.HasIndex("EmpresaId", "Estado");
+
+                    b.HasIndex("EmpresaId", "BodegaOrigenId", "BodegaDestinoId");
+
+                    b.ToTable("TransferenciasInventario", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ActivoFijoEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CompraDetalleEntity", "CompraDetalle")
@@ -2911,7 +3336,14 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CatalogoItemEntity", "ParentItem")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Catalogo");
+
+                    b.Navigation("ParentItem");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ClienteEntity", b =>
@@ -3044,6 +3476,39 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Factura");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoCiudadEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.GeoProvinciaEntity", "Provincia")
+                        .WithMany("Ciudades")
+                        .HasForeignKey("ProvinciaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Provincia");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoProvinciaEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.GeoRegionEntity", "Region")
+                        .WithMany("Provincias")
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoSectorEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.GeoCiudadEntity", "Ciudad")
+                        .WithMany("Sectores")
+                        .HasForeignKey("CiudadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ciudad");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.KardexMovimientoEntity", b =>
@@ -3196,6 +3661,44 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioDetalleEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.ProductoEntity", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioEntity", "TransferenciaInventario")
+                        .WithMany("Detalles")
+                        .HasForeignKey("TransferenciaInventarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Producto");
+
+                    b.Navigation("TransferenciaInventario");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.BodegaEntity", "BodegaDestino")
+                        .WithMany("TransferenciasDestino")
+                        .HasForeignKey("BodegaDestinoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.BodegaEntity", "BodegaOrigen")
+                        .WithMany("TransferenciasOrigen")
+                        .HasForeignKey("BodegaOrigenId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BodegaDestino");
+
+                    b.Navigation("BodegaOrigen");
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.AsientoContableEntity", b =>
                 {
                     b.Navigation("Detalles");
@@ -3206,11 +3709,20 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("KardexMovimientos");
 
                     b.Navigation("ProductosBodega");
+
+                    b.Navigation("TransferenciasDestino");
+
+                    b.Navigation("TransferenciasOrigen");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoEntity", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CatalogoItemEntity", b =>
+                {
+                    b.Navigation("Children");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CompraEntity", b =>
@@ -3235,6 +3747,21 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Detalles");
 
                     b.Navigation("EventosSri");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoCiudadEntity", b =>
+                {
+                    b.Navigation("Sectores");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoProvinciaEntity", b =>
+                {
+                    b.Navigation("Ciudades");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoRegionEntity", b =>
+                {
+                    b.Navigation("Provincias");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", b =>
@@ -3272,6 +3799,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("EmpresasAcceso");
 
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransferenciaInventarioEntity", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 #pragma warning restore 612, 618
         }

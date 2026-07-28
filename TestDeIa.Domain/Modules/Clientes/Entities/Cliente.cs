@@ -27,8 +27,17 @@ public sealed class Cliente
         bool isActive,
         DateTimeOffset createdAt,
         Guid usuarioCreacionId,
-        DateTimeOffset? updatedAt)
+        DateTimeOffset? updatedAt,
+        string? regionCodigo = null,
+        string? provinciaCodigo = null,
+        string? ciudadCodigo = null,
+        string? sectorCodigo = null)
     {
+        if (id != personaId)
+        {
+            throw new ArgumentException("El Id del cliente debe ser el mismo Id de la persona asociada.", nameof(id));
+        }
+
         Id = id;
         PersonaId = personaId;
         EmpresaId = empresaId;
@@ -50,6 +59,10 @@ public sealed class Cliente
         DiasCreditoMaximo = diasCreditoMaximo;
         EstadoCredito = estadoCredito;
         RolesPersona = rolesPersona;
+        RegionCodigo = regionCodigo;
+        ProvinciaCodigo = provinciaCodigo;
+        CiudadCodigo = ciudadCodigo;
+        SectorCodigo = sectorCodigo;
         IsActive = isActive;
         CreatedAt = createdAt;
         UsuarioCreacionId = usuarioCreacionId;
@@ -99,6 +112,14 @@ public sealed class Cliente
     public string NombreCompleto => RazonSocialONombresCompletos;
 
     public IReadOnlyCollection<string> RolesPersona { get; }
+
+    public string? RegionCodigo { get; }
+
+    public string? ProvinciaCodigo { get; }
+
+    public string? CiudadCodigo { get; }
+
+    public string? SectorCodigo { get; }
 
     public bool IsActive { get; }
 

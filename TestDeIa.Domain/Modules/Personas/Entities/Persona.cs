@@ -13,10 +13,16 @@ public sealed class Persona
         string? correoElectronicoPrincipal,
         DateOnly? fechaNacimiento,
         string? genero,
+        bool esPersonaJuridica,
+        bool esEmpresa,
         IReadOnlyCollection<string> rolesPersona,
         bool isActive,
         DateTimeOffset createdAt,
-        DateTimeOffset? updatedAt)
+        DateTimeOffset? updatedAt,
+        string? regionCodigo = null,
+        string? provinciaCodigo = null,
+        string? ciudadCodigo = null,
+        string? sectorCodigo = null)
     {
         Id = id;
         TipoIdentificacion = tipoIdentificacion;
@@ -28,6 +34,12 @@ public sealed class Persona
         CorreoElectronicoPrincipal = correoElectronicoPrincipal;
         FechaNacimiento = fechaNacimiento;
         Genero = genero;
+        EsPersonaJuridica = esPersonaJuridica;
+        EsEmpresa = esEmpresa;
+        RegionCodigo = regionCodigo;
+        ProvinciaCodigo = provinciaCodigo;
+        CiudadCodigo = ciudadCodigo;
+        SectorCodigo = sectorCodigo;
         RolesPersona = rolesPersona;
         IsActive = isActive;
         CreatedAt = createdAt;
@@ -53,6 +65,18 @@ public sealed class Persona
     public DateOnly? FechaNacimiento { get; }
 
     public string? Genero { get; }
+
+    public bool EsPersonaJuridica { get; }
+
+    public bool EsEmpresa { get; }
+
+    public string? RegionCodigo { get; }
+
+    public string? ProvinciaCodigo { get; }
+
+    public string? CiudadCodigo { get; }
+
+    public string? SectorCodigo { get; }
 
     public string NombreCompleto => RazonSocialONombresCompletos;
 

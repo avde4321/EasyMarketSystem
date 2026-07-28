@@ -7,9 +7,9 @@
     <header class="module-header">
         <div>
             <h1>Personas</h1>
-            <p>Informacion personal centralizada para usuarios y clientes.</p>
+            <p>Registro centralizado de personas y empresas.</p>
         </div>
-        <button class="primary-action" @onclick="OpenCreateModal">Crear persona</button>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear registro</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -19,7 +19,7 @@
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, razon social, correo, telefono o rol..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o rol..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         @if (isLoading)
@@ -28,7 +28,7 @@
         }
         else if (personas.Count == 0)
         {
-            <div class="empty-state">No hay personas registradas.</div>
+            <div class="empty-state">No hay registros.</div>
         }
         else
         {
@@ -40,7 +40,6 @@
                             <th>Identificacion</th>
                             <th>Nombre</th>
                             <th>Nombre comercial</th>
-                            <th>F. nacimiento</th>
                             <th>Correo</th>
                             <th>Telefono</th>
                             <th>Roles</th>
@@ -56,7 +55,6 @@
                                 <td data-label="Identificacion">@persona.Identificacion</td>
                                 <td data-label="Nombre">@persona.NombreCompleto</td>
                                 <td data-label="Nombre comercial">@(persona.NombreComercial ?? "-")</td>
-                                <td data-label="F. nacimiento">@(persona.FechaNacimiento?.ToString("yyyy-MM-dd") ?? "-")</td>
                                 <td data-label="Correo">@persona.CorreoElectronicoPrincipal</td>
                                 <td data-label="Telefono">@persona.TelefonoCelular</td>
                                 <td data-label="Roles">@(persona.RolesPersona.Count == 0 ? "-" : string.Join(", ", persona.RolesPersona))</td>
@@ -73,7 +71,7 @@
             </div>
 
             <footer class="table-footer">
-                <span class="table-count">@totalCount persona(s) registradas</span>
+                <span class="table-count">@totalCount registro(s)</span>
                 <div class="pager-actions">
                     <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
                     <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
@@ -89,83 +87,177 @@
     <div class="modal-backdrop">
         <section class="modal-card">
             <header class="modal-header">
-                <h2>@(editingPersonaId.HasValue ? "Actualizar persona" : "Crear persona")</h2>
+                <h2>@(editingPersonaId.HasValue ? "Actualizar registro" : "Nuevo registro")</h2>
                 <button class="icon-button" @onclick="CloseModal">x</button>
             </header>
 
             <EditForm Model="personaRequest" OnValidSubmit="SavePersonaAsync">
                 <DataAnnotationsValidator />
 
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label for="tipoIdentificacion">Tipo identificacion</label>
-                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="personaRequest.TipoIdentificacion">
-                            @foreach (var item in tiposIdentificacion)
-                            {
-                                <option value="@item.Codigo">@item.Nombre</option>
-                            }
-                        </InputSelect>
-                        <ValidationMessage For="@(() => personaRequest.TipoIdentificacion)" />
-                    </div>
+                @if (registroCrudTipo is null)
+                {
+                    <section class="document-choice-panel carousel-pane">
+                        <span class="document-choice-title">Que vas a registrar?</span>
+                        <div class="document-choice-grid two-options">
+                            <button class="person-tab" type="button" @onclick="() => SeleccionarCrudRegistro(RegistroCrudTipo.Persona)">
+                                <strong>Persona</strong>
+                                <small>Natural o juridica, con cedula, RUC o pasaporte.</small>
+                            </button>
+                            <button class="person-tab" type="button" @onclick="() => SeleccionarCrudRegistro(RegistroCrudTipo.Empresa)">
+                                <strong>Empresa</strong>
+                                <small>Registro independiente con datos legales y tributarios.</small>
+                            </button>
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    <section class="selected-document-summary carousel-pane">
+                        <div>
+                            <span class="document-choice-title">Formulario activo</span>
+                            <strong>@(registroCrudTipo == RegistroCrudTipo.Empresa ? "Empresa" : "Persona")</strong>
+                        </div>
+                        @if (!editingPersonaId.HasValue)
+                        {
+                            <button class="secondary-action" type="button" @onclick="VolverASeleccionCrud">Cambiar</button>
+                        }
+                    </section>
 
-                    <div class="form-field">
-                        <label for="identificacion">Identificacion</label>
-                        <InputText id="identificacion" class="form-control" @bind-Value="personaRequest.Identificacion" />
-                        <ValidationMessage For="@(() => personaRequest.Identificacion)" />
-                        <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
-                    </div>
+                    @if (!string.IsNullOrWhiteSpace(validationMessage))
+                    {
+                        <div class="alert-message">@validationMessage</div>
+                    }
 
-                    <div class="form-field full">
-                        <label for="nombres">Razon social / nombres completos</label>
-                        <InputText id="nombres" class="form-control" @bind-Value="personaRequest.RazonSocialONombresCompletos" />
-                        <ValidationMessage For="@(() => personaRequest.RazonSocialONombresCompletos)" />
-                    </div>
+                    @if (registroCrudTipo == RegistroCrudTipo.Persona)
+                    {
+                        <section class="identity-panel">
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label for="tipoIdentificacionPersona">Tipo identificacion</label>
+                                    <InputSelect id="tipoIdentificacionPersona" class="form-control" @bind-Value="tipoRegistroDocumento">
+                                        <option value="@TipoRegistroDocumento.Cedula">Cedula</option>
+                                        <option value="@TipoRegistroDocumento.Ruc">RUC</option>
+                                        <option value="@TipoRegistroDocumento.Pasaporte">Pasaporte</option>
+                                    </InputSelect>
+                                </div>
+                                <div class="form-field">
+                                    <label for="identificacionPersona">Identificacion</label>
+                                    <InputText id="identificacionPersona" class="form-control" @bind-Value="personaNaturalForm.NumeroDocumento" />
+                                </div>
+                                <label class="form-check soft-check identity-check">
+                                    <InputCheckbox class="form-check-input" @bind-Value="EsPersonaJuridica" />
+                                    <span class="form-check-label">Es persona juridica</span>
+                                </label>
+                            </div>
+                        </section>
 
-                    <div class="form-field">
-                        <label for="nombreComercial">Nombre comercial</label>
-                        <InputText id="nombreComercial" class="form-control" @bind-Value="personaRequest.NombreComercial" />
-                        <ValidationMessage For="@(() => personaRequest.NombreComercial)" />
-                    </div>
+                        <div class="form-grid person-form-pane">
+                            <div class="form-field">
+                                <label for="primerNombre">Primer nombre</label>
+                                <InputText id="primerNombre" class="form-control" @bind-Value="personaNaturalForm.PrimerNombre" />
+                            </div>
+                            <div class="form-field">
+                                <label for="segundoNombre">Segundo nombre</label>
+                                <InputText id="segundoNombre" class="form-control" @bind-Value="personaNaturalForm.SegundoNombre" />
+                            </div>
+                            <div class="form-field">
+                                <label for="primerApellido">Primer apellido</label>
+                                <InputText id="primerApellido" class="form-control" @bind-Value="personaNaturalForm.PrimerApellido" />
+                            </div>
+                            <div class="form-field">
+                                <label for="segundoApellido">Segundo apellido</label>
+                                <InputText id="segundoApellido" class="form-control" @bind-Value="personaNaturalForm.SegundoApellido" />
+                            </div>
+                            <div class="form-field">
+                                <label for="emailNatural">Email</label>
+                                <InputText id="emailNatural" class="form-control" @bind-Value="personaNaturalForm.Email" />
+                            </div>
+                            <div class="form-field">
+                                <label for="telefonoNatural">Telefono</label>
+                                <InputText id="telefonoNatural" class="form-control" @bind-Value="personaNaturalForm.Telefono" />
+                            </div>
+                            <div class="form-field full">
+                                <label>Ubicacion</label>
+                                <GeoAddressPicker @bind-RegionCodigo="personaNaturalForm.RegionCodigo"
+                                                  @bind-ProvinciaCodigo="personaNaturalForm.ProvinciaCodigo"
+                                                  @bind-CiudadCodigo="personaNaturalForm.CiudadCodigo"
+                                                  @bind-SectorCodigo="personaNaturalForm.SectorCodigo" />
+                            </div>
+                            <div class="form-field full">
+                                <label for="direccionNatural">Direccion exacta / referencia</label>
+                                <InputTextArea id="direccionNatural" class="form-control" @bind-Value="personaNaturalForm.Direccion" />
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <section class="identity-panel">
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label for="rucEmpresa">RUC</label>
+                                    <InputText id="rucEmpresa" class="form-control" @bind-Value="empresaClienteForm.Ruc" />
+                                    <small class="file-hint">RUC juridico: 13 digitos, tercer digito 9 y termina en 001.</small>
+                                </div>
+                            </div>
+                        </section>
 
-                    <div class="form-field">
-                        <label for="fechaNacimiento">Fecha nacimiento</label>
-                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="personaRequest.FechaNacimiento" />
-                    </div>
+                        <div class="form-grid person-form-pane">
+                            <div class="form-field full">
+                                <label for="razonSocialEmpresa">Razon social</label>
+                                <InputText id="razonSocialEmpresa" class="form-control" @bind-Value="empresaClienteForm.RazonSocial" />
+                            </div>
+                            <div class="form-field">
+                                <label for="nombreComercialEmpresa">Nombre comercial</label>
+                                <InputText id="nombreComercialEmpresa" class="form-control" @bind-Value="empresaClienteForm.NombreComercial" />
+                            </div>
+                            <div class="form-field">
+                                <label for="representanteLegal">Representante legal</label>
+                                <InputText id="representanteLegal" class="form-control" @bind-Value="empresaClienteForm.RepresentanteLegal" />
+                            </div>
+                            <label class="form-check soft-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="empresaClienteForm.ObligadoLlevarContabilidad" />
+                                <span class="form-check-label">Obligado a llevar contabilidad</span>
+                            </label>
+                            <div class="form-field">
+                                <label for="contribuyenteEspecial">Contribuyente especial</label>
+                                <InputText id="contribuyenteEspecial" class="form-control" @bind-Value="empresaClienteForm.ContribuyenteEspecial" />
+                            </div>
+                            <div class="form-field">
+                                <label for="emailEmpresa">Email facturacion</label>
+                                <InputText id="emailEmpresa" class="form-control" @bind-Value="empresaClienteForm.EmailFacturacion" />
+                            </div>
+                            <div class="form-field">
+                                <label for="telefonoEmpresa">Telefono</label>
+                                <InputText id="telefonoEmpresa" class="form-control" @bind-Value="empresaClienteForm.Telefono" />
+                            </div>
+                            <div class="form-field full">
+                                <label>Ubicacion</label>
+                                <GeoAddressPicker @bind-RegionCodigo="empresaClienteForm.RegionCodigo"
+                                                  @bind-ProvinciaCodigo="empresaClienteForm.ProvinciaCodigo"
+                                                  @bind-CiudadCodigo="empresaClienteForm.CiudadCodigo"
+                                                  @bind-SectorCodigo="empresaClienteForm.SectorCodigo" />
+                            </div>
+                            <div class="form-field full">
+                                <label for="direccionEmpresa">Direccion matriz exacta / referencia</label>
+                                <InputTextArea id="direccionEmpresa" class="form-control" @bind-Value="empresaClienteForm.DireccionMatriz" />
+                            </div>
+                        </div>
+                    }
 
-                    <div class="form-field">
-                        <label for="email">Correo</label>
-                        <InputText id="email" class="form-control" @bind-Value="personaRequest.CorreoElectronicoPrincipal" />
-                        <ValidationMessage For="@(() => personaRequest.CorreoElectronicoPrincipal)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="telefono">Telefono</label>
-                        <InputText id="telefono" class="form-control" @bind-Value="personaRequest.TelefonoCelular" />
-                        <ValidationMessage For="@(() => personaRequest.TelefonoCelular)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="genero">Genero</label>
-                        <InputText id="genero" class="form-control" @bind-Value="personaRequest.Genero" />
-                    </div>
-
-                    <div class="form-field full">
-                        <label for="direccion">Direccion</label>
-                        <InputTextArea id="direccion" class="form-control" @bind-Value="personaRequest.DireccionPrincipal" />
-                        <ValidationMessage For="@(() => personaRequest.DireccionPrincipal)" />
-                    </div>
-                </div>
-
-                <label class="form-check soft-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="personaRequest.IsActive" />
-                    <span class="form-check-label">Persona activa</span>
-                </label>
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="personaRequest.IsActive" />
+                        <span class="form-check-label">Activo</span>
+                    </label>
+                }
 
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
-                    <button class="primary-action" type="submit" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Guardar")
-                    </button>
+                    @if (registroCrudTipo is not null)
+                    {
+                        <button class="primary-action" type="submit" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : "Guardar")
+                        </button>
+                    }
                 </footer>
             </EditForm>
         </section>

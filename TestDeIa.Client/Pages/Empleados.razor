@@ -9,7 +9,7 @@
             <h1>Empleados</h1>
             <p>Mantenimiento de empleados sobre la persona centralizada.</p>
         </div>
-        <button class="primary-action" @onclick="OpenCreateModal">Crear empleado</button>
+        <button class="primary-action" @onclick="OpenCreateModalAsync">Crear empleado</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -98,18 +98,107 @@
                 <button class="icon-button" @onclick="CloseModal">x</button>
             </header>
 
+            @if (!editingEmpleadoId.HasValue && !showEmpleadoRoleForm)
+            {
+                <section class="role-conversion-panel carousel-pane active-pane">
+                    <div class="role-conversion-heading">
+                        <div>
+                            <span class="eyebrow">Busqueda previa</span>
+                            <h3>Personas disponibles para convertir en empleado</h3>
+                            <p>Busca una persona existente y usa la accion de la fila para agregar solamente los datos laborales faltantes.</p>
+                        </div>
+                        <button class="secondary-action" type="button" @onclick="NuevoRegistroEmpleado">Nuevo registro</button>
+                    </div>
+
+                    <div class="role-search-row">
+                        <input class="form-control search-control"
+                               value="@personaSearchTerm"
+                               @oninput="OnPersonaSearchChangedAsync"
+                               placeholder="Buscar persona por identificacion, nombres, correo o telefono..." />
+                        <button class="secondary-action" type="button" @onclick="BuscarPersonasCoincidentesAsync" disabled="@(!HasPersonaSearchTerm || isSearchingPersonas)">
+                            @(isSearchingPersonas ? "Buscando..." : "Buscar")
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <div class="soft-info-message compact-message">@statusMessage</div>
+                    }
+
+                    @if (personasCoincidentes.Any())
+                    {
+                        <div class="role-table-scroll">
+                            <table class="data-table responsive-table role-table">
+                                <thead>
+                                    <tr>
+                                        <th>Identificacion</th>
+                                        <th>Nombre / Razon social</th>
+                                        <th>Correo</th>
+                                        <th>Telefono</th>
+                                        <th>Roles</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var persona in personasCoincidentes)
+                                    {
+                                        <tr>
+                                            <td data-label="Identificacion">@persona.Identificacion</td>
+                                            <td data-label="Nombre">@persona.RazonSocialONombresCompletos</td>
+                                            <td data-label="Correo">@persona.CorreoElectronicoPrincipal</td>
+                                            <td data-label="Telefono">@persona.TelefonoCelular</td>
+                                            <td data-label="Roles">
+                                                @if (persona.RolesPersona.Any())
+                                                {
+                                                    @string.Join(", ", persona.RolesPersona)
+                                                }
+                                                else
+                                                {
+                                                    <span>Sin rol comercial</span>
+                                                }
+                                            </td>
+                                            <td data-label="Accion" class="row-actions">
+                                                <button class="ghost-button" type="button" @onclick="() => SeleccionarPersona(persona)" disabled="@(TieneRolEmpleado(persona) || persona.EsEmpresa)">
+                                                    @(persona.EsEmpresa ? "Es empresa" : TieneRolEmpleado(persona) ? "Ya es empleado" : "Convertir")
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (showEmpleadoRoleForm)
+            {
+            <section class="carousel-pane active-pane">
             <EditForm Model="empleadoRequest" OnValidSubmit="SaveEmpleadoAsync">
                 <DataAnnotationsValidator />
 
-                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                @if (editingEmpleadoId.HasValue && !string.IsNullOrWhiteSpace(statusMessage))
                 {
-                    <div class="status-banner dynamic-status-banner">@statusMessage</div>
+                    <div class="soft-info-message compact-message">@statusMessage</div>
                 }
 
-                <div class="status-banner">
-                    Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de empleado sin duplicar sus datos base.
+                <div class="role-form-divider">
+                    <span>@(editingEmpleadoId.HasValue ? "Actualizar datos del empleado" : isEmpleadoFromExistingPersona ? "Completa solo los datos laborales del empleado" : "Datos para nuevo empleado")</span>
                 </div>
 
+                @if (isEmpleadoFromExistingPersona)
+                {
+                    <div class="conversion-summary">
+                        <span class="conversion-avatar">✓</span>
+                        <div>
+                            <strong>@empleadoRequest.RazonSocialONombresCompletos</strong>
+                            <small>@empleadoRequest.TipoIdentificacion - @empleadoRequest.Identificacion · la informacion base de Persona se usara por debajo.</small>
+                        </div>
+                    </div>
+                }
+
+                @if (ShowPersonaBaseFields)
+                {
                 <div class="form-grid">
                     <div class="form-field">
                         <label>Tipo identificacion</label>
@@ -144,6 +233,25 @@
                         <label>Celular</label>
                         <InputText class="form-control" @bind-Value="empleadoRequest.TelefonoCelular" />
                     </div>
+                    <div class="form-field">
+                        <label>Fecha nacimiento</label>
+                        <InputDate class="form-control" @bind-Value="empleadoRequest.FechaNacimiento" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Ubicacion</label>
+                        <GeoAddressPicker @bind-RegionCodigo="empleadoRequest.RegionCodigo"
+                                          @bind-ProvinciaCodigo="empleadoRequest.ProvinciaCodigo"
+                                          @bind-CiudadCodigo="empleadoRequest.CiudadCodigo"
+                                          @bind-SectorCodigo="empleadoRequest.SectorCodigo" />
+                    </div>
+                    <div class="form-field full">
+                        <label>Direccion exacta / referencia</label>
+                        <InputTextArea class="form-control" @bind-Value="empleadoRequest.DireccionPrincipal" />
+                    </div>
+                </div>
+                }
+
+                <div class="form-grid">
                     <div class="form-field">
                         <label>Codigo empleado</label>
                         <InputText class="form-control" @bind-Value="empleadoRequest.CodigoEmpleado" />
@@ -181,14 +289,6 @@
                         <InputText class="form-control" @bind-Value="empleadoRequest.EstadoLaboral" />
                     </div>
                     <div class="form-field">
-                        <label>Fecha nacimiento</label>
-                        <InputDate class="form-control" @bind-Value="empleadoRequest.FechaNacimiento" />
-                    </div>
-                    <div class="form-field full">
-                        <label>Direccion</label>
-                        <InputTextArea class="form-control" @bind-Value="empleadoRequest.DireccionPrincipal" />
-                    </div>
-                    <div class="form-field">
                         <label>Contacto emergencia</label>
                         <InputText class="form-control" @bind-Value="empleadoRequest.NombreContactoEmergencia" />
                     </div>
@@ -205,11 +305,17 @@
 
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    @if (!editingEmpleadoId.HasValue)
+                    {
+                        <button class="secondary-action" type="button" @onclick="VolverAConsultaPersonasEmpleado">Volver a personas</button>
+                    }
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar")
                     </button>
                 </footer>
             </EditForm>
+            </section>
+            }
         </section>
     </div>
 }

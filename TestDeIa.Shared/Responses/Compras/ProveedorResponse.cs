@@ -10,6 +10,14 @@ public sealed class ProveedorResponse
     public string? NombreComercial { get; set; }
     public string NombreCompleto => RazonSocialONombresCompletos;
     public string DireccionPrincipal { get; set; } = string.Empty;
+
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
     public string? CorreoElectronicoPrincipal { get; set; }
     public string? TelefonoCelular { get; set; }
     public string CodigoRetencionIvaDefault { get; set; } = string.Empty;

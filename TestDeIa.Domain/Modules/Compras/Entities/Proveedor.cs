@@ -23,7 +23,11 @@ public sealed class Proveedor
         DateTimeOffset createdAt,
         Guid usuarioCreacionId,
         DateTimeOffset? updatedAt,
-        Guid? usuarioModificacionId)
+        Guid? usuarioModificacionId,
+        string? regionCodigo = null,
+        string? provinciaCodigo = null,
+        string? ciudadCodigo = null,
+        string? sectorCodigo = null)
     {
         Id = id;
         PersonaId = personaId;
@@ -41,6 +45,10 @@ public sealed class Proveedor
         DiasCredito = diasCredito;
         EstadoProveedor = estadoProveedor;
         RolesPersona = rolesPersona;
+        RegionCodigo = regionCodigo;
+        ProvinciaCodigo = provinciaCodigo;
+        CiudadCodigo = ciudadCodigo;
+        SectorCodigo = sectorCodigo;
         IsActive = isActive;
         CreatedAt = createdAt;
         UsuarioCreacionId = usuarioCreacionId;
@@ -65,6 +73,10 @@ public sealed class Proveedor
     public int DiasCredito { get; }
     public EstadoProveedor EstadoProveedor { get; }
     public IReadOnlyCollection<string> RolesPersona { get; }
+    public string? RegionCodigo { get; }
+    public string? ProvinciaCodigo { get; }
+    public string? CiudadCodigo { get; }
+    public string? SectorCodigo { get; }
     public bool IsActive { get; }
     public DateTimeOffset CreatedAt { get; }
     public Guid UsuarioCreacionId { get; }

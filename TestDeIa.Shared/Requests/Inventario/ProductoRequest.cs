@@ -15,6 +15,16 @@ public sealed class ProductoRequest
     [StringLength(300, ErrorMessage = "La descripcion no puede superar 300 caracteres.")]
     public string? Descripcion { get; set; }
 
+    public Guid? CategoriaId { get; set; }
+
+    [Required(ErrorMessage = "La unidad de medida es obligatoria.")]
+    [StringLength(60, ErrorMessage = "La unidad de medida no puede superar 60 caracteres.")]
+    public string UnidadMedida { get; set; } = "Unidad";
+
+    [Required(ErrorMessage = "La naturaleza del item es obligatoria.")]
+    [StringLength(30, ErrorMessage = "La naturaleza del item no puede superar 30 caracteres.")]
+    public string NaturalezaItem { get; set; } = "Mercaderia";
+
     [Required(ErrorMessage = "El codigo fiscal de IVA es obligatorio.")]
     [StringLength(20, ErrorMessage = "El codigo fiscal de IVA no puede superar 20 caracteres.")]
     public string CodigoIva { get; set; } = "IVA_15";
@@ -24,6 +34,9 @@ public sealed class ProductoRequest
 
     [Range(0, 999999999, ErrorMessage = "El precio de venta no puede ser negativo.")]
     public decimal PrecioVenta { get; set; }
+
+    [Range(0, 999999999, ErrorMessage = "El costo referencial no puede ser negativo.")]
+    public decimal CostoReferencial { get; set; }
 
     [Range(0, 999999999, ErrorMessage = "El stock minimo no puede ser negativo.")]
     public decimal? StockMinimo { get; set; }

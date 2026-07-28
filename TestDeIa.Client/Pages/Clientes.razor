@@ -9,7 +9,7 @@
             <h1>Clientes</h1>
             <p>Consulta y mantenimiento de clientes relacionados con personas.</p>
         </div>
-        <button class="primary-action" @onclick="OpenCreateModal">Crear cliente</button>
+        <button class="primary-action" @onclick="OpenCreateModalAsync">Crear cliente</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -99,18 +99,107 @@
                 <button class="icon-button" @onclick="CloseModal">x</button>
             </header>
 
+            @if (!editingClienteId.HasValue && !showClienteRoleForm)
+            {
+                <section class="client-lookup-panel carousel-pane active-pane">
+                    <div class="lookup-heading">
+                        <div>
+                            <span class="eyebrow">Busqueda previa</span>
+                            <h3>Personas disponibles para convertir en cliente</h3>
+                            <p>Busca una persona existente y usa la accion de la fila para agregar solamente los datos comerciales faltantes.</p>
+                        </div>
+                        <button class="secondary-action" type="button" @onclick="NuevoRegistroCliente">Nuevo registro</button>
+                    </div>
+
+                    <div class="lookup-search-row">
+                        <input class="form-control search-control"
+                               value="@personaSearchTerm"
+                               @oninput="OnPersonaSearchChangedAsync"
+                               placeholder="Buscar persona por identificacion, nombres, correo o telefono..." />
+                        <button class="secondary-action" type="button" @onclick="BuscarPersonasCoincidentesAsync" disabled="@(!HasPersonaSearchTerm || isSearchingPersonas)">
+                            @(isSearchingPersonas ? "Buscando..." : "Buscar")
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <div class="soft-info-message compact-message">@statusMessage</div>
+                    }
+
+                    @if (personasCoincidentes.Any())
+                    {
+                        <div class="lookup-table-scroll">
+                            <table class="data-table responsive-table lookup-table">
+                                <thead>
+                                    <tr>
+                                        <th>Identificacion</th>
+                                        <th>Nombre / Razon social</th>
+                                        <th>Correo</th>
+                                        <th>Telefono</th>
+                                        <th>Roles</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var persona in personasCoincidentes)
+                                    {
+                                        <tr>
+                                            <td data-label="Identificacion">@persona.Identificacion</td>
+                                            <td data-label="Nombre">@persona.RazonSocialONombresCompletos</td>
+                                            <td data-label="Correo">@persona.CorreoElectronicoPrincipal</td>
+                                            <td data-label="Telefono">@persona.TelefonoCelular</td>
+                                            <td data-label="Roles">
+                                                @if (persona.RolesPersona.Any())
+                                                {
+                                                    @string.Join(", ", persona.RolesPersona)
+                                                }
+                                                else
+                                                {
+                                                    <span>Sin rol comercial</span>
+                                                }
+                                            </td>
+                                            <td data-label="Accion" class="row-actions">
+                                                <button class="ghost-button" type="button" @onclick="() => SeleccionarPersona(persona)" disabled="@TieneRolCliente(persona)">
+                                                    @(TieneRolCliente(persona) ? "Ya es cliente" : "Convertir")
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (showClienteRoleForm)
+            {
+            <section class="carousel-pane active-pane">
             <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync">
                 <DataAnnotationsValidator />
 
-                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                @if (editingClienteId.HasValue && !string.IsNullOrWhiteSpace(statusMessage))
                 {
-                    <div class="status-banner dynamic-status-banner">@statusMessage</div>
+                    <div class="soft-info-message compact-message">@statusMessage</div>
                 }
 
-                <div class="status-banner">
-                    Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de cliente sin duplicar sus datos base.
+                <div class="client-form-divider">
+                    <span>@(editingClienteId.HasValue ? "Actualizar datos del cliente" : isClienteFromExistingPersona ? "Completa solo los datos comerciales del cliente" : "Datos para nuevo cliente")</span>
                 </div>
 
+                @if (isClienteFromExistingPersona)
+                {
+                    <div class="conversion-summary">
+                        <span class="conversion-avatar">✓</span>
+                        <div>
+                            <strong>@clienteRequest.RazonSocialONombresCompletos</strong>
+                            <small>@clienteRequest.TipoIdentificacion - @clienteRequest.Identificacion · la informacion base de Persona se usara por debajo.</small>
+                        </div>
+                    </div>
+                }
+
+                @if (ShowPersonaBaseFields)
+                {
                 <div class="form-grid">
                     <div class="form-field">
                         <label for="tipoIdentificacion">Tipo identificacion</label>
@@ -184,12 +273,21 @@
                     </div>
 
                     <div class="form-field full">
-                        <label for="direccion">Direccion</label>
+                        <label>Ubicacion</label>
+                        <GeoAddressPicker @bind-RegionCodigo="clienteRequest.RegionCodigo"
+                                          @bind-ProvinciaCodigo="clienteRequest.ProvinciaCodigo"
+                                          @bind-CiudadCodigo="clienteRequest.CiudadCodigo"
+                                          @bind-SectorCodigo="clienteRequest.SectorCodigo" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label for="direccion">Direccion exacta / referencia</label>
                         <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.DireccionPrincipal" />
                         <ValidationMessage For="@(() => clienteRequest.DireccionPrincipal)" />
                         <small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small>
                     </div>
                 </div>
+                }
 
                 <div class="form-grid">
                     <label class="form-check soft-check">
@@ -234,11 +332,17 @@
 
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    @if (!editingClienteId.HasValue)
+                    {
+                        <button class="secondary-action" type="button" @onclick="VolverAConsultaPersonasCliente">Volver a personas</button>
+                    }
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar")
                     </button>
                 </footer>
             </EditForm>
+            </section>
+            }
         </section>
     </div>
 }

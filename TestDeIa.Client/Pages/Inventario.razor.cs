@@ -197,7 +197,16 @@ public partial class Inventario
     {
         editingProductId = null;
         editingProductSnapshot = null;
-        productoRequest = new ProductoRequest();
+        productoRequest = new ProductoRequest
+        {
+            UnidadMedida = "Unidad",
+            NaturalezaItem = "Mercaderia",
+            CodigoIva = "IVA_15",
+            PorcentajeIva = 15,
+            ControlaStock = true,
+            StockMinimo = 0,
+            IsActive = true
+        };
         isProductModalOpen = true;
         errorMessage = null;
     }
@@ -211,11 +220,18 @@ public partial class Inventario
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,
+            CategoriaId = producto.CategoriaId,
+            UnidadMedida = string.IsNullOrWhiteSpace(producto.UnidadMedida) ? "Unidad" : producto.UnidadMedida,
+            NaturalezaItem = string.IsNullOrWhiteSpace(producto.NaturalezaItem) ? (producto.ControlaStock ? "Mercaderia" : "Servicio") : producto.NaturalezaItem,
             CodigoIva = producto.CodigoIva,
             PorcentajeIva = producto.PorcentajeIva,
             PrecioVenta = producto.PrecioVenta,
+            CostoReferencial = producto.CostoReferencial,
             StockMinimo = producto.StockMinimo,
             ControlaStock = producto.ControlaStock,
+            AplicaComision = producto.AplicaComision,
+            TipoComision = producto.TipoComision,
+            ValorComision = producto.ValorComision,
             IsActive = producto.IsActive
         };
         isProductModalOpen = true;
@@ -567,6 +583,7 @@ public partial class Inventario
     private void OnControlaStockChanged(bool value)
     {
         productoRequest.ControlaStock = value;
+        productoRequest.NaturalezaItem = value ? "Mercaderia" : "Servicio";
 
         if (!value)
         {

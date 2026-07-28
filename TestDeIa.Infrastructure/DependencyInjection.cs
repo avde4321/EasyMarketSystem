@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IActivoFijoRepository, EfActivoFijoRepository>();
         services.AddScoped<IContabilidadRepository, EfContabilidadRepository>();
         services.AddScoped<ICompraRepository, EfCompraRepository>();
+        services.AddScoped<IFacturaProveedorAnalyzer, FacturaProveedorAnalyzer>();
         services.AddScoped<IReporteComprasConsolidadoService, ReporteComprasConsolidadoService>();
         services.AddScoped<IEstudioMercadoRepository, EfEstudioMercadoRepository>();
         services.AddScoped<ICuentaPorPagarRepository, EfCuentaPorPagarRepository>();
@@ -74,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<IEmpleadoRepository, EfEmpleadoRepository>();
         services.AddScoped<IEmpresaRepository, EfEmpresaRepository>();
         services.AddSingleton<CatalogoNiifSeed>();
+        services.AddScoped<GeoEcuadorSeed>();
         services.AddScoped<DbInitializer>();
         services.AddScoped<IFinancieroReportesRepository, EfFinancieroReportesRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();

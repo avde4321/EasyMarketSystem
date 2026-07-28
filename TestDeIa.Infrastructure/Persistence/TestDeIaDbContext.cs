@@ -17,6 +17,10 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<SecurityUserEntity> SecurityUsers => Set<SecurityUserEntity>();
     public DbSet<CatalogoEntity> Catalogos => Set<CatalogoEntity>();
     public DbSet<CatalogoItemEntity> CatalogoItems => Set<CatalogoItemEntity>();
+    public DbSet<GeoRegionEntity> GeoRegiones => Set<GeoRegionEntity>();
+    public DbSet<GeoProvinciaEntity> GeoProvincias => Set<GeoProvinciaEntity>();
+    public DbSet<GeoCiudadEntity> GeoCiudades => Set<GeoCiudadEntity>();
+    public DbSet<GeoSectorEntity> GeoSectores => Set<GeoSectorEntity>();
 
     public DbSet<SecurityRoleEntity> SecurityRoles => Set<SecurityRoleEntity>();
     public DbSet<SecurityPermisoEntity> SecurityPermisos => Set<SecurityPermisoEntity>();
@@ -47,12 +51,16 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
 
     public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
+    public DbSet<PersonaNaturalEntity> PersonasNaturales => Set<PersonaNaturalEntity>();
+    public DbSet<EmpresaClienteEntity> EmpresasCliente => Set<EmpresaClienteEntity>();
 
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
     public DbSet<BodegaEntity> Bodegas => Set<BodegaEntity>();
     public DbSet<ProductoBodegaEntity> ProductosBodega => Set<ProductoBodegaEntity>();
 
     public DbSet<KardexMovimientoEntity> KardexMovimientos => Set<KardexMovimientoEntity>();
+    public DbSet<TransferenciaInventarioEntity> TransferenciasInventario => Set<TransferenciaInventarioEntity>();
+    public DbSet<TransferenciaInventarioDetalleEntity> TransferenciasInventarioDetalle => Set<TransferenciaInventarioDetalleEntity>();
 
     public DbSet<FacturaEntity> Facturas => Set<FacturaEntity>();
     public DbSet<FacturaSecuencialEntity> FacturaSecuenciales => Set<FacturaSecuencialEntity>();
@@ -67,6 +75,10 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TestDeIaDbContext).Assembly);
 
         modelBuilder.Entity<PersonaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<PersonaNaturalEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<EmpresaClienteEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ClienteEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
@@ -104,6 +116,10 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<KardexMovimientoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<TransferenciaInventarioEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<TransferenciaInventarioDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.TransferenciaInventario.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<FacturaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<CajaSesionEntity>()

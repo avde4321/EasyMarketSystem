@@ -23,6 +23,18 @@ public sealed class PersonaRequest
     [StringLength(250, ErrorMessage = "La direccion principal no puede superar 250 caracteres.")]
     public string DireccionPrincipal { get; set; } = string.Empty;
 
+    [StringLength(80, ErrorMessage = "La region no puede superar 80 caracteres.")]
+    public string? RegionCodigo { get; set; }
+
+    [StringLength(80, ErrorMessage = "La provincia no puede superar 80 caracteres.")]
+    public string? ProvinciaCodigo { get; set; }
+
+    [StringLength(80, ErrorMessage = "La ciudad no puede superar 80 caracteres.")]
+    public string? CiudadCodigo { get; set; }
+
+    [StringLength(80, ErrorMessage = "El sector no puede superar 80 caracteres.")]
+    public string? SectorCodigo { get; set; }
+
     public DateOnly? FechaNacimiento { get; set; }
 
     [EmailAddress(ErrorMessage = "El correo no tiene un formato valido.")]
@@ -34,6 +46,10 @@ public sealed class PersonaRequest
 
     [StringLength(30, ErrorMessage = "El genero no puede superar 30 caracteres.")]
     public string? Genero { get; set; }
+
+    public bool EsPersonaJuridica { get; set; }
+
+    public bool EsEmpresa { get; set; }
 
     public bool IsActive { get; set; } = true;
 }

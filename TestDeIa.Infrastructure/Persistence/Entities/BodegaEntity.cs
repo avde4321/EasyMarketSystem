@@ -6,9 +6,13 @@ public sealed class BodegaEntity
 
     public Guid EmpresaId { get; set; }
 
+    public string Codigo { get; set; } = string.Empty;
+
     public string Nombre { get; set; } = string.Empty;
 
     public string? Direccion { get; set; }
+
+    public bool EsPrincipal { get; set; }
 
     public bool IsActive { get; set; }
 
@@ -19,4 +23,8 @@ public sealed class BodegaEntity
     public ICollection<ProductoBodegaEntity> ProductosBodega { get; set; } = [];
 
     public ICollection<KardexMovimientoEntity> KardexMovimientos { get; set; } = [];
+
+    public ICollection<TransferenciaInventarioEntity> TransferenciasOrigen { get; set; } = [];
+
+    public ICollection<TransferenciaInventarioEntity> TransferenciasDestino { get; set; } = [];
 }

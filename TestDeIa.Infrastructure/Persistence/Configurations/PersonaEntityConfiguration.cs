@@ -43,6 +43,24 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
         builder.Property(persona => persona.Genero)
             .HasMaxLength(30);
 
+        builder.Property(persona => persona.EsPersonaJuridica)
+            .HasDefaultValue(false);
+
+        builder.Property(persona => persona.EsEmpresa)
+            .HasDefaultValue(false);
+
+        builder.Property(persona => persona.RegionCodigo)
+            .HasMaxLength(80);
+
+        builder.Property(persona => persona.ProvinciaCodigo)
+            .HasMaxLength(80);
+
+        builder.Property(persona => persona.CiudadCodigo)
+            .HasMaxLength(80);
+
+        builder.Property(persona => persona.SectorCodigo)
+            .HasMaxLength(80);
+
         builder.HasIndex(persona => new { persona.EmpresaId, persona.Identificacion })
             .IsUnique();
 
@@ -59,6 +77,12 @@ public sealed class PersonaEntityConfiguration : IEntityTypeConfiguration<Person
             NombreComercial = null,
             DireccionPrincipal = "Sistema",
             CorreoElectronicoPrincipal = "admin@testdeia.local",
+            EsPersonaJuridica = false,
+            EsEmpresa = false,
+            RegionCodigo = "NORTE",
+            ProvinciaCodigo = "PICHINCHA",
+            CiudadCodigo = "QUITO",
+            SectorCodigo = "QUITO_NORTE",
             IsActive = true,
             IsSystemRecord = true,
             CreatedAt = new DateTimeOffset(2026, 6, 18, 0, 0, 0, TimeSpan.Zero)

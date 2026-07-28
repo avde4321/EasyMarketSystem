@@ -37,11 +37,18 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("Ya existe una bodega con ese nombre.");
         }
 
+        if (await inventarioRepository.ExistsBodegaCodigoAsync(request.Codigo, cancellationToken: cancellationToken))
+        {
+            throw new InvalidOperationException("Ya existe una bodega con ese codigo.");
+        }
+
         var bodega = new Bodega(
             Guid.NewGuid(),
             Guid.Empty,
+            request.Codigo.Trim(),
             request.Nombre.Trim(),
             NormalizeOptional(request.Direccion),
+            request.EsPrincipal,
             request.IsActive,
             DateTimeOffset.UtcNow,
             null);
@@ -58,6 +65,11 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("Ya existe otra bodega con ese nombre.");
         }
 
+        if (await inventarioRepository.ExistsBodegaCodigoAsync(request.Codigo, id, cancellationToken))
+        {
+            throw new InvalidOperationException("Ya existe otra bodega con ese codigo.");
+        }
+
         var current = await inventarioRepository.GetBodegaByIdAsync(id, cancellationToken);
         if (current is null)
         {
@@ -67,8 +79,10 @@ public sealed class InventarioUseCase : IInventarioUseCase
         var bodega = new Bodega(
             id,
             current.EmpresaId,
+            request.Codigo.Trim(),
             request.Nombre.Trim(),
             NormalizeOptional(request.Direccion),
+            request.EsPrincipal,
             request.IsActive,
             current.CreatedAt,
             DateTimeOffset.UtcNow);
@@ -110,29 +124,37 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("Ya existe un producto con ese codigo.");
         }
 
+        var naturalezaItem = NormalizeNaturalezaItem(request.NaturalezaItem);
+        var controlaStock = ShouldControlStock(naturalezaItem) && request.ControlaStock;
+        var aplicaComision = string.Equals(naturalezaItem, "Servicio", StringComparison.OrdinalIgnoreCase) && request.AplicaComision;
+
         var producto = new Producto(
             Guid.NewGuid(),
             request.Codigo.Trim(),
             request.Nombre.Trim(),
             NormalizeOptional(request.Descripcion),
+            request.CategoriaId,
+            NormalizeUnidadMedida(request.UnidadMedida),
+            naturalezaItem,
             request.CodigoIva.Trim(),
             request.PorcentajeIva,
             request.PrecioVenta,
+            request.CostoReferencial,
             0,
-            request.ControlaStock ? request.StockMinimo ?? 0 : null,
+            controlaStock ? request.StockMinimo ?? 0 : null,
             0,
-            request.ControlaStock,
-            !request.ControlaStock && request.AplicaComision,
-            !request.ControlaStock && request.AplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
-            !request.ControlaStock && request.AplicaComision ? request.ValorComision : null,
+            controlaStock,
+            aplicaComision,
+            aplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
+            aplicaComision ? request.ValorComision : null,
             request.IsActive,
             DateTimeOffset.UtcNow,
             null);
 
         return MapProducto(await inventarioRepository.CreateProductoAsync(
             producto,
-            request.ControlaStock ? request.StockInicial : 0,
-            request.ControlaStock ? request.CostoInicial : 0,
+            controlaStock ? request.StockInicial : 0,
+            controlaStock ? request.CostoInicial : 0,
             cancellationToken));
     }
 
@@ -151,21 +173,29 @@ public sealed class InventarioUseCase : IInventarioUseCase
             return null;
         }
 
+        var naturalezaItem = NormalizeNaturalezaItem(request.NaturalezaItem);
+        var controlaStock = ShouldControlStock(naturalezaItem) && request.ControlaStock;
+        var aplicaComision = string.Equals(naturalezaItem, "Servicio", StringComparison.OrdinalIgnoreCase) && request.AplicaComision;
+
         var producto = new Producto(
             id,
             request.Codigo.Trim(),
             request.Nombre.Trim(),
             NormalizeOptional(request.Descripcion),
+            request.CategoriaId,
+            NormalizeUnidadMedida(request.UnidadMedida),
+            naturalezaItem,
             request.CodigoIva.Trim(),
             request.PorcentajeIva,
             request.PrecioVenta,
+            request.CostoReferencial,
             current.StockActual,
-            request.ControlaStock ? request.StockMinimo ?? 0 : null,
+            controlaStock ? request.StockMinimo ?? 0 : null,
             current.CostoPromedio,
-            request.ControlaStock,
-            !request.ControlaStock && request.AplicaComision,
-            !request.ControlaStock && request.AplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
-            !request.ControlaStock && request.AplicaComision ? request.ValorComision : null,
+            controlaStock,
+            aplicaComision,
+            aplicaComision ? NormalizeTipoComision(request.TipoComision) : null,
+            aplicaComision ? request.ValorComision : null,
             request.IsActive,
             current.CreatedAt,
             DateTimeOffset.UtcNow);
@@ -271,6 +301,56 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return producto is null ? null : MapProducto(producto);
     }
 
+    public Task<IReadOnlyCollection<TransferenciaInventarioResponse>> GetTransferenciasAsync(
+        string? estado = null,
+        Guid? bodegaOrigenId = null,
+        Guid? bodegaDestinoId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return inventarioRepository.GetTransferenciasAsync(estado, bodegaOrigenId, bodegaDestinoId, cancellationToken);
+    }
+
+    public Task<TransferenciaInventarioResponse?> GetTransferenciaByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return inventarioRepository.GetTransferenciaByIdAsync(id, cancellationToken);
+    }
+
+    public Task<TransferenciaInventarioResponse> CreateTransferenciaAsync(
+        TransferenciaInventarioFormalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransferenciaFormalRequest(request);
+        return inventarioRepository.CreateTransferenciaAsync(request, cancellationToken);
+    }
+
+    public Task<TransferenciaInventarioResponse?> DespacharTransferenciaAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new InvalidOperationException("La transferencia es obligatoria.");
+        }
+
+        return inventarioRepository.DespacharTransferenciaAsync(id, cancellationToken);
+    }
+
+    public Task<TransferenciaInventarioResponse?> RecibirTransferenciaAsync(
+        Guid id,
+        RecepcionTransferenciaInventarioRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new InvalidOperationException("La transferencia es obligatoria.");
+        }
+
+        if (request.Detalles.Count == 0)
+        {
+            throw new InvalidOperationException("Debe registrar al menos una cantidad recibida.");
+        }
+
+        return inventarioRepository.RecibirTransferenciaAsync(id, request, cancellationToken);
+    }
+
     public async Task<TomaFisicaResultadoResponse> ProcesarTomaFisicaAsync(TomaFisicaInventarioRequest request, CancellationToken cancellationToken = default)
     {
         if (request.BodegaId == Guid.Empty)
@@ -342,9 +422,13 @@ public sealed class InventarioUseCase : IInventarioUseCase
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,
+            CategoriaId = producto.CategoriaId,
+            UnidadMedida = producto.UnidadMedida,
+            NaturalezaItem = producto.NaturalezaItem,
             CodigoIva = producto.CodigoIva,
             PorcentajeIva = producto.PorcentajeIva,
             PrecioVenta = producto.PrecioVenta,
+            CostoReferencial = producto.CostoReferencial,
             StockActual = producto.StockActual,
             StockMinimo = producto.StockMinimo,
             ControlaStock = producto.ControlaStock,
@@ -361,8 +445,10 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return new BodegaResponse
         {
             Id = bodega.Id,
+            Codigo = bodega.Codigo,
             Nombre = bodega.Nombre,
             Direccion = bodega.Direccion,
+            EsPrincipal = bodega.EsPrincipal,
             IsActive = bodega.IsActive,
             CreatedAt = bodega.CreatedAt,
             UpdatedAt = bodega.UpdatedAt
@@ -446,7 +532,15 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("Los valores de inventario no pueden ser negativos.");
         }
 
-        if (request.ControlaStock && request.StockMinimo is null)
+        if (request.CostoReferencial < 0)
+        {
+            throw new InvalidOperationException("El costo referencial no puede ser negativo.");
+        }
+
+        var naturalezaItem = NormalizeNaturalezaItem(request.NaturalezaItem);
+        var controlaStock = ShouldControlStock(naturalezaItem) && request.ControlaStock;
+
+        if (controlaStock && request.StockMinimo is null)
         {
             throw new InvalidOperationException("El stock minimo es obligatorio para items inventariables.");
         }
@@ -456,9 +550,9 @@ public sealed class InventarioUseCase : IInventarioUseCase
             throw new InvalidOperationException("El stock minimo no puede ser negativo.");
         }
 
-        if (request.ControlaStock && request.AplicaComision)
+        if (!string.Equals(naturalezaItem, "Servicio", StringComparison.OrdinalIgnoreCase) && request.AplicaComision)
         {
-            throw new InvalidOperationException("Las comisiones solo aplican para servicios sin control de stock.");
+            throw new InvalidOperationException("Las comisiones solo aplican para servicios.");
         }
 
         if (request.AplicaComision)
@@ -491,11 +585,61 @@ public sealed class InventarioUseCase : IInventarioUseCase
         };
     }
 
+    private static string NormalizeNaturalezaItem(string? naturalezaItem)
+    {
+        if (string.IsNullOrWhiteSpace(naturalezaItem))
+        {
+            return "Mercaderia";
+        }
+
+        return naturalezaItem.Trim() switch
+        {
+            "Mercaderia" => "Mercaderia",
+            "Servicio" => "Servicio",
+            "ActivoFijo" => "ActivoFijo",
+            _ => throw new InvalidOperationException("La naturaleza del item debe ser Mercaderia, Servicio o ActivoFijo.")
+        };
+    }
+
+    private static string NormalizeUnidadMedida(string? unidadMedida) =>
+        string.IsNullOrWhiteSpace(unidadMedida) ? "Unidad" : unidadMedida.Trim();
+
+    private static bool ShouldControlStock(string naturalezaItem) =>
+        string.Equals(naturalezaItem, "Mercaderia", StringComparison.OrdinalIgnoreCase);
+
     private static void ValidateBodegaRequest(BodegaRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Nombre))
         {
             throw new InvalidOperationException("El nombre de la bodega es obligatorio.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Codigo) || request.Codigo.Trim().Length != 3 || !request.Codigo.Trim().All(char.IsDigit))
+        {
+            throw new InvalidOperationException("El codigo de la bodega debe tener exactamente 3 digitos.");
+        }
+    }
+
+    private static void ValidateTransferenciaFormalRequest(TransferenciaInventarioFormalRequest request)
+    {
+        if (request.BodegaOrigenId == Guid.Empty || request.BodegaDestinoId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Debe seleccionar bodega origen y destino.");
+        }
+
+        if (request.BodegaOrigenId == request.BodegaDestinoId)
+        {
+            throw new InvalidOperationException("La bodega origen y destino deben ser diferentes.");
+        }
+
+        if (request.Detalles.Count == 0)
+        {
+            throw new InvalidOperationException("Debe agregar al menos un producto a la transferencia.");
+        }
+
+        if (request.Detalles.Any(detalle => detalle.ProductoId == Guid.Empty || detalle.Cantidad <= 0))
+        {
+            throw new InvalidOperationException("Todos los productos de la transferencia deben tener cantidad mayor a cero.");
         }
     }
 

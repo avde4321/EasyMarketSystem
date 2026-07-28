@@ -7,10 +7,10 @@
     <header class="module-header">
         <div>
             <h1>Mis Empresas</h1>
-            <p>Administra m˙ltiples RUCs, firmas .p12 y par·metros tributarios por empresa.</p>
+            <p>Administra m√∫ltiples RUCs, firmas .p12 y par√°metros tributarios por empresa.</p>
         </div>
         <div class="header-actions empresa-header-actions">
-            <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">@(selectedEmpresaId.HasValue ? "Continuar ediciÛn" : "Iniciar configuraciÛn")</button>
+            <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">@(selectedEmpresaId.HasValue ? "Continuar edici√≥n" : "Iniciar configuraci√≥n")</button>
             <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
         </div>
     </header>
@@ -29,7 +29,7 @@
         <header class="section-header compact-section-header">
             <div>
                 <h2>Resumen principal</h2>
-                <p>Consulta la empresa activa y abre el asistente para configurar datos generales, certificado y puntos de emisiÛn.</p>
+                <p>Consulta la empresa activa y abre el asistente para configurar datos generales, certificado y puntos de emisi√≥n.</p>
             </div>
             <button class="ghost-button" type="button" @onclick="OpenWorkflowModal">Abrir asistente</button>
         </header>
@@ -37,13 +37,13 @@
         <div class="summary-grid empresa-summary-grid">
             <div class="summary-card accent">
                 <span>Empresa</span>
-                <strong>@(empresaActual?.RazonSocial ?? "Nueva configuraciÛn")</strong>
-                <small>@(empresaActual?.Ruc ?? "Completa la razÛn social y el RUC en el asistente")</small>
+                <strong>@(empresaActual?.RazonSocial ?? "Nueva configuraci√≥n")</strong>
+                <small>@(empresaActual?.Ruc ?? "Completa la raz√≥n social y el RUC en el asistente")</small>
             </div>
             <div class="summary-card">
                 <span>Ambiente</span>
                 <strong>@GetAmbienteLabel(empresaRequest.AmbienteSri)</strong>
-                <small>Tipo emisiÛn: @GetTipoEmisionLabel(empresaRequest.TipoEmision)</small>
+                <small>Tipo emisi√≥n: @GetTipoEmisionLabel(empresaRequest.TipoEmision)</small>
             </div>
             <div class="summary-card">
                 <span>Certificado</span>
@@ -51,7 +51,7 @@
                 <small>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Sube el .p12 en el paso 2" : certificadoNombreArchivoActual)</small>
             </div>
             <div class="summary-card">
-                <span>Puntos de emisiÛn</span>
+                <span>Puntos de emisi√≥n</span>
                 <strong>@empresaRequest.PuntosEmision.Count</strong>
                 <small>@GetPuntosResumenDraft()</small>
             </div>
@@ -60,7 +60,7 @@
 
     <section class="table-card">
         <div class="table-toolbar">
-            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, razÛn social, ambiente o puntos de emisiÛn..." />
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar empresa por RUC, raz√≥n social, ambiente o puntos de emisi√≥n..." />
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
         </div>
         <div class="table-scroll">
@@ -68,9 +68,9 @@
                 <thead>
                     <tr>
                         <th>RUC</th>
-                        <th>RazÛn social</th>
+                        <th>Raz√≥n social</th>
                         <th>Ambiente</th>
-                        <th>EmisiÛn</th>
+                        <th>Emisi√≥n</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
@@ -79,7 +79,7 @@
                     @if (empresas.Count == 0)
                     {
                         <tr>
-                            <td colspan="6" class="empty-state-cell">TodavÌa no tienes empresas registradas.</td>
+                            <td colspan="6" class="empty-state-cell">Todav√≠a no tienes empresas registradas.</td>
                         </tr>
                     }
                     else
@@ -88,9 +88,9 @@
                         {
                             <tr class="@(selectedEmpresaId == empresa.Id ? "is-selected-row" : string.Empty)">
                                 <td data-label="RUC">@empresa.Ruc</td>
-                                <td data-label="RazÛn social">@empresa.RazonSocial</td>
+                                <td data-label="Raz√≥n social">@empresa.RazonSocial</td>
                                 <td data-label="Ambiente">@GetAmbienteLabel(empresa.AmbienteSri)</td>
-                                <td data-label="EmisiÛn">
+                                <td data-label="Emisi√≥n">
                                     @GetPuntosResumen(empresa)
                                     <small>@($"{empresa.PuntosEmision.Count} punto(s) configurado(s)")</small>
                                 </td>
@@ -165,7 +165,7 @@
 
                             <div class="form-grid empresa-grid">
                                 <div class="form-field full">
-                                    <label>RazÛn social</label>
+                                    <label>Raz√≥n social</label>
                                     <InputText class="form-control" @bind-Value="empresaRequest.RazonSocial" />
                                     <ValidationMessage For="@(() => empresaRequest.RazonSocial)" />
                                 </div>
@@ -186,10 +186,10 @@
                                             <option value="@item.Codigo">@item.Nombre</option>
                                         }
                                     </InputSelect>
-                                    <small class="file-hint">Pruebas usa cÛdigo 1 y ProducciÛn usa cÛdigo 2 en la clave de acceso.</small>
+                                    <small class="file-hint">Pruebas usa c√≥digo 1 y Producci√≥n usa c√≥digo 2 en la clave de acceso.</small>
                                 </div>
                                 <div class="form-field">
-                                    <label>Tipo de emisiÛn</label>
+                                    <label>Tipo de emisi√≥n</label>
                                     <InputSelect class="form-control" @bind-Value="empresaRequest.TipoEmision">
                                         @foreach (var item in tiposEmision)
                                         {
@@ -201,12 +201,19 @@
                                     <label>Modo desarrollo interno</label>
                                     <label class="form-check soft-check">
                                         <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ModoDesarrollo" />
-                                        <span class="form-check-label">Mantener simulaciÛn interna activa</span>
+                                        <span class="form-check-label">Mantener simulaci√≥n interna activa</span>
                                     </label>
-                                    <small class="file-hint">Si est· activo, la empresa debe permanecer en ambiente de Pruebas.</small>
+                                    <small class="file-hint">Si est√° activo, la empresa debe permanecer en ambiente de Pruebas.</small>
                                 </div>
                                 <div class="form-field full">
-                                    <label>DirecciÛn matriz</label>
+                                    <label>Ubicaci√≥n matriz</label>
+                                    <GeoAddressPicker @bind-RegionCodigo="empresaRequest.RegionCodigo"
+                                                      @bind-ProvinciaCodigo="empresaRequest.ProvinciaCodigo"
+                                                      @bind-CiudadCodigo="empresaRequest.CiudadCodigo"
+                                                      @bind-SectorCodigo="empresaRequest.SectorCodigo" />
+                                </div>
+                                <div class="form-field full">
+                                    <label>Direcci√≥n matriz exacta / referencia</label>
                                     <InputText class="form-control" @bind-Value="empresaRequest.DireccionMatriz" />
                                     <ValidationMessage For="@(() => empresaRequest.DireccionMatriz)" />
                                 </div>
@@ -214,14 +221,14 @@
                                     <label>Obligado a llevar contabilidad</label>
                                     <label class="form-check soft-check">
                                         <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.ObligadoContabilidad" />
-                                        <span class="form-check-label">SÌ</span>
+                                        <span class="form-check-label">S√≠</span>
                                     </label>
                                 </div>
                                 <div class="form-field">
                                     <label>Activo</label>
                                     <label class="form-check soft-check">
                                         <InputCheckbox class="form-check-input" @bind-Value="empresaRequest.IsActive" />
-                                        <span class="form-check-label">ConfiguraciÛn activa</span>
+                                        <span class="form-check-label">Configuraci√≥n activa</span>
                                     </label>
                                 </div>
                                 <div class="form-field">
@@ -229,11 +236,11 @@
                                     <InputText class="form-control" @bind-Value="empresaRequest.ContribuyenteEspecial" />
                                 </div>
                                 <div class="form-field">
-                                    <label>RÈgimen RIMPE</label>
+                                    <label>R√©gimen RIMPE</label>
                                     <InputText class="form-control" @bind-Value="empresaRequest.RegimenRimpe" />
                                 </div>
                                 <div class="form-field full">
-                                    <label>Agente de retenciÛn</label>
+                                    <label>Agente de retenci√≥n</label>
                                     <InputText class="form-control" @bind-Value="empresaRequest.AgenteRetencionResolucion" />
                                 </div>
                             </div>
@@ -244,8 +251,8 @@
                         <section class="workflow-panel">
                             <header class="section-header compact-section-header">
                                 <div>
-                                    <h3>Certificado y emisiÛn</h3>
-                                    <p>Sube el certificado .p12 y define la clave para procesos de emisiÛn electrÛnica.</p>
+                                    <h3>Certificado y emisi√≥n</h3>
+                                    <p>Sube el certificado .p12 y define la clave para procesos de emisi√≥n electr√≥nica.</p>
                                 </div>
                             </header>
 
@@ -268,7 +275,7 @@
                                 <div class="form-field full">
                                     <label>Clave certificado .p12</label>
                                     <InputText class="form-control" type="password" @bind-Value="empresaRequest.CertificadoClave" />
-                                    <small class="file-hint">En ProducciÛn no deberÌa quedar vacÌa si la empresa va a emitir.</small>
+                                    <small class="file-hint">En Producci√≥n no deber√≠a quedar vac√≠a si la empresa va a emitir.</small>
                                 </div>
                             </div>
                         </section>
@@ -278,8 +285,8 @@
                         <section class="workflow-panel">
                             <header class="section-header compact-section-header">
                                 <div>
-                                    <h3>Puntos de emisiÛn</h3>
-                                    <p>Consulta los puntos actuales y abre el popup especÌfico para crearlos o editarlos con el mismo diseÒo general.</p>
+                                    <h3>Puntos de emisi√≥n</h3>
+                                    <p>Consulta los puntos actuales y abre el popup espec√≠fico para crearlos o editarlos con el mismo dise√±o general.</p>
                                 </div>
                             </header>
 
@@ -288,7 +295,7 @@
                                     <label class="summary-label">Resumen de puntos</label>
                                     <p class="summary-text">@GetPuntosResumenDraft()</p>
                                 </div>
-                                <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Elegir punto de emisiÛn</button>
+                                <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Elegir punto de emisi√≥n</button>
                             </div>
 
                             <section class="table-card embedded-card">
@@ -299,7 +306,7 @@
                                                 <th>Establecimiento</th>
                                                 <th>Punto</th>
                                                 <th>Bodega</th>
-                                                <th>DirecciÛn</th>
+                                                <th>Direcci√≥n</th>
                                                 <th>Estado</th>
                                                 <th>Acciones</th>
                                             </tr>
@@ -308,7 +315,7 @@
                                             @if (empresaRequest.PuntosEmision.Count == 0)
                                             {
                                                 <tr>
-                                                    <td colspan="6" class="empty-state-cell">TodavÌa no has agregado puntos de emisiÛn.</td>
+                                                    <td colspan="6" class="empty-state-cell">Todav√≠a no has agregado puntos de emisi√≥n.</td>
                                                 </tr>
                                             }
                                             else
@@ -320,7 +327,7 @@
                                                         <td data-label="Establecimiento">@punto.Establecimiento</td>
                                                         <td data-label="Punto">@punto.PuntoEmision</td>
                                                         <td data-label="Bodega">@GetBodegaName(punto.BodegaId)</td>
-                                                        <td data-label="DirecciÛn">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direcciÛn" : punto.DireccionEstablecimiento)</td>
+                                                        <td data-label="Direcci√≥n">@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direcci√≥n" : punto.DireccionEstablecimiento)</td>
                                                         <td data-label="Estado">
                                                             <span class="status-pill @(punto.IsDefault ? "is-active" : string.Empty)">
                                                                 @(punto.IsDefault ? "Predeterminado" : "Secundario")
@@ -369,8 +376,8 @@
         <section class="modal-card empresa-point-modal">
             <header class="modal-header">
                 <div>
-                    <h2>@(editingPuntoIndex.HasValue ? "Editar punto de emisiÛn" : "Nuevo punto de emisiÛn")</h2>
-                    <p class="modal-subtitle">Completa establecimiento, punto y bodega asociada manteniendo la misma lÌnea visual de la app.</p>
+                    <h2>@(editingPuntoIndex.HasValue ? "Editar punto de emisi√≥n" : "Nuevo punto de emisi√≥n")</h2>
+                    <p class="modal-subtitle">Completa establecimiento, punto y bodega asociada manteniendo la misma l√≠nea visual de la app.</p>
                 </div>
                 <button class="icon-button" type="button" @onclick="ClosePuntosEmisionModal">x</button>
             </header>
@@ -381,22 +388,22 @@
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.Establecimiento" />
                 </div>
                 <div class="form-field">
-                    <label>Punto de emisiÛn</label>
+                    <label>Punto de emisi√≥n</label>
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.PuntoEmision" />
                 </div>
                 <div class="form-field full">
                     <label>Bodega de despacho por defecto</label>
                     <InputSelect class="form-control" @bind-Value="puntoEmisionDraft.BodegaId">
-                        <option value="">Asignar Principal autom·ticamente</option>
+                        <option value="">Asignar Principal autom√°ticamente</option>
                         @foreach (var bodega in activeBodegas)
                         {
                             <option value="@bodega.Id">@bodega.Nombre</option>
                         }
                     </InputSelect>
-                    <small class="file-hint">El POS descontar· inventario desde esta bodega cuando opere con este punto.</small>
+                    <small class="file-hint">El POS descontar√° inventario desde esta bodega cuando opere con este punto.</small>
                 </div>
                 <div class="form-field full">
-                    <label>DirecciÛn establecimiento</label>
+                    <label>Direcci√≥n establecimiento</label>
                     <InputText class="form-control" @bind-Value="puntoEmisionDraft.DireccionEstablecimiento" />
                 </div>
                 <div class="form-field full">
@@ -410,7 +417,7 @@
             <footer class="modal-actions">
                 @if (editingPuntoIndex.HasValue)
                 {
-                    <button class="ghost-button" type="button" @onclick="ResetPuntoEmisionDraft">Cancelar ediciÛn</button>
+                    <button class="ghost-button" type="button" @onclick="ResetPuntoEmisionDraft">Cancelar edici√≥n</button>
                 }
                 <button class="secondary-action" type="button" @onclick="ClosePuntosEmisionModal">Cerrar</button>
                 <button class="primary-action" type="button" @onclick="AddPuntoEmision">

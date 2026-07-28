@@ -7,9 +7,13 @@ public sealed class Producto
         string codigo,
         string nombre,
         string? descripcion,
+        Guid? categoriaId,
+        string unidadMedida,
+        string naturalezaItem,
         string codigoIva,
         decimal porcentajeIva,
         decimal precioVenta,
+        decimal costoReferencial,
         decimal stockActual,
         decimal? stockMinimo,
         decimal costoPromedio,
@@ -25,9 +29,13 @@ public sealed class Producto
         Codigo = codigo;
         Nombre = nombre;
         Descripcion = descripcion;
+        CategoriaId = categoriaId;
+        UnidadMedida = unidadMedida;
+        NaturalezaItem = naturalezaItem;
         CodigoIva = codigoIva;
         PorcentajeIva = porcentajeIva;
         PrecioVenta = precioVenta;
+        CostoReferencial = costoReferencial;
         StockActual = stockActual;
         StockMinimo = stockMinimo;
         CostoPromedio = costoPromedio;
@@ -48,11 +56,19 @@ public sealed class Producto
 
     public string? Descripcion { get; }
 
+    public Guid? CategoriaId { get; }
+
+    public string UnidadMedida { get; }
+
+    public string NaturalezaItem { get; }
+
     public string CodigoIva { get; }
 
     public decimal PorcentajeIva { get; }
 
     public decimal PrecioVenta { get; }
+
+    public decimal CostoReferencial { get; }
 
     public decimal StockActual { get; }
 

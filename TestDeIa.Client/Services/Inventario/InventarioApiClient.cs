@@ -21,6 +21,18 @@ public sealed class InventarioApiClient
             ?? Array.Empty<BodegaResponse>();
     }
 
+    public async Task<(bool Succeeded, string? ErrorMessage)> CreateBodegaAsync(BodegaRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/inventario/bodegas", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> UpdateBodegaAsync(Guid id, BodegaRequest request)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/inventario/bodegas/{id}", request);
+        return await BuildResultAsync(response);
+    }
+
     public async Task<PagedResultResponse<ProductoResponse>> GetProductosAsync(string? term, int skip, int take, Guid? bodegaId = null)
     {
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
@@ -69,6 +81,47 @@ public sealed class InventarioApiClient
     public async Task<(bool Succeeded, string? ErrorMessage)> TransferirStockAsync(TransferenciaInventarioRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/inventario/movimientos/transferencia", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<IReadOnlyCollection<TransferenciaInventarioResponse>> GetTransferenciasAsync(string? estado = null, Guid? bodegaOrigenId = null, Guid? bodegaDestinoId = null)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            query.Add($"estado={Uri.EscapeDataString(estado)}");
+        }
+
+        if (bodegaOrigenId.HasValue && bodegaOrigenId.Value != Guid.Empty)
+        {
+            query.Add($"bodegaOrigenId={bodegaOrigenId.Value}");
+        }
+
+        if (bodegaDestinoId.HasValue && bodegaDestinoId.Value != Guid.Empty)
+        {
+            query.Add($"bodegaDestinoId={bodegaDestinoId.Value}");
+        }
+
+        var queryString = query.Count == 0 ? string.Empty : $"?{string.Join("&", query)}";
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<TransferenciaInventarioResponse>>($"api/inventario/transferencias{queryString}")
+            ?? Array.Empty<TransferenciaInventarioResponse>();
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> CreateTransferenciaAsync(TransferenciaInventarioFormalRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/inventario/transferencias", request);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> DespacharTransferenciaAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/inventario/transferencias/{id}/despachar", null);
+        return await BuildResultAsync(response);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage)> RecibirTransferenciaAsync(Guid id, RecepcionTransferenciaInventarioRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/inventario/transferencias/{id}/recibir", request);
         return await BuildResultAsync(response);
     }
 

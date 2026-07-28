@@ -36,6 +36,25 @@ public interface IInventarioUseCase
 
     Task<ProductoResponse?> TransferirStockAsync(TransferenciaInventarioRequest request, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<TransferenciaInventarioResponse>> GetTransferenciasAsync(
+        string? estado = null,
+        Guid? bodegaOrigenId = null,
+        Guid? bodegaDestinoId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> GetTransferenciaByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse> CreateTransferenciaAsync(
+        TransferenciaInventarioFormalRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> DespacharTransferenciaAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> RecibirTransferenciaAsync(
+        Guid id,
+        RecepcionTransferenciaInventarioRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<TomaFisicaResultadoResponse> ProcesarTomaFisicaAsync(TomaFisicaInventarioRequest request, CancellationToken cancellationToken = default);
 
     Task DescontarStockPorFacturaAsync(DescontarStockFacturaRequest request, CancellationToken cancellationToken = default);

@@ -5,6 +5,7 @@ using TestDeIa.Client.Services.Personas;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Compras;
+using TestDeIa.Shared.Responses.Personas;
 
 namespace TestDeIa.Client.Pages;
 
@@ -21,19 +22,27 @@ public partial class Proveedores
 
     private readonly List<ProveedorResponse> proveedores = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
+    private readonly List<PersonaResponse> personasCoincidentes = [];
     private ProveedorRequest proveedorRequest = new();
     private Guid? editingProveedorId;
     private bool isLoading = true;
     private bool isSaving;
     private bool isEditorOpen;
     private bool isSearchingPersona;
+    private bool isSearchingPersonas;
+    private bool showProveedorRoleForm;
+    private bool isProveedorFromExistingPersona;
     private string? errorMessage;
     private string? statusMessage;
     private string searchTerm = string.Empty;
+    private string personaSearchTerm = string.Empty;
     private const int PageSize = 10;
     private int totalCount;
     private int currentSkip;
     private IEnumerable<ProveedorResponse> VisibleProveedores => proveedores;
+    private bool HasPersonaSearchTerm => !string.IsNullOrWhiteSpace(personaSearchTerm);
+    private bool ShowPersonaBaseFields => editingProveedorId.HasValue || !isProveedorFromExistingPersona;
+    private static bool TieneRolProveedor(PersonaResponse persona) => persona.RolesPersona.Contains("Proveedor", StringComparer.OrdinalIgnoreCase);
     private bool CanGoPrevious => currentSkip > 0;
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
@@ -79,7 +88,7 @@ public partial class Proveedores
         }
     }
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModalAsync()
     {
         editingProveedorId = null;
         proveedorRequest = new ProveedorRequest
@@ -91,7 +100,12 @@ public partial class Proveedores
         };
         errorMessage = null;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        showProveedorRoleForm = false;
+        isProveedorFromExistingPersona = false;
         isEditorOpen = true;
+        await BuscarPersonasCoincidentesAsync();
     }
 
     private void OpenEditModal(ProveedorResponse proveedor)
@@ -107,6 +121,10 @@ public partial class Proveedores
             CorreoElectronicoPrincipal = proveedor.CorreoElectronicoPrincipal,
             TelefonoCelular = proveedor.TelefonoCelular,
             DireccionPrincipal = proveedor.DireccionPrincipal,
+            RegionCodigo = proveedor.RegionCodigo,
+            ProvinciaCodigo = proveedor.ProvinciaCodigo,
+            CiudadCodigo = proveedor.CiudadCodigo,
+            SectorCodigo = proveedor.SectorCodigo,
             CodigoRetencionIvaDefault = proveedor.CodigoRetencionIvaDefault,
             CodigoRetencionRentaDefault = proveedor.CodigoRetencionRentaDefault,
             PermiteCredito = proveedor.PermiteCredito,
@@ -115,7 +133,11 @@ public partial class Proveedores
             IsActive = proveedor.IsActive
         };
         isEditorOpen = true;
+        showProveedorRoleForm = true;
+        isProveedorFromExistingPersona = false;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
     }
 
     private void CloseModal()
@@ -124,6 +146,94 @@ public partial class Proveedores
         isSaving = false;
         errorMessage = null;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        showProveedorRoleForm = false;
+        isProveedorFromExistingPersona = false;
+    }
+
+    private async Task OnPersonaSearchChangedAsync(ChangeEventArgs args)
+    {
+        personaSearchTerm = args.Value?.ToString() ?? string.Empty;
+
+        if (personaSearchTerm.Trim().Length < 2)
+        {
+            personaSearchTerm = string.Empty;
+        }
+
+        await BuscarPersonasCoincidentesAsync();
+    }
+
+    private async Task BuscarPersonasCoincidentesAsync()
+    {
+        isSearchingPersonas = true;
+        errorMessage = null;
+
+        try
+        {
+            var page = await PersonasApiClient.GetPagedAsync(personaSearchTerm, 0, 12);
+            personasCoincidentes.Clear();
+            personasCoincidentes.AddRange(page.Items);
+            statusMessage = personasCoincidentes.Count == 0
+                ? "No hay coincidencias. Puedes usar Nuevo registro para crear la persona y proveedor desde cero."
+                : "Convierte una persona existente en proveedor sin duplicar su identidad.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar personas existentes.";
+        }
+        finally
+        {
+            isSearchingPersonas = false;
+        }
+    }
+
+    private void SeleccionarPersona(PersonaResponse persona)
+    {
+        proveedorRequest.TipoIdentificacion = persona.TipoIdentificacion;
+        proveedorRequest.Identificacion = persona.Identificacion;
+        proveedorRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+        proveedorRequest.NombreComercial = persona.NombreComercial;
+        proveedorRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+        proveedorRequest.TelefonoCelular = persona.TelefonoCelular;
+        proveedorRequest.DireccionPrincipal = persona.DireccionPrincipal;
+        proveedorRequest.RegionCodigo = persona.RegionCodigo;
+        proveedorRequest.ProvinciaCodigo = persona.ProvinciaCodigo;
+        proveedorRequest.CiudadCodigo = persona.CiudadCodigo;
+        proveedorRequest.SectorCodigo = persona.SectorCodigo;
+        proveedorRequest.IsActive = persona.IsActive;
+        showProveedorRoleForm = !TieneRolProveedor(persona);
+        isProveedorFromExistingPersona = showProveedorRoleForm;
+
+        statusMessage = TieneRolProveedor(persona)
+            ? "Esta persona ya figura como Proveedor. Si necesitas cambiar datos, usa Editar desde la consulta principal."
+            : "Datos base cargados por debajo. Completa solamente la informacion comercial de compras.";
+    }
+
+    private void NuevoRegistroProveedor()
+    {
+        editingProveedorId = null;
+        proveedorRequest = new ProveedorRequest
+        {
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "04",
+            EstadoProveedor = "Activo",
+            CodigoRetencionIvaDefault = "0",
+            CodigoRetencionRentaDefault = "0",
+            IsActive = true
+        };
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        errorMessage = null;
+        showProveedorRoleForm = true;
+        isProveedorFromExistingPersona = false;
+        statusMessage = "Formulario limpio para registrar una persona nueva como proveedor.";
+    }
+
+    private void VolverAConsultaPersonasProveedor()
+    {
+        showProveedorRoleForm = false;
+        isProveedorFromExistingPersona = false;
+        statusMessage = "Selecciona una persona existente o crea un nuevo registro.";
     }
 
     private async Task BuscarPersonaAsync()
@@ -155,6 +265,10 @@ public partial class Proveedores
             proveedorRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
             proveedorRequest.TelefonoCelular = persona.TelefonoCelular;
             proveedorRequest.DireccionPrincipal = persona.DireccionPrincipal;
+            proveedorRequest.RegionCodigo = persona.RegionCodigo;
+            proveedorRequest.ProvinciaCodigo = persona.ProvinciaCodigo;
+            proveedorRequest.CiudadCodigo = persona.CiudadCodigo;
+            proveedorRequest.SectorCodigo = persona.SectorCodigo;
             proveedorRequest.IsActive = persona.IsActive;
 
             statusMessage = "Se cargo la informacion de la persona existente.";

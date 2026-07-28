@@ -33,6 +33,33 @@ public sealed class ComprasApiClient
         return (false, "No se pudo registrar la compra.", null);
     }
 
+    public async Task<(bool Succeeded, string? ErrorMessage, FacturaProveedorAnalisisResponse? Data)> AnalizarFacturaProveedorAsync(
+        Stream fileContent,
+        string fileName,
+        string contentType)
+    {
+        using var form = new MultipartFormDataContent();
+        using var content = new StreamContent(fileContent);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+
+        form.Add(content, "archivo", fileName);
+        var response = await httpClient.PostAsync("api/compras/analizar-factura-proveedor", form);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<FacturaProveedorAnalisisResponse>());
+        }
+
+        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            return (false, error?.Message ?? "No se pudo analizar la factura del proveedor.", null);
+        }
+
+        return (false, "No se pudo analizar la factura del proveedor.", null);
+    }
+
     public async Task<(bool Succeeded, string? ErrorMessage, ReporteComprasConsolidadoResponse? Data)> GetReporteFisicoFinancieroAsync(
         DateTime fechaInicio,
         DateTime fechaFin,

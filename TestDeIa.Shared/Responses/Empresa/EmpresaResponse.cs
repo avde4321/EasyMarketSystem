@@ -8,6 +8,10 @@ public sealed class EmpresaResponse
     public string? NombreComercial { get; set; }
     public string Ruc { get; set; } = string.Empty;
     public string DireccionMatriz { get; set; } = string.Empty;
+    public string? RegionCodigo { get; set; }
+    public string? ProvinciaCodigo { get; set; }
+    public string? CiudadCodigo { get; set; }
+    public string? SectorCodigo { get; set; }
     public string? DireccionEstablecimiento { get; set; }
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;

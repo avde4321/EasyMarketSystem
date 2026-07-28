@@ -62,22 +62,28 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion del empleado no coincide con los tipos soportados por facturacion electronica.");
         EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el empleado");
+        EnsurePersonaCanBeEmpleado(tipoIdentificacion, request.Identificacion);
 
         var persona = await personaRepository.FindByIdentificacionAsync(request.Identificacion, cancellationToken);
         if (persona is not null)
         {
+            if (persona.EsEmpresa)
+            {
+                throw new InvalidOperationException("Una empresa no puede convertirse en empleado. Selecciona una persona natural.");
+            }
+
             var existingEmpleado = await empleadoRepository.GetByPersonaIdAsync(persona.Id, cancellationToken: cancellationToken);
             if (existingEmpleado is not null)
             {
                 throw new InvalidOperationException("La persona ya tiene el rol de empleado. Puedes editarla desde la lista.");
             }
 
-            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request), cancellationToken)
+            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request, persona.EsPersonaJuridica, persona.EsEmpresa), cancellationToken)
                 ?? throw new InvalidOperationException("No se pudo actualizar la persona base del empleado.");
         }
         else
         {
-            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request), cancellationToken);
+            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request, request.TipoIdentificacion.Trim() == "04", false), cancellationToken);
         }
 
         var empleado = new Empleado(
@@ -108,7 +114,11 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             request.IsActive,
             DateTimeOffset.UtcNow,
             currentUserAccessor.GetRequiredUserId(),
-            null);
+            null,
+            persona.RegionCodigo,
+            persona.ProvinciaCodigo,
+            persona.CiudadCodigo,
+            persona.SectorCodigo);
 
         return MapToResponse(await empleadoRepository.CreateAsync(empleado, cancellationToken));
     }
@@ -119,6 +129,7 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion del empleado no coincide con los tipos soportados por facturacion electronica.");
         EcuadorIdentificationValidator.EnsureValid(tipoIdentificacion, request.Identificacion, "el empleado");
+        EnsurePersonaCanBeEmpleado(tipoIdentificacion, request.Identificacion);
 
         var current = await empleadoRepository.GetByIdAsync(id, cancellationToken);
         if (current is null)
@@ -134,8 +145,12 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
 
         var currentPersona = await personaRepository.GetByIdAsync(current.PersonaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la persona asociada al empleado.");
+        if (currentPersona.EsEmpresa)
+        {
+            throw new InvalidOperationException("Una empresa no puede convertirse en empleado. Selecciona una persona natural.");
+        }
 
-        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request), cancellationToken)
+        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request, currentPersona.EsPersonaJuridica, currentPersona.EsEmpresa), cancellationToken)
             ?? throw new InvalidOperationException("No se pudo actualizar la persona del empleado.");
 
         var empleado = new Empleado(
@@ -166,7 +181,11 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             request.IsActive,
             current.CreatedAt,
             current.UsuarioCreacionId,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            updatedPersona.RegionCodigo,
+            updatedPersona.ProvinciaCodigo,
+            updatedPersona.CiudadCodigo,
+            updatedPersona.SectorCodigo);
 
         var updated = await empleadoRepository.UpdateAsync(empleado, cancellationToken);
         return updated is null ? null : MapToResponse(updated);
@@ -177,7 +196,7 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
         return empleadoRepository.DeleteAsync(id, cancellationToken);
     }
 
-    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, EmpleadoRequest request)
+    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, EmpleadoRequest request, bool esPersonaJuridica, bool esEmpresa)
     {
         return new Persona(
             id,
@@ -190,10 +209,24 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
             NormalizeOptional(request.Genero),
+            esPersonaJuridica,
+            esEmpresa,
             [],
             request.IsActive,
             createdAt,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo));
+    }
+
+    private static void EnsurePersonaCanBeEmpleado(string tipoIdentificacion, string identificacion)
+    {
+        if (tipoIdentificacion == "04" && identificacion.Trim().Length >= 3 && identificacion.Trim()[2] == '9')
+        {
+            throw new InvalidOperationException("El RUC juridico corresponde a una empresa y no puede registrarse como empleado.");
+        }
     }
 
     private static EmpleadoResponse MapToResponse(Empleado empleado)
@@ -207,6 +240,10 @@ public sealed class EmpleadoUseCase : IEmpleadoUseCase
             RazonSocialONombresCompletos = empleado.RazonSocialONombresCompletos,
             NombreComercial = empleado.NombreComercial,
             DireccionPrincipal = empleado.DireccionPrincipal,
+            RegionCodigo = empleado.RegionCodigo,
+            ProvinciaCodigo = empleado.ProvinciaCodigo,
+            CiudadCodigo = empleado.CiudadCodigo,
+            SectorCodigo = empleado.SectorCodigo,
             CorreoElectronicoPrincipal = empleado.CorreoElectronicoPrincipal,
             TelefonoCelular = empleado.TelefonoCelular,
             FechaNacimiento = empleado.FechaNacimiento,

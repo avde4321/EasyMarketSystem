@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Compras;
 using TestDeIa.Client.Services.Facturacion;
@@ -49,6 +50,8 @@ public partial class RegistrarCompra
     private string productSearchTerm = string.Empty;
     private bool isLoadingProducts;
     private bool isSaving;
+    private bool isAnalyzingInvoice;
+    private bool isInvoiceAnalysisModalOpen;
     private bool isLiquidacionRoute;
     private bool isWorkflowModalOpen = true;
     private int currentStep = 1;
@@ -61,6 +64,7 @@ public partial class RegistrarCompra
     private decimal nonInventoryQuantity = 1m;
     private decimal nonInventoryCost;
     private decimal nonInventoryDiscount;
+    private FacturaProveedorAnalisisResponse? invoiceAnalysis;
 
     private bool IsLiquidacion => request.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra;
     private bool IsNotaVenta => request.TipoDocumentoCodigo == CompraDocumentTypes.NotaVentaRimpe;
@@ -95,6 +99,8 @@ public partial class RegistrarCompra
     private string SelectedBodegaSupport => selectedBodega?.Direccion ?? "La bodega define dónde subirá el stock";
     private string SelectedDocumentLabel => IsLiquidacion ? BuildLiquidacionSeriesLabel() : (string.IsNullOrWhiteSpace(request.NumeroComprobante) ? "Pendiente de selección" : request.NumeroComprobante!);
     private string SelectedDocumentSupport => IsLiquidacion ? "Serie interna de liquidación" : "Número del documento del proveedor";
+
+    private bool CanApplyInvoiceAnalysis => invoiceAnalysis is { Succeeded: true };
 
     protected override async Task OnInitializedAsync()
     {
@@ -569,6 +575,114 @@ public partial class RegistrarCompra
         }
     }
 
+    private async Task AnalyzeInvoiceFileAsync(InputFileChangeEventArgs args)
+    {
+        errorMessage = null;
+        successMessage = null;
+        invoiceAnalysis = null;
+
+        var file = args.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        isAnalyzingInvoice = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 10_000_000);
+            var result = await ComprasApiClient.AnalizarFacturaProveedorAsync(stream, file.Name, file.ContentType);
+            if (!result.Succeeded || result.Data is null)
+            {
+                errorMessage = result.ErrorMessage ?? "No se pudo analizar la factura del proveedor.";
+                await PopupNotificationService.ShowErrorAsync(errorMessage);
+                return;
+            }
+
+            invoiceAnalysis = result.Data;
+            isInvoiceAnalysisModalOpen = true;
+            if (!invoiceAnalysis.Succeeded)
+            {
+                await PopupNotificationService.ShowInfoAsync(invoiceAnalysis.Message);
+            }
+        }
+        catch (IOException)
+        {
+            errorMessage = "No se pudo leer el archivo seleccionado.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
+        }
+        finally
+        {
+            isAnalyzingInvoice = false;
+        }
+    }
+
+    private void CloseInvoiceAnalysisModal()
+    {
+        isInvoiceAnalysisModalOpen = false;
+    }
+
+    private async Task ApplyInvoiceAnalysisAsync()
+    {
+        if (invoiceAnalysis is not { Succeeded: true })
+        {
+            return;
+        }
+
+        request.TipoDocumentoCodigo = CompraDocumentTypes.FacturaProveedor;
+        request.TipoComprobanteSRI = string.IsNullOrWhiteSpace(invoiceAnalysis.DocumentoTipo) ? CompraDocumentTypes.FacturaProveedor : invoiceAnalysis.DocumentoTipo;
+        request.NumeroComprobante = FormatNumeroComprobante(invoiceAnalysis.NumeroComprobante);
+        request.ClaveAccesoProveedor = invoiceAnalysis.ClaveAcceso;
+        request.NumeroAutorizacion = invoiceAnalysis.NumeroAutorizacion;
+        request.SustentoTributarioSRI = "01";
+
+        if (invoiceAnalysis.FechaEmision.HasValue)
+        {
+            fechaEmisionLocal = invoiceAnalysis.FechaEmision.Value.Date;
+        }
+
+        var proveedor = proveedores.FirstOrDefault(current =>
+            !string.IsNullOrWhiteSpace(invoiceAnalysis.ProveedorRuc) &&
+            string.Equals(current.Identificacion, invoiceAnalysis.ProveedorRuc, StringComparison.OrdinalIgnoreCase));
+        if (proveedor is not null)
+        {
+            request.ProveedorId = proveedor.Id;
+            await OnProveedorChangedAsync();
+        }
+
+        detailRows.Clear();
+        foreach (var detalle in invoiceAnalysis.Detalles)
+        {
+            detailRows.Add(new CompraDetalleRowModel
+            {
+                ProductoId = null,
+                NaturalezaCompra = NaturalezaCompra.GastoServicio,
+                ProductoCodigo = string.IsNullOrWhiteSpace(detalle.CodigoPrincipal) ? "FACT-PROV" : detalle.CodigoPrincipal,
+                ProductoNombre = detalle.Descripcion,
+                CodigoIva = detalle.TarifaIva == 0 ? "0" : "4",
+                PorcentajeIva = detalle.TarifaIva,
+                Cantidad = detalle.Cantidad <= 0 ? 1 : detalle.Cantidad,
+                CostoUnitario = detalle.PrecioUnitario > 0
+                    ? detalle.PrecioUnitario
+                    : Math.Round(detalle.Subtotal / Math.Max(1, detalle.Cantidad), 6, MidpointRounding.AwayFromZero),
+                Descuento = detalle.Descuento,
+                ControlaStock = false,
+                NombreActivo = detalle.Descripcion,
+                CategoriaSriActivo = "5.1.01.01"
+            });
+        }
+
+        if (detailRows.Count > 0)
+        {
+            request.NaturalezaCompra = NaturalezaCompra.GastoServicio;
+        }
+
+        currentStep = detailRows.Count > 0 ? 3 : 1;
+        isInvoiceAnalysisModalOpen = false;
+        successMessage = "Datos de factura aplicados al formulario. Revisa la clasificación y productos antes de guardar.";
+        await PopupNotificationService.ShowSuccessAsync(successMessage);
+    }
+
     private decimal CalculateSubtotalByRate(decimal rate)
     {
         return Math.Round(
@@ -719,6 +833,7 @@ public partial class RegistrarCompra
         public decimal TotalLinea => SubtotalSinImpuesto + TotalImpuesto;
     }
 }
+
 
 
 

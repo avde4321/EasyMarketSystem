@@ -21,7 +21,7 @@ public partial class Empresa
     [Inject]
     private InventarioApiClient InventarioApiClient { get; set; } = default!;
 
-    private static readonly string[] WorkflowSteps = ["Datos generales", "Certificado", "Puntos de emisiÛn"];
+    private static readonly string[] WorkflowSteps = ["Datos generales", "Certificado", "Puntos de emisi√≥n"];
 
     private EmpresaRequest empresaRequest = new();
     private TestDeIa.Shared.Responses.Empresa.EmpresaResponse? empresaActual;
@@ -102,7 +102,7 @@ public partial class Empresa
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo cargar la configuraciÛn de la empresa.";
+            errorMessage = "No se pudo cargar la configuraci√≥n de la empresa.";
         }
     }
 
@@ -136,7 +136,7 @@ public partial class Empresa
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo guardar la configuraciÛn de la empresa.";
+            errorMessage = "No se pudo guardar la configuraci√≥n de la empresa.";
         }
         finally
         {
@@ -157,7 +157,7 @@ public partial class Empresa
 
         if (!file.Name.EndsWith(".p12", StringComparison.OrdinalIgnoreCase))
         {
-            errorMessage = "Selecciona un archivo .p12 v·lido.";
+            errorMessage = "Selecciona un archivo .p12 v√°lido.";
             return;
         }
 
@@ -192,6 +192,10 @@ public partial class Empresa
             NombreComercial = empresaActual.NombreComercial,
             Ruc = empresaActual.Ruc,
             DireccionMatriz = empresaActual.DireccionMatriz,
+            RegionCodigo = empresaActual.RegionCodigo,
+            ProvinciaCodigo = empresaActual.ProvinciaCodigo,
+            CiudadCodigo = empresaActual.CiudadCodigo,
+            SectorCodigo = empresaActual.SectorCodigo,
             AmbienteSri = SriCatalogCodes.NormalizeAmbienteCode(empresaActual.AmbienteSri) ?? empresaActual.AmbienteSri,
             ModoDesarrollo = empresaActual.ModoDesarrollo,
             TipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(empresaActual.TipoEmision) ?? empresaActual.TipoEmision,
@@ -294,7 +298,7 @@ public partial class Empresa
     {
         if (empresaRequest.PuntosEmision.Count <= 1)
         {
-            errorMessage = "La empresa debe conservar al menos un punto de emisiÛn.";
+            errorMessage = "La empresa debe conservar al menos un punto de emisi√≥n.";
             return;
         }
 
@@ -348,7 +352,7 @@ public partial class Empresa
     {
         if (!bodegaId.HasValue || bodegaId.Value == Guid.Empty)
         {
-            return "Se asignar· Principal";
+            return "Se asignar√° Principal";
         }
 
         return activeBodegas.FirstOrDefault(current => current.Id == bodegaId.Value)?.Nombre ?? "Bodega no disponible";
@@ -358,7 +362,7 @@ public partial class Empresa
     {
         if (empresaRequest.PuntosEmision.Count == 0)
         {
-            return "TodavÌa no hay puntos configurados.";
+            return "Todav√≠a no hay puntos configurados.";
         }
 
         var principal = empresaRequest.PuntosEmision.FirstOrDefault(punto => punto.IsDefault) ?? empresaRequest.PuntosEmision.First();

@@ -12,6 +12,13 @@
             <p>@PageDescription</p>
         </div>
         <div class="header-actions compras-header-actions">
+            @if (!IsLiquidacion)
+            {
+                <label class="secondary-action file-upload-action @(isAnalyzingInvoice ? "is-disabled" : string.Empty)">
+                    @(isAnalyzingInvoice ? "Analizando..." : "Subir factura proveedor")
+                    <InputFile class="hidden-file-input" OnChange="AnalyzeInvoiceFileAsync" accept=".xml,.pdf,.png,.jpg,.jpeg" disabled="@isAnalyzingInvoice" />
+                </label>
+            }
             <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">
                 @(detailRows.Count > 0 ? "Continuar flujo" : "Iniciar flujo")
             </button>
@@ -542,6 +549,88 @@
                         @(isSaving ? "Guardando..." : PrimaryActionText)
                     </button>
                 }
+            </footer>
+        </section>
+    </div>
+}
+
+@if (isInvoiceAnalysisModalOpen && invoiceAnalysis is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card invoice-analysis-modal">
+            <header class="modal-header">
+                <div>
+                    <h2>Análisis de factura proveedor</h2>
+                    <p class="modal-subtitle">@invoiceAnalysis.FileName</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseInvoiceAnalysisModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <div class="soft-info-message compact-message">
+                @invoiceAnalysis.Message
+            </div>
+
+            <div class="summary-grid invoice-analysis-grid">
+                <div class="summary-card">
+                    <span>Proveedor detectado</span>
+                    <strong>@(invoiceAnalysis.ProveedorNombre ?? "No detectado")</strong>
+                    <small>@(invoiceAnalysis.ProveedorRuc ?? "Sin RUC")</small>
+                </div>
+                <div class="summary-card">
+                    <span>Comprobante</span>
+                    <strong>@(invoiceAnalysis.NumeroComprobante ?? "No detectado")</strong>
+                    <small>@(invoiceAnalysis.ClaveAcceso ?? "Sin clave de acceso")</small>
+                </div>
+                <div class="summary-card">
+                    <span>Fecha emisión</span>
+                    <strong>@(invoiceAnalysis.FechaEmision?.ToString("yyyy-MM-dd") ?? "No detectada")</strong>
+                    <small>Confianza @invoiceAnalysis.Confidence.ToString("P0")</small>
+                </div>
+                <div class="summary-card accent">
+                    <span>Total detectado</span>
+                    <strong>@invoiceAnalysis.Total.ToString("0.00")</strong>
+                    <small>IVA @invoiceAnalysis.Iva.ToString("0.00")</small>
+                </div>
+            </div>
+
+            @if (invoiceAnalysis.Detalles.Count > 0)
+            {
+                <div class="table-scroll workflow-table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Cant.</th>
+                                <th>Precio</th>
+                                <th>Desc.</th>
+                                <th>IVA</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detalle in invoiceAnalysis.Detalles)
+                            {
+                                <tr>
+                                    <td data-label="Código">@detalle.CodigoPrincipal</td>
+                                    <td data-label="Descripción">@detalle.Descripcion</td>
+                                    <td data-label="Cant.">@detalle.Cantidad.ToString("0.####")</td>
+                                    <td data-label="Precio">@detalle.PrecioUnitario.ToString("0.######")</td>
+                                    <td data-label="Desc.">@detalle.Descuento.ToString("0.00")</td>
+                                    <td data-label="IVA">@detalle.TarifaIva.ToString("0.##")%</td>
+                                    <td data-label="Subtotal">@detalle.Subtotal.ToString("0.00")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseInvoiceAnalysisModal">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="ApplyInvoiceAnalysisAsync" disabled="@(!CanApplyInvoiceAnalysis)">
+                    Aplicar datos detectados
+                </button>
             </footer>
         </section>
     </div>

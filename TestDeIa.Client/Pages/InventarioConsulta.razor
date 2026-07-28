@@ -1,0 +1,171 @@
+@page "/inventario/consulta"
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+
+<PageTitle>Analisis de inventario</PageTitle>
+
+<section class="module-page inventory-analysis-page">
+    <header class="module-header">
+        <div>
+            <h1>Analisis y control de inventario</h1>
+            <p>Stock vivo, valorizacion y alertas por bodega sin mezclar mantenimiento de productos.</p>
+        </div>
+    </header>
+
+    <section class="table-card inventory-context-bar">
+        <div class="context-field">
+            <label>Bodega</label>
+            <InputSelect class="form-control" @bind-Value="selectedBodegaIdString" @bind-Value:after="OnBodegaChangedAsync">
+                <option value="">Todas las bodegas</option>
+                @foreach (var bodega in activeBodegas)
+                {
+                    <option value="@bodega.Id.ToString()">@BuildBodegaLabel(bodega)</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="context-summary">
+            <span class="status-pill context-pill">@StockScopeLabel</span>
+            <small>La valorizacion usa stock actual por costo promedio.</small>
+        </div>
+    </section>
+
+    <section class="inventory-kpis">
+        <article class="kpi-card">
+            <span>Valor total inventario</span>
+            <strong>$ @ValorTotalInventario.ToString("0.00")</strong>
+        </article>
+        <article class="kpi-card warning">
+            <span>Items criticos</span>
+            <strong>@ItemsCriticos</strong>
+        </article>
+        <article class="kpi-card danger">
+            <span>Productos agotados</span>
+            <strong>@ProductosAgotados</strong>
+        </article>
+    </section>
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por codigo, producto o categoria..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p><em>Cargando inventario...</em></p>
+        }
+        else if (productos.Count == 0)
+        {
+            <div class="empty-state">No hay productos inventariables para el filtro actual.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Producto</th>
+                            <th>Categoria</th>
+                            <th>Stock actual</th>
+                            <th>Stock minimo</th>
+                            <th>Costo promedio</th>
+                            <th>Valor total</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var producto in productos)
+                        {
+                            <tr>
+                                <td data-label="Codigo">@producto.Codigo</td>
+                                <td data-label="Producto">
+                                    <strong>@producto.Nombre</strong>
+                                    <small>@producto.UnidadMedida</small>
+                                </td>
+                                <td data-label="Categoria">@FormatCategoria(producto.CategoriaId)</td>
+                                <td data-label="Stock actual">@producto.StockActual.ToString("0.####")</td>
+                                <td data-label="Stock minimo">@(producto.StockMinimo?.ToString("0.####") ?? "0")</td>
+                                <td data-label="Costo promedio">$ @producto.CostoPromedio.ToString("0.######")</td>
+                                <td data-label="Valor total">$ @((producto.StockActual * producto.CostoPromedio).ToString("0.00"))</td>
+                                <td data-label="Estado"><span class="status-pill @GetStockBadgeClass(producto)">@GetStockStatus(producto)</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" type="button" @onclick="() => OpenKardexModalAsync(producto)">Ver Kardex</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @productos.Count de @totalCount productos</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="PreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="NextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isKardexModalOpen && selectedProduct is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card kardex-modal-card">
+            <header class="modal-header">
+                <div>
+                    <h2>Kardex rapido</h2>
+                    <p>@selectedProduct.Codigo - @selectedProduct.Nombre</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseKardexModal" aria-label="Cerrar">x</button>
+            </header>
+
+            @if (isKardexLoading)
+            {
+                <p><em>Cargando movimientos...</em></p>
+            }
+            else if (kardex.Count == 0)
+            {
+                <div class="empty-state">Este producto aun no registra movimientos.</div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Bodega</th>
+                                <th>Tipo</th>
+                                <th>Factura/Comprobante</th>
+                                <th>Entrada</th>
+                                <th>Salida</th>
+                                <th>Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var movimiento in kardex)
+                            {
+                                <tr>
+                                    <td data-label="Fecha">@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td data-label="Bodega">@movimiento.BodegaNombre</td>
+                                    <td data-label="Tipo">@movimiento.TipoMovimiento</td>
+                                    <td data-label="Factura/Comprobante">@GetKardexDocumento(movimiento)</td>
+                                    <td data-label="Entrada">@movimiento.CantidadEntrada.ToString("0.####")</td>
+                                    <td data-label="Salida">@movimiento.CantidadSalida.ToString("0.####")</td>
+                                    <td data-label="Saldo">@movimiento.SaldoCantidad.ToString("0.####")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <footer class="modal-actions">
+                <button class="primary-action" type="button" @onclick="CloseKardexModal">Listo</button>
+            </footer>
+        </section>
+    </div>
+}

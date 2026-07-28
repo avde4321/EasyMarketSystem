@@ -26,6 +26,16 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(producto => producto.Descripcion)
             .HasMaxLength(300);
 
+        builder.Property(producto => producto.UnidadMedida)
+            .HasMaxLength(60)
+            .HasDefaultValue("Unidad")
+            .IsRequired();
+
+        builder.Property(producto => producto.NaturalezaItem)
+            .HasMaxLength(30)
+            .HasDefaultValue("Mercaderia")
+            .IsRequired();
+
         builder.Property(producto => producto.CodigoIva)
             .HasMaxLength(20)
             .IsRequired();
@@ -34,6 +44,9 @@ public sealed class ProductoEntityConfiguration : IEntityTypeConfiguration<Produ
             .HasPrecision(9, 2);
 
         builder.Property(producto => producto.PrecioVenta)
+            .HasPrecision(18, 6);
+
+        builder.Property(producto => producto.CostoReferencial)
             .HasPrecision(18, 6);
 
         builder.Property(producto => producto.StockMinimo)

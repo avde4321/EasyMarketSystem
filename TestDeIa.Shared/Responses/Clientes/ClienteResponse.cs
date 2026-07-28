@@ -18,6 +18,14 @@ public sealed class ClienteResponse
 
     public string DireccionPrincipal { get; set; } = string.Empty;
 
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
+
     public string? CorreoElectronicoPrincipal { get; set; }
 
     public string? TelefonoCelular { get; set; }

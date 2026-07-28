@@ -198,7 +198,11 @@ public sealed class EfEmpleadoRepository : IEmpleadoRepository
             entity.IsActive,
             entity.CreatedAt,
             entity.UsuarioCreacionId,
-            entity.UpdatedAt);
+            entity.UpdatedAt,
+            entity.Persona.RegionCodigo,
+            entity.Persona.ProvinciaCodigo,
+            entity.Persona.CiudadCodigo,
+            entity.Persona.SectorCodigo);
     }
 
     private static string[] ResolvePersonaRoles(PersonaEntity persona)

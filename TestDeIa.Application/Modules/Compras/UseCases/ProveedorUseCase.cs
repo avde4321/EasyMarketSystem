@@ -73,12 +73,12 @@ public sealed class ProveedorUseCase : IProveedorUseCase
                 throw new InvalidOperationException("La persona ya tiene el rol de proveedor. Puedes editarla desde la lista.");
             }
 
-            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request), cancellationToken)
+            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request, persona.EsPersonaJuridica, persona.EsEmpresa), cancellationToken)
                 ?? throw new InvalidOperationException("No se pudo actualizar la persona base del proveedor.");
         }
         else
         {
-            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request), cancellationToken);
+            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request, request.TipoIdentificacion.Trim() == "04", false), cancellationToken);
         }
 
         var proveedor = new Proveedor(
@@ -102,7 +102,11 @@ public sealed class ProveedorUseCase : IProveedorUseCase
             DateTimeOffset.UtcNow,
             currentUserAccessor.GetRequiredUserId(),
             null,
-            null);
+            null,
+            persona.RegionCodigo,
+            persona.ProvinciaCodigo,
+            persona.CiudadCodigo,
+            persona.SectorCodigo);
 
         return MapToResponse(await proveedorRepository.CreateAsync(proveedor, cancellationToken));
     }
@@ -128,7 +132,7 @@ public sealed class ProveedorUseCase : IProveedorUseCase
         var currentPersona = await personaRepository.GetByIdAsync(current.PersonaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la persona asociada al proveedor.");
 
-        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request), cancellationToken)
+        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request, currentPersona.EsPersonaJuridica, currentPersona.EsEmpresa), cancellationToken)
             ?? throw new InvalidOperationException("No se pudo actualizar la persona del proveedor.");
 
         var proveedor = new Proveedor(
@@ -152,7 +156,11 @@ public sealed class ProveedorUseCase : IProveedorUseCase
             current.CreatedAt,
             current.UsuarioCreacionId,
             DateTimeOffset.UtcNow,
-            currentUserAccessor.GetRequiredUserId());
+            currentUserAccessor.GetRequiredUserId(),
+            updatedPersona.RegionCodigo,
+            updatedPersona.ProvinciaCodigo,
+            updatedPersona.CiudadCodigo,
+            updatedPersona.SectorCodigo);
 
         var updated = await proveedorRepository.UpdateAsync(proveedor, cancellationToken);
         return updated is null ? null : MapToResponse(updated);
@@ -201,7 +209,7 @@ public sealed class ProveedorUseCase : IProveedorUseCase
         }
     }
 
-    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ProveedorRequest request)
+    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ProveedorRequest request, bool esPersonaJuridica, bool esEmpresa)
     {
         return new Persona(
             id,
@@ -214,10 +222,16 @@ public sealed class ProveedorUseCase : IProveedorUseCase
             NormalizeOptional(request.CorreoElectronicoPrincipal),
             null,
             null,
+            esPersonaJuridica,
+            esEmpresa,
             [],
             request.IsActive,
             createdAt,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo));
     }
 
     private static ProveedorResponse MapToResponse(Proveedor proveedor)
@@ -231,6 +245,10 @@ public sealed class ProveedorUseCase : IProveedorUseCase
             RazonSocialONombresCompletos = proveedor.RazonSocialONombresCompletos,
             NombreComercial = proveedor.NombreComercial,
             DireccionPrincipal = proveedor.DireccionPrincipal,
+            RegionCodigo = proveedor.RegionCodigo,
+            ProvinciaCodigo = proveedor.ProvinciaCodigo,
+            CiudadCodigo = proveedor.CiudadCodigo,
+            SectorCodigo = proveedor.SectorCodigo,
             CorreoElectronicoPrincipal = proveedor.CorreoElectronicoPrincipal,
             TelefonoCelular = proveedor.TelefonoCelular,
             CodigoRetencionIvaDefault = proveedor.CodigoRetencionIvaDefault,

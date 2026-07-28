@@ -23,6 +23,18 @@ public sealed class PersonaEntity
 
     public string? Genero { get; set; }
 
+    public bool EsPersonaJuridica { get; set; }
+
+    public bool EsEmpresa { get; set; }
+
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
+
     public bool IsActive { get; set; }
 
     public bool IsSystemRecord { get; set; }

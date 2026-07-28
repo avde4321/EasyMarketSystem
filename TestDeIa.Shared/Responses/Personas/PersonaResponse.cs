@@ -16,6 +16,14 @@ public sealed class PersonaResponse
 
     public string DireccionPrincipal { get; set; } = string.Empty;
 
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
+
     public DateOnly? FechaNacimiento { get; set; }
 
     public string? CorreoElectronicoPrincipal { get; set; }
@@ -23,6 +31,10 @@ public sealed class PersonaResponse
     public string? TelefonoCelular { get; set; }
 
     public string? Genero { get; set; }
+
+    public bool EsPersonaJuridica { get; set; }
+
+    public bool EsEmpresa { get; set; }
 
     public IReadOnlyCollection<string> RolesPersona { get; set; } = [];
 

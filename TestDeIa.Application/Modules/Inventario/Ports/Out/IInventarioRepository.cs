@@ -1,5 +1,7 @@
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Domain.Modules.Inventario.Entities;
+using TestDeIa.Shared.Requests.Inventario;
+using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Application.Modules.Inventario.Ports.Out;
 
@@ -10,6 +12,8 @@ public interface IInventarioRepository
     Task<Bodega?> GetBodegaByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsBodegaNombreAsync(string nombre, Guid? excludedId = null, CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsBodegaCodigoAsync(string codigo, Guid? excludedId = null, CancellationToken cancellationToken = default);
 
     Task<Bodega> CreateBodegaAsync(Bodega bodega, CancellationToken cancellationToken = default);
 
@@ -63,6 +67,25 @@ public interface IInventarioRepository
         Guid bodegaDestinoId,
         decimal cantidad,
         string? referencia,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<TransferenciaInventarioResponse>> GetTransferenciasAsync(
+        string? estado,
+        Guid? bodegaOrigenId,
+        Guid? bodegaDestinoId,
+        CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> GetTransferenciaByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse> CreateTransferenciaAsync(
+        TransferenciaInventarioFormalRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> DespacharTransferenciaAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<TransferenciaInventarioResponse?> RecibirTransferenciaAsync(
+        Guid id,
+        RecepcionTransferenciaInventarioRequest request,
         CancellationToken cancellationToken = default);
 
     Task<TomaFisicaResultado> ProcesarTomaFisicaAsync(

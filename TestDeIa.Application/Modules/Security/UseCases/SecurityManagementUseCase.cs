@@ -319,6 +319,8 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
             NormalizeOptional(request.Email),
             null,
             null,
+            false,
+            false,
             [],
             request.IsActive,
             createdAt,

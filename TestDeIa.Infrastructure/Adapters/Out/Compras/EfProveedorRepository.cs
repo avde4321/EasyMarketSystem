@@ -178,7 +178,11 @@ public sealed class EfProveedorRepository : IProveedorRepository
             entity.CreatedAt,
             entity.UsuarioCreacionId,
             entity.UpdatedAt,
-            entity.UsuarioModificacionId);
+            entity.UsuarioModificacionId,
+            entity.Persona.RegionCodigo,
+            entity.Persona.ProvinciaCodigo,
+            entity.Persona.CiudadCodigo,
+            entity.Persona.SectorCodigo);
     }
 
     private static string[] ResolvePersonaRoles(PersonaEntity persona)

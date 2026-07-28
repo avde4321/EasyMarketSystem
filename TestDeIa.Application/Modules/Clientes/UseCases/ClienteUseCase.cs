@@ -72,12 +72,12 @@ public sealed class ClienteUseCase : IClienteUseCase
                 throw new InvalidOperationException("La persona ya tiene el rol de cliente. Puedes editarla desde la lista.");
             }
 
-            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request), cancellationToken)
+            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request, persona.EsPersonaJuridica, persona.EsEmpresa), cancellationToken)
                 ?? throw new InvalidOperationException("No se pudo actualizar la persona base del cliente.");
         }
         else
         {
-            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request), cancellationToken);
+            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request, request.TipoIdentificacion.Trim() == "04", false), cancellationToken);
         }
 
         var cliente = new Cliente(
@@ -105,7 +105,11 @@ public sealed class ClienteUseCase : IClienteUseCase
             request.IsActive,
             DateTimeOffset.UtcNow,
             currentUserAccessor.GetRequiredUserId(),
-            null);
+            null,
+            persona.RegionCodigo,
+            persona.ProvinciaCodigo,
+            persona.CiudadCodigo,
+            persona.SectorCodigo);
 
         return MapToResponse(await clienteRepository.CreateAsync(cliente, cancellationToken));
     }
@@ -132,7 +136,7 @@ public sealed class ClienteUseCase : IClienteUseCase
         var currentPersona = await personaRepository.GetByIdAsync(current.PersonaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la persona asociada al cliente.");
 
-        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request), cancellationToken)
+        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request, currentPersona.EsPersonaJuridica, currentPersona.EsEmpresa), cancellationToken)
             ?? throw new InvalidOperationException("No se pudo actualizar la persona del cliente.");
 
         var cliente = new Cliente(
@@ -160,7 +164,11 @@ public sealed class ClienteUseCase : IClienteUseCase
             request.IsActive,
             current.CreatedAt,
             current.UsuarioCreacionId,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            updatedPersona.RegionCodigo,
+            updatedPersona.ProvinciaCodigo,
+            updatedPersona.CiudadCodigo,
+            updatedPersona.SectorCodigo);
 
         var updated = await clienteRepository.UpdateAsync(cliente, cancellationToken);
         return updated is null ? null : MapToResponse(updated);
@@ -171,7 +179,7 @@ public sealed class ClienteUseCase : IClienteUseCase
         return clienteRepository.DeleteAsync(id, cancellationToken);
     }
 
-    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ClienteRequest request)
+    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ClienteRequest request, bool esPersonaJuridica, bool esEmpresa)
     {
         return new Persona(
             id,
@@ -184,10 +192,16 @@ public sealed class ClienteUseCase : IClienteUseCase
             NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
             NormalizeOptional(request.Genero),
+            esPersonaJuridica,
+            esEmpresa,
             [],
             request.IsActive,
             createdAt,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo));
     }
 
     private static ClienteResponse MapToResponse(Cliente cliente)
@@ -201,6 +215,10 @@ public sealed class ClienteUseCase : IClienteUseCase
             RazonSocialONombresCompletos = cliente.RazonSocialONombresCompletos,
             NombreComercial = cliente.NombreComercial,
             DireccionPrincipal = cliente.DireccionPrincipal,
+            RegionCodigo = cliente.RegionCodigo,
+            ProvinciaCodigo = cliente.ProvinciaCodigo,
+            CiudadCodigo = cliente.CiudadCodigo,
+            SectorCodigo = cliente.SectorCodigo,
             CorreoElectronicoPrincipal = cliente.CorreoElectronicoPrincipal,
             TelefonoCelular = cliente.TelefonoCelular,
             FechaNacimiento = cliente.FechaNacimiento,

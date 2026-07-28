@@ -23,6 +23,11 @@ public sealed class CatalogoItemEntityConfiguration : IEntityTypeConfiguration<C
         builder.Property(item => item.Descripcion)
             .HasMaxLength(250);
 
+        builder.HasOne(item => item.ParentItem)
+            .WithMany(item => item.Children)
+            .HasForeignKey(item => item.ParentItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(item => new { item.CatalogoId, item.Codigo })
             .IsUnique();
 

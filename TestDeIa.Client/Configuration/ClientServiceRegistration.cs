@@ -14,6 +14,7 @@ using TestDeIa.Client.Services.Empleados;
 using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Client.Services.Financiero;
+using TestDeIa.Client.Services.Geografia;
 using TestDeIa.Client.Services.Inventario;
 using TestDeIa.Client.Services.Personas;
 
@@ -55,6 +56,7 @@ public static class ClientServiceRegistration
         services.AddScoped<EmpresaApiClient>();
         services.AddScoped<FacturacionApiClient>();
         services.AddScoped<FinancieroApiClient>();
+        services.AddScoped<GeografiaApiClient>();
         services.AddScoped<PersonasApiClient>();
         services.AddScoped<InventarioApiClient>();
 

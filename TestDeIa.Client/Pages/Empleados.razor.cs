@@ -5,6 +5,7 @@ using TestDeIa.Client.Services.Personas;
 using TestDeIa.Shared.Requests.Empleados;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Empleados;
+using TestDeIa.Shared.Responses.Personas;
 
 namespace TestDeIa.Client.Pages;
 
@@ -21,19 +22,27 @@ public partial class Empleados
 
     private readonly List<EmpleadoResponse> empleados = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
+    private readonly List<PersonaResponse> personasCoincidentes = [];
     private EmpleadoRequest empleadoRequest = new();
     private Guid? editingEmpleadoId;
     private bool isLoading = true;
     private bool isSaving;
     private bool isEditorOpen;
     private bool isSearchingPersona;
+    private bool isSearchingPersonas;
+    private bool showEmpleadoRoleForm;
+    private bool isEmpleadoFromExistingPersona;
     private string? errorMessage;
     private string? statusMessage;
     private string searchTerm = string.Empty;
+    private string personaSearchTerm = string.Empty;
     private const int PageSize = 10;
     private int totalCount;
     private int currentSkip;
     private IEnumerable<EmpleadoResponse> VisibleEmpleados => empleados;
+    private bool HasPersonaSearchTerm => !string.IsNullOrWhiteSpace(personaSearchTerm);
+    private bool ShowPersonaBaseFields => editingEmpleadoId.HasValue || !isEmpleadoFromExistingPersona;
+    private static bool TieneRolEmpleado(PersonaResponse persona) => persona.RolesPersona.Contains("Empleado", StringComparer.OrdinalIgnoreCase);
     private bool CanGoPrevious => currentSkip > 0;
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
@@ -78,7 +87,7 @@ public partial class Empleados
         }
     }
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModalAsync()
     {
         editingEmpleadoId = null;
         empleadoRequest = new EmpleadoRequest
@@ -89,7 +98,12 @@ public partial class Empleados
         };
         errorMessage = null;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        showEmpleadoRoleForm = false;
+        isEmpleadoFromExistingPersona = false;
         isEditorOpen = true;
+        await BuscarPersonasCoincidentesAsync();
     }
 
     private void OpenEditModal(EmpleadoResponse empleado)
@@ -103,6 +117,10 @@ public partial class Empleados
             CorreoElectronicoPrincipal = empleado.CorreoElectronicoPrincipal,
             TelefonoCelular = empleado.TelefonoCelular,
             DireccionPrincipal = empleado.DireccionPrincipal,
+            RegionCodigo = empleado.RegionCodigo,
+            ProvinciaCodigo = empleado.ProvinciaCodigo,
+            CiudadCodigo = empleado.CiudadCodigo,
+            SectorCodigo = empleado.SectorCodigo,
             FechaNacimiento = empleado.FechaNacimiento,
             Genero = empleado.Genero,
             CodigoEmpleado = empleado.CodigoEmpleado,
@@ -120,6 +138,10 @@ public partial class Empleados
         };
         errorMessage = null;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        showEmpleadoRoleForm = true;
+        isEmpleadoFromExistingPersona = false;
         isEditorOpen = true;
     }
 
@@ -129,6 +151,103 @@ public partial class Empleados
         isSaving = false;
         errorMessage = null;
         statusMessage = null;
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        showEmpleadoRoleForm = false;
+        isEmpleadoFromExistingPersona = false;
+    }
+
+    private async Task OnPersonaSearchChangedAsync(ChangeEventArgs args)
+    {
+        personaSearchTerm = args.Value?.ToString() ?? string.Empty;
+
+        if (personaSearchTerm.Trim().Length < 2)
+        {
+            personaSearchTerm = string.Empty;
+        }
+
+        await BuscarPersonasCoincidentesAsync();
+    }
+
+    private async Task BuscarPersonasCoincidentesAsync()
+    {
+        isSearchingPersonas = true;
+        errorMessage = null;
+
+        try
+        {
+            var page = await PersonasApiClient.GetPagedAsync(personaSearchTerm, 0, 12);
+            personasCoincidentes.Clear();
+            personasCoincidentes.AddRange(page.Items);
+            statusMessage = personasCoincidentes.Count == 0
+                ? "No hay coincidencias. Puedes usar Nuevo registro para crear la persona y empleado desde cero."
+                : "Convierte una persona existente en empleado sin duplicar su identidad.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar personas existentes.";
+        }
+        finally
+        {
+            isSearchingPersonas = false;
+        }
+    }
+
+    private void SeleccionarPersona(PersonaResponse persona)
+    {
+        if (persona.EsEmpresa)
+        {
+            showEmpleadoRoleForm = false;
+            isEmpleadoFromExistingPersona = false;
+            statusMessage = "Las empresas no pueden convertirse en empleados. Selecciona una persona natural.";
+            return;
+        }
+
+        empleadoRequest.TipoIdentificacion = persona.TipoIdentificacion;
+        empleadoRequest.Identificacion = persona.Identificacion;
+        empleadoRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+        empleadoRequest.NombreComercial = persona.NombreComercial;
+        empleadoRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+        empleadoRequest.TelefonoCelular = persona.TelefonoCelular;
+        empleadoRequest.DireccionPrincipal = persona.DireccionPrincipal;
+        empleadoRequest.RegionCodigo = persona.RegionCodigo;
+        empleadoRequest.ProvinciaCodigo = persona.ProvinciaCodigo;
+        empleadoRequest.CiudadCodigo = persona.CiudadCodigo;
+        empleadoRequest.SectorCodigo = persona.SectorCodigo;
+        empleadoRequest.FechaNacimiento = persona.FechaNacimiento;
+        empleadoRequest.Genero = persona.Genero;
+        empleadoRequest.IsActive = persona.IsActive;
+        showEmpleadoRoleForm = !TieneRolEmpleado(persona);
+        isEmpleadoFromExistingPersona = showEmpleadoRoleForm;
+
+        statusMessage = TieneRolEmpleado(persona)
+            ? "Esta persona ya figura como Empleado. Si necesitas cambiar datos, usa Editar desde la consulta principal."
+            : "Datos autollenados. Completa la informacion laboral del empleado y guarda.";
+    }
+
+    private void NuevoRegistroEmpleado()
+    {
+        editingEmpleadoId = null;
+        empleadoRequest = new EmpleadoRequest
+        {
+            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
+            TipoContrato = "Indefinido",
+            EstadoLaboral = "Activo",
+            IsActive = true
+        };
+        personaSearchTerm = string.Empty;
+        personasCoincidentes.Clear();
+        errorMessage = null;
+        showEmpleadoRoleForm = true;
+        isEmpleadoFromExistingPersona = false;
+        statusMessage = "Formulario limpio para registrar una persona nueva como empleado.";
+    }
+
+    private void VolverAConsultaPersonasEmpleado()
+    {
+        showEmpleadoRoleForm = false;
+        isEmpleadoFromExistingPersona = false;
+        statusMessage = "Selecciona una persona existente o crea un nuevo registro.";
     }
 
     private async Task BuscarPersonaAsync()
@@ -153,12 +272,22 @@ public partial class Empleados
                 return;
             }
 
+            if (persona.EsEmpresa)
+            {
+                statusMessage = "Las empresas no pueden convertirse en empleados. Selecciona una persona natural.";
+                return;
+            }
+
             empleadoRequest.TipoIdentificacion = persona.TipoIdentificacion;
             empleadoRequest.Identificacion = persona.Identificacion;
             empleadoRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
             empleadoRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
             empleadoRequest.TelefonoCelular = persona.TelefonoCelular;
             empleadoRequest.DireccionPrincipal = persona.DireccionPrincipal;
+            empleadoRequest.RegionCodigo = persona.RegionCodigo;
+            empleadoRequest.ProvinciaCodigo = persona.ProvinciaCodigo;
+            empleadoRequest.CiudadCodigo = persona.CiudadCodigo;
+            empleadoRequest.SectorCodigo = persona.SectorCodigo;
             empleadoRequest.FechaNacimiento = persona.FechaNacimiento;
             empleadoRequest.Genero = persona.Genero;
             empleadoRequest.IsActive = persona.IsActive;

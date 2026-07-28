@@ -6,6 +6,7 @@ public sealed class CatalogoItem
         Guid id,
         Guid catalogoId,
         string catalogoCodigo,
+        Guid? parentItemId,
         string codigo,
         string nombre,
         string? descripcion,
@@ -15,6 +16,7 @@ public sealed class CatalogoItem
         Id = id;
         CatalogoId = catalogoId;
         CatalogoCodigo = catalogoCodigo;
+        ParentItemId = parentItemId;
         Codigo = codigo;
         Nombre = nombre;
         Descripcion = descripcion;
@@ -27,6 +29,8 @@ public sealed class CatalogoItem
     public Guid CatalogoId { get; }
 
     public string CatalogoCodigo { get; }
+
+    public Guid? ParentItemId { get; }
 
     public string Codigo { get; }
 

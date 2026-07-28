@@ -5,16 +5,20 @@ public sealed class Bodega
     public Bodega(
         Guid id,
         Guid empresaId,
+        string codigo,
         string nombre,
         string? direccion,
+        bool esPrincipal,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
     {
         Id = id;
         EmpresaId = empresaId;
+        Codigo = codigo;
         Nombre = nombre;
         Direccion = direccion;
+        EsPrincipal = esPrincipal;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -24,9 +28,13 @@ public sealed class Bodega
 
     public Guid EmpresaId { get; }
 
+    public string Codigo { get; }
+
     public string Nombre { get; }
 
     public string? Direccion { get; }
+
+    public bool EsPrincipal { get; }
 
     public bool IsActive { get; }
 

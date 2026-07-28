@@ -8,6 +8,23 @@
     align-items: center;
 }
 
+.file-upload-action {
+    position: relative;
+    cursor: pointer;
+}
+
+.file-upload-action.is-disabled {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.hidden-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
 .compra-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -21,6 +38,15 @@
 .compra-workflow-modal {
     width: min(100%, 1080px);
     max-width: 1080px;
+}
+
+.invoice-analysis-modal {
+    width: min(100%, 1080px);
+    max-width: 1080px;
+}
+
+.invoice-analysis-grid {
+    margin: 1rem 0;
 }
 
 .workflow-header {

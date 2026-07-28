@@ -11,11 +11,19 @@ public sealed class ProductoEntity
 
     public string? Descripcion { get; set; }
 
+    public Guid? CategoriaId { get; set; }
+
+    public string UnidadMedida { get; set; } = "Unidad";
+
+    public string NaturalezaItem { get; set; } = "Mercaderia";
+
     public string CodigoIva { get; set; } = string.Empty;
 
     public decimal PorcentajeIva { get; set; }
 
     public decimal PrecioVenta { get; set; }
+
+    public decimal CostoReferencial { get; set; }
 
     public decimal? StockMinimo { get; set; }
 

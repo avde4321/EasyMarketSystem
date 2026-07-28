@@ -79,10 +79,16 @@ public sealed class PersonaUseCase : IPersonaUseCase
             NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
             NormalizeOptional(request.Genero),
+            request.EsPersonaJuridica,
+            request.EsEmpresa,
             [],
             request.IsActive,
             DateTimeOffset.UtcNow,
-            null);
+            null,
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo));
 
         return MapToResponse(await personaRepository.CreateAsync(persona, cancellationToken));
     }
@@ -116,10 +122,16 @@ public sealed class PersonaUseCase : IPersonaUseCase
             NormalizeOptional(request.CorreoElectronicoPrincipal),
             request.FechaNacimiento,
             NormalizeOptional(request.Genero),
+            request.EsPersonaJuridica,
+            request.EsEmpresa,
             current.RolesPersona,
             request.IsActive,
             current.CreatedAt,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo));
 
         var updated = await personaRepository.UpdateAsync(persona, cancellationToken);
         return updated is null ? null : MapToResponse(updated);
@@ -135,10 +147,16 @@ public sealed class PersonaUseCase : IPersonaUseCase
             RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
             NombreComercial = persona.NombreComercial,
             DireccionPrincipal = persona.DireccionPrincipal,
+            RegionCodigo = persona.RegionCodigo,
+            ProvinciaCodigo = persona.ProvinciaCodigo,
+            CiudadCodigo = persona.CiudadCodigo,
+            SectorCodigo = persona.SectorCodigo,
             FechaNacimiento = persona.FechaNacimiento,
             CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
             TelefonoCelular = persona.TelefonoCelular,
             Genero = persona.Genero,
+            EsPersonaJuridica = persona.EsPersonaJuridica,
+            EsEmpresa = persona.EsEmpresa,
             RolesPersona = persona.RolesPersona,
             IsActive = persona.IsActive,
             CreatedAt = persona.CreatedAt,

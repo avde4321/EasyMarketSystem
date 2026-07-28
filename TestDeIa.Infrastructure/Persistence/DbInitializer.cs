@@ -12,6 +12,7 @@ public sealed class DbInitializer(
     TestDeIaDbContext dbContext,
     IPasswordHashService passwordHashService,
     CatalogoNiifSeed catalogoNiifSeed,
+    GeoEcuadorSeed geoEcuadorSeed,
     ILogger<DbInitializer> logger)
 {
     private static readonly Guid DefaultEmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -28,6 +29,7 @@ public sealed class DbInitializer(
         await dbContext.Database.MigrateAsync(cancellationToken);
 
         await EnsureDefaultCompanyAsync(cancellationToken);
+        await geoEcuadorSeed.EnsureSeededAsync(cancellationToken);
         await EnsureSecurityRoleAsync(cancellationToken);
         await EnsureDefaultAdminUserAsync(cancellationToken);
         await EnsureDefaultWarehouseAndPointAsync(cancellationToken);
@@ -224,8 +226,10 @@ public sealed class DbInitializer(
             {
                 Id = DefaultBodegaId,
                 EmpresaId = DefaultEmpresaId,
+                Codigo = "001",
                 Nombre = "Principal",
                 Direccion = "Matriz principal",
+                EsPrincipal = true,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };
@@ -234,6 +238,8 @@ public sealed class DbInitializer(
         }
         else
         {
+            bodega.Codigo = string.IsNullOrWhiteSpace(bodega.Codigo) ? "001" : bodega.Codigo;
+            bodega.EsPrincipal = true;
             bodega.IsActive = true;
         }
 

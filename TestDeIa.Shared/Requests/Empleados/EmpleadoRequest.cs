@@ -23,6 +23,14 @@ public sealed class EmpleadoRequest
     [StringLength(250, ErrorMessage = "La direccion principal no puede superar 250 caracteres.")]
     public string DireccionPrincipal { get; set; } = string.Empty;
 
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
+
     [EmailAddress(ErrorMessage = "El correo no tiene un formato valido.")]
     [StringLength(180, ErrorMessage = "El correo no puede superar 180 caracteres.")]
     public string? CorreoElectronicoPrincipal { get; set; }

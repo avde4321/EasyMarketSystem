@@ -124,10 +124,16 @@ public sealed class EfPersonaRepository : IPersonaRepository
         entity.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
         entity.NombreComercial = persona.NombreComercial;
         entity.DireccionPrincipal = persona.DireccionPrincipal;
+        entity.RegionCodigo = persona.RegionCodigo;
+        entity.ProvinciaCodigo = persona.ProvinciaCodigo;
+        entity.CiudadCodigo = persona.CiudadCodigo;
+        entity.SectorCodigo = persona.SectorCodigo;
         entity.FechaNacimiento = persona.FechaNacimiento;
         entity.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
         entity.TelefonoCelular = persona.TelefonoCelular;
         entity.Genero = persona.Genero;
+        entity.EsPersonaJuridica = persona.EsPersonaJuridica;
+        entity.EsEmpresa = persona.EsEmpresa;
         entity.IsActive = persona.IsActive;
         entity.UpdatedAt = persona.UpdatedAt;
 
@@ -158,10 +164,16 @@ public sealed class EfPersonaRepository : IPersonaRepository
             entity.CorreoElectronicoPrincipal,
             entity.FechaNacimiento,
             entity.Genero,
+            entity.EsPersonaJuridica,
+            entity.EsEmpresa,
             ResolvePersonaRoles(entity),
             entity.IsActive,
             entity.CreatedAt,
-            entity.UpdatedAt);
+            entity.UpdatedAt,
+            entity.RegionCodigo,
+            entity.ProvinciaCodigo,
+            entity.CiudadCodigo,
+            entity.SectorCodigo);
     }
 
     private PersonaEntity MapToEntity(Persona persona)
@@ -175,10 +187,16 @@ public sealed class EfPersonaRepository : IPersonaRepository
             RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
             NombreComercial = persona.NombreComercial,
             DireccionPrincipal = persona.DireccionPrincipal,
+            RegionCodigo = persona.RegionCodigo,
+            ProvinciaCodigo = persona.ProvinciaCodigo,
+            CiudadCodigo = persona.CiudadCodigo,
+            SectorCodigo = persona.SectorCodigo,
             FechaNacimiento = persona.FechaNacimiento,
             CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
             TelefonoCelular = persona.TelefonoCelular,
             Genero = persona.Genero,
+            EsPersonaJuridica = persona.EsPersonaJuridica,
+            EsEmpresa = persona.EsEmpresa,
             IsActive = persona.IsActive,
             CreatedAt = persona.CreatedAt,
             UpdatedAt = persona.UpdatedAt

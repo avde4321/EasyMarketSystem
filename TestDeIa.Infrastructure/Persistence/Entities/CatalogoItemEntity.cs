@@ -8,6 +8,12 @@ public sealed class CatalogoItemEntity
 
     public CatalogoEntity Catalogo { get; set; } = default!;
 
+    public Guid? ParentItemId { get; set; }
+
+    public CatalogoItemEntity? ParentItem { get; set; }
+
+    public ICollection<CatalogoItemEntity> Children { get; set; } = [];
+
     public string Codigo { get; set; } = string.Empty;
 
     public string Nombre { get; set; } = string.Empty;

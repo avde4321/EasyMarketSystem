@@ -30,6 +30,11 @@ public sealed class EmpresaEmisoraEntityConfiguration : IEntityTypeConfiguration
             .HasMaxLength(300)
             .IsRequired();
 
+        builder.Property(empresa => empresa.RegionCodigo).HasMaxLength(80);
+        builder.Property(empresa => empresa.ProvinciaCodigo).HasMaxLength(80);
+        builder.Property(empresa => empresa.CiudadCodigo).HasMaxLength(80);
+        builder.Property(empresa => empresa.SectorCodigo).HasMaxLength(80);
+
         builder.Property(empresa => empresa.DireccionEstablecimiento)
             .HasMaxLength(300);
 
@@ -87,6 +92,10 @@ public sealed class EmpresaEmisoraEntityConfiguration : IEntityTypeConfiguration
             NombreComercial = "EasyMarket Demo",
             Ruc = "0999999999001",
             DireccionMatriz = "Matriz demo",
+            RegionCodigo = "COSTA",
+            ProvinciaCodigo = "GUAYAS",
+            CiudadCodigo = "GUAYAQUIL",
+            SectorCodigo = "GUAYAQUIL_NORTE",
             DireccionEstablecimiento = "Sucursal demo",
             Establecimiento = "001",
             PuntoEmision = "001",

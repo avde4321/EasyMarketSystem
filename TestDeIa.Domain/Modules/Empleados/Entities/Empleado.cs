@@ -30,8 +30,17 @@ public sealed class Empleado
         bool isActive,
         DateTimeOffset createdAt,
         Guid usuarioCreacionId,
-        DateTimeOffset? updatedAt)
+        DateTimeOffset? updatedAt,
+        string? regionCodigo = null,
+        string? provinciaCodigo = null,
+        string? ciudadCodigo = null,
+        string? sectorCodigo = null)
     {
+        if (id != personaId)
+        {
+            throw new ArgumentException("El Id del empleado debe ser el mismo Id de la persona asociada.", nameof(id));
+        }
+
         Id = id;
         PersonaId = personaId;
         EmpresaId = empresaId;
@@ -56,6 +65,10 @@ public sealed class Empleado
         NombreContactoEmergencia = nombreContactoEmergencia;
         TelefonoEmergencia = telefonoEmergencia;
         RolesPersona = rolesPersona;
+        RegionCodigo = regionCodigo;
+        ProvinciaCodigo = provinciaCodigo;
+        CiudadCodigo = ciudadCodigo;
+        SectorCodigo = sectorCodigo;
         IsActive = isActive;
         CreatedAt = createdAt;
         UsuarioCreacionId = usuarioCreacionId;
@@ -111,6 +124,14 @@ public sealed class Empleado
     public string NombreCompleto => RazonSocialONombresCompletos;
 
     public IReadOnlyCollection<string> RolesPersona { get; }
+
+    public string? RegionCodigo { get; }
+
+    public string? ProvinciaCodigo { get; }
+
+    public string? CiudadCodigo { get; }
+
+    public string? SectorCodigo { get; }
 
     public bool IsActive { get; }
 

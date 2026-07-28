@@ -24,6 +24,7 @@ public sealed class CatalogosController : ControllerBase
     }
 
     [HttpGet("{codigo}/items")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetItems(string codigo, [FromQuery] bool onlyActive = false, CancellationToken cancellationToken = default)
     {
         try

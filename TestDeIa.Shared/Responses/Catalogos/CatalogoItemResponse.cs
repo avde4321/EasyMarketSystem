@@ -8,6 +8,8 @@ public sealed class CatalogoItemResponse
 
     public string CatalogoCodigo { get; set; } = string.Empty;
 
+    public Guid? ParentItemId { get; set; }
+
     public string Codigo { get; set; } = string.Empty;
 
     public string Nombre { get; set; } = string.Empty;

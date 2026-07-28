@@ -16,14 +16,26 @@ public sealed class CatalogosApiClient
 
     public async Task<IReadOnlyCollection<CatalogoResponse>> GetCatalogosAsync()
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<CatalogoResponse>>("api/catalogos")
+        var response = await httpClient.GetAsync("api/catalogos");
+        if (!response.IsSuccessStatusCode)
+        {
+            return Array.Empty<CatalogoResponse>();
+        }
+
+        return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<CatalogoResponse>>()
             ?? Array.Empty<CatalogoResponse>();
     }
 
     public async Task<IReadOnlyCollection<CatalogoItemResponse>> GetItemsAsync(string codigoCatalogo, bool onlyActive = false)
     {
         var codigo = Uri.EscapeDataString(codigoCatalogo);
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<CatalogoItemResponse>>($"api/catalogos/{codigo}/items?onlyActive={onlyActive.ToString().ToLowerInvariant()}")
+        var response = await httpClient.GetAsync($"api/catalogos/{codigo}/items?onlyActive={onlyActive.ToString().ToLowerInvariant()}");
+        if (!response.IsSuccessStatusCode)
+        {
+            return Array.Empty<CatalogoItemResponse>();
+        }
+
+        return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<CatalogoItemResponse>>()
             ?? Array.Empty<CatalogoItemResponse>();
     }
 

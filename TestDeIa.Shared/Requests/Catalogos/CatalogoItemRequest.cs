@@ -8,6 +8,8 @@ public sealed class CatalogoItemRequest
     [StringLength(80, ErrorMessage = "El codigo del catalogo no puede superar 80 caracteres.")]
     public string CatalogoCodigo { get; set; } = string.Empty;
 
+    public Guid? ParentItemId { get; set; }
+
     [Required(ErrorMessage = "El codigo del item es obligatorio.")]
     [StringLength(80, ErrorMessage = "El codigo del item no puede superar 80 caracteres.")]
     public string Codigo { get; set; } = string.Empty;

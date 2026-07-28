@@ -80,6 +80,7 @@ public sealed class EfCatalogoRepository : ICatalogoRepository
         {
             Id = item.Id,
             CatalogoId = catalogo.Id,
+            ParentItemId = item.ParentItemId,
             Codigo = item.Codigo,
             Nombre = item.Nombre,
             Descripcion = item.Descripcion,
@@ -115,6 +116,7 @@ public sealed class EfCatalogoRepository : ICatalogoRepository
         }
 
         entity.Codigo = item.Codigo;
+        entity.ParentItemId = item.ParentItemId;
         entity.Nombre = item.Nombre;
         entity.Descripcion = item.Descripcion;
         entity.Orden = item.Orden;
@@ -141,6 +143,7 @@ public sealed class EfCatalogoRepository : ICatalogoRepository
             entity.Id,
             entity.CatalogoId,
             entity.Catalogo.Codigo,
+            entity.ParentItemId,
             entity.Codigo,
             entity.Nombre,
             entity.Descripcion,

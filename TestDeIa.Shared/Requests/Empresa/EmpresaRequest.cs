@@ -19,6 +19,14 @@ public sealed class EmpresaRequest
     [StringLength(300, ErrorMessage = "La direccion matriz no puede superar 300 caracteres.")]
     public string DireccionMatriz { get; set; } = string.Empty;
 
+    public string? RegionCodigo { get; set; }
+
+    public string? ProvinciaCodigo { get; set; }
+
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
+
     [Required(ErrorMessage = "El ambiente SRI es obligatorio.")]
     public string AmbienteSri { get; set; } = "1";
 

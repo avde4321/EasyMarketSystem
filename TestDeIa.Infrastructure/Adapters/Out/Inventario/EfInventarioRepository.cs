@@ -5,7 +5,9 @@ using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Requests.Inventario;
 using TestDeIa.Shared.Responses.Common;
+using TestDeIa.Shared.Responses.Inventario;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Inventario;
 
@@ -57,18 +59,37 @@ public sealed class EfInventarioRepository : IInventarioRepository
             cancellationToken);
     }
 
+    public Task<bool> ExistsBodegaCodigoAsync(string codigo, Guid? excludedId = null, CancellationToken cancellationToken = default)
+    {
+        var normalizedCodigo = codigo.Trim();
+
+        return dbContext.Bodegas.AnyAsync(
+            current => current.Codigo == normalizedCodigo &&
+                       (!excludedId.HasValue || current.Id != excludedId.Value),
+            cancellationToken);
+    }
+
     public async Task<Bodega> CreateBodegaAsync(Bodega bodega, CancellationToken cancellationToken = default)
     {
         var entity = new BodegaEntity
         {
             Id = bodega.Id,
             EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la bodega."),
+            Codigo = bodega.Codigo,
             Nombre = bodega.Nombre,
             Direccion = bodega.Direccion,
+            EsPrincipal = bodega.EsPrincipal,
             IsActive = bodega.IsActive,
             CreatedAt = bodega.CreatedAt,
             UpdatedAt = bodega.UpdatedAt
         };
+
+        if (entity.EsPrincipal)
+        {
+            await dbContext.Bodegas
+                .Where(current => current.EmpresaId == entity.EmpresaId && current.Id != entity.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(current => current.EsPrincipal, false), cancellationToken);
+        }
 
         dbContext.Bodegas.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -85,8 +106,18 @@ public sealed class EfInventarioRepository : IInventarioRepository
             return null;
         }
 
+        var empresaId = entity.EmpresaId;
+        if (bodega.EsPrincipal)
+        {
+            await dbContext.Bodegas
+                .Where(current => current.EmpresaId == empresaId && current.Id != entity.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(current => current.EsPrincipal, false), cancellationToken);
+        }
+
+        entity.Codigo = bodega.Codigo;
         entity.Nombre = bodega.Nombre;
         entity.Direccion = bodega.Direccion;
+        entity.EsPrincipal = bodega.EsPrincipal;
         entity.IsActive = bodega.IsActive;
         entity.UpdatedAt = bodega.UpdatedAt;
 
@@ -476,6 +507,217 @@ public sealed class EfInventarioRepository : IInventarioRepository
         return productoActualizado;
     }
 
+    public async Task<IReadOnlyCollection<TransferenciaInventarioResponse>> GetTransferenciasAsync(
+        string? estado,
+        Guid? bodegaOrigenId,
+        Guid? bodegaDestinoId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildTransferenciasQuery()
+            .AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            var normalizedEstado = estado.Trim();
+            query = query.Where(current => current.Estado == normalizedEstado);
+        }
+
+        if (bodegaOrigenId.HasValue && bodegaOrigenId.Value != Guid.Empty)
+        {
+            query = query.Where(current => current.BodegaOrigenId == bodegaOrigenId.Value);
+        }
+
+        if (bodegaDestinoId.HasValue && bodegaDestinoId.Value != Guid.Empty)
+        {
+            query = query.Where(current => current.BodegaDestinoId == bodegaDestinoId.Value);
+        }
+
+        var transferencias = await query
+            .OrderByDescending(current => current.FechaEmision)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        return transferencias.Select(MapTransferencia).ToArray();
+    }
+
+    public async Task<TransferenciaInventarioResponse?> GetTransferenciaByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var transferencia = await BuildTransferenciasQuery()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        return transferencia is null ? null : MapTransferencia(transferencia);
+    }
+
+    public async Task<TransferenciaInventarioResponse> CreateTransferenciaAsync(
+        TransferenciaInventarioFormalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la transferencia.");
+        var origen = await GetBodegaEntityByIdAsync(request.BodegaOrigenId, cancellationToken);
+        var destino = await GetBodegaEntityByIdAsync(request.BodegaDestinoId, cancellationToken);
+
+        if (origen.Id == destino.Id)
+        {
+            throw new InvalidOperationException("La bodega origen y destino deben ser diferentes.");
+        }
+
+        var productIds = request.Detalles.Select(detalle => detalle.ProductoId).Distinct().ToArray();
+        var productos = await dbContext.Productos
+            .Include(producto => producto.ProductosBodega)
+            .Where(producto => productIds.Contains(producto.Id))
+            .ToDictionaryAsync(producto => producto.Id, cancellationToken);
+
+        if (productos.Count != productIds.Length)
+        {
+            throw new InvalidOperationException("Uno de los productos seleccionados no existe.");
+        }
+
+        var transferencia = new TransferenciaInventarioEntity
+        {
+            Id = Guid.NewGuid(),
+            EmpresaId = empresaId,
+            BodegaOrigenId = origen.Id,
+            BodegaDestinoId = destino.Id,
+            FechaEmision = DateTimeOffset.UtcNow,
+            Estado = "Borrador",
+            MotivoTraslado = string.IsNullOrWhiteSpace(request.MotivoTraslado) ? "Transferencia interna" : request.MotivoTraslado.Trim(),
+            GuiaRemisionId = request.GuiaRemisionId,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        foreach (var item in request.Detalles.GroupBy(detalle => detalle.ProductoId))
+        {
+            var producto = productos[item.Key];
+            EnsureProductoControlaStock(producto, "transferirse entre bodegas");
+
+            transferencia.Detalles.Add(new TransferenciaInventarioDetalleEntity
+            {
+                Id = Guid.NewGuid(),
+                ProductoId = producto.Id,
+                CantidadEnviada = item.Sum(detalle => detalle.Cantidad),
+                CantidadRecibida = 0,
+                CostoUnitario = producto.CostoPromedio
+            });
+        }
+
+        dbContext.TransferenciasInventario.Add(transferencia);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return await GetTransferenciaByIdAsync(transferencia.Id, cancellationToken)
+            ?? throw new InvalidOperationException("No se pudo recuperar la transferencia creada.");
+    }
+
+    public async Task<TransferenciaInventarioResponse?> DespacharTransferenciaAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        TransferenciaInventarioEntity? transferencia = null;
+
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                transferencia = await BuildTransferenciasQuery()
+                    .FirstOrDefaultAsync(current => current.Id == id, token);
+
+                if (transferencia is null)
+                {
+                    return;
+                }
+
+                if (!string.Equals(transferencia.Estado, "Borrador", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Solo se pueden despachar transferencias en estado Borrador.");
+                }
+
+                foreach (var detalle in transferencia.Detalles)
+                {
+                    var producto = detalle.Producto;
+                    EnsureProductoControlaStock(producto, "despacharse");
+                    var existenciaOrigen = await GetOrCreateProductoBodegaAsync(producto, transferencia.BodegaOrigen, token);
+
+                    RegistrarMovimientoInternal(
+                        producto,
+                        existenciaOrigen,
+                        transferencia.BodegaOrigen,
+                        "Salida",
+                        "TRANSFERENCIA_DESPACHO",
+                        BuildTransferenciaReferencia(transferencia),
+                        detalle.CantidadEnviada,
+                        producto.CostoPromedio,
+                        recalcularCostoPromedioEnEntrada: false,
+                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {transferencia.BodegaOrigen.Nombre} para despachar la transferencia.");
+                }
+
+                transferencia.Estado = "EnTransito";
+                transferencia.FechaTraslado = DateTimeOffset.UtcNow;
+                transferencia.UpdatedAt = DateTimeOffset.UtcNow;
+            },
+            $"despacho de transferencia {id}",
+            cancellationToken);
+
+        return transferencia is null ? null : await GetTransferenciaByIdAsync(id, cancellationToken);
+    }
+
+    public async Task<TransferenciaInventarioResponse?> RecibirTransferenciaAsync(
+        Guid id,
+        RecepcionTransferenciaInventarioRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TransferenciaInventarioEntity? transferencia = null;
+
+        await ExecuteWithConcurrencyRetryAsync(
+            async token =>
+            {
+                transferencia = await BuildTransferenciasQuery()
+                    .FirstOrDefaultAsync(current => current.Id == id, token);
+
+                if (transferencia is null)
+                {
+                    return;
+                }
+
+                if (!string.Equals(transferencia.Estado, "EnTransito", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Solo se pueden recibir transferencias en estado EnTransito.");
+                }
+
+                var cantidades = request.Detalles.ToDictionary(detalle => detalle.DetalleId, detalle => detalle.CantidadRecibida);
+
+                foreach (var detalle in transferencia.Detalles)
+                {
+                    var cantidadRecibida = cantidades.TryGetValue(detalle.Id, out var cantidad) ? cantidad : detalle.CantidadEnviada;
+                    if (cantidadRecibida < 0 || cantidadRecibida > detalle.CantidadEnviada)
+                    {
+                        throw new InvalidOperationException($"La cantidad recibida de {detalle.Producto.Nombre} no puede superar la cantidad enviada.");
+                    }
+
+                    detalle.CantidadRecibida = cantidadRecibida;
+                    if (cantidadRecibida == 0)
+                    {
+                        continue;
+                    }
+
+                    var existenciaDestino = await GetOrCreateProductoBodegaAsync(detalle.Producto, transferencia.BodegaDestino, token);
+                    RegistrarMovimientoInternal(
+                        detalle.Producto,
+                        existenciaDestino,
+                        transferencia.BodegaDestino,
+                        "Entrada",
+                        "TRANSFERENCIA_RECEPCION",
+                        BuildTransferenciaReferencia(transferencia),
+                        cantidadRecibida,
+                        detalle.CostoUnitario,
+                        recalcularCostoPromedioEnEntrada: false);
+                }
+
+                transferencia.Estado = "Completado";
+                transferencia.UpdatedAt = DateTimeOffset.UtcNow;
+            },
+            $"recepcion de transferencia {id}",
+            cancellationToken);
+
+        return transferencia is null ? null : await GetTransferenciaByIdAsync(id, cancellationToken);
+    }
+
     public async Task<TomaFisicaResultado> ProcesarTomaFisicaAsync(
         Guid bodegaId,
         string concepto,
@@ -741,7 +983,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
         var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para inventario.");
 
         var principal = await dbContext.Bodegas
-            .FirstOrDefaultAsync(current => current.EmpresaId == empresaId && current.Nombre == PrincipalBodegaName, cancellationToken);
+            .FirstOrDefaultAsync(current => current.EmpresaId == empresaId && (current.EsPrincipal || current.Nombre == PrincipalBodegaName), cancellationToken);
 
         if (principal is not null)
         {
@@ -752,8 +994,10 @@ public sealed class EfInventarioRepository : IInventarioRepository
         {
             Id = Guid.NewGuid(),
             EmpresaId = empresaId,
+            Codigo = "001",
             Nombre = PrincipalBodegaName,
             Direccion = null,
+            EsPrincipal = true,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
         };
@@ -833,7 +1077,24 @@ public sealed class EfInventarioRepository : IInventarioRepository
             producto.Codigo.Contains(normalizedTerm) ||
             producto.Nombre.Contains(normalizedTerm) ||
             (producto.Descripcion != null && producto.Descripcion.Contains(normalizedTerm)) ||
+            producto.UnidadMedida.Contains(normalizedTerm) ||
+            producto.NaturalezaItem.Contains(normalizedTerm) ||
             producto.CodigoIva.Contains(normalizedTerm));
+    }
+
+    private IQueryable<TransferenciaInventarioEntity> BuildTransferenciasQuery()
+    {
+        return dbContext.TransferenciasInventario
+            .Include(transferencia => transferencia.BodegaOrigen)
+            .Include(transferencia => transferencia.BodegaDestino)
+            .Include(transferencia => transferencia.Detalles)
+                .ThenInclude(detalle => detalle.Producto)
+                    .ThenInclude(producto => producto.ProductosBodega);
+    }
+
+    private static string BuildTransferenciaReferencia(TransferenciaInventarioEntity transferencia)
+    {
+        return $"TRF-{transferencia.FechaEmision:yyyyMMdd}-{transferencia.Id.ToString()[..8]}";
     }
 
     private static decimal CalculateCostoPromedioEntrada(
@@ -868,9 +1129,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
             entity.Codigo,
             entity.Nombre,
             entity.Descripcion,
+            entity.CategoriaId,
+            entity.UnidadMedida,
+            entity.NaturalezaItem,
             entity.CodigoIva,
             entity.PorcentajeIva,
             entity.PrecioVenta,
+            entity.CostoReferencial,
             stockActual,
             entity.StockMinimo,
             entity.CostoPromedio,
@@ -892,9 +1157,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,
+            CategoriaId = producto.CategoriaId,
+            UnidadMedida = producto.UnidadMedida,
+            NaturalezaItem = producto.NaturalezaItem,
             CodigoIva = producto.CodigoIva,
             PorcentajeIva = producto.PorcentajeIva,
             PrecioVenta = producto.PrecioVenta,
+            CostoReferencial = producto.CostoReferencial,
             StockMinimo = producto.StockMinimo,
             CostoPromedio = producto.CostoPromedio,
             ControlaStock = producto.ControlaStock,
@@ -939,11 +1208,47 @@ public sealed class EfInventarioRepository : IInventarioRepository
         return new Bodega(
             entity.Id,
             entity.EmpresaId,
+            entity.Codigo,
             entity.Nombre,
             entity.Direccion,
+            entity.EsPrincipal,
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
+    }
+
+    private static TransferenciaInventarioResponse MapTransferencia(TransferenciaInventarioEntity entity)
+    {
+        var detalles = entity.Detalles
+            .OrderBy(detalle => detalle.Producto.Nombre)
+            .Select(detalle => new TransferenciaInventarioDetalleResponse
+            {
+                Id = detalle.Id,
+                ProductoId = detalle.ProductoId,
+                ProductoCodigo = detalle.Producto.Codigo,
+                ProductoNombre = detalle.Producto.Nombre,
+                CantidadEnviada = detalle.CantidadEnviada,
+                CantidadRecibida = detalle.CantidadRecibida,
+                CostoUnitario = detalle.CostoUnitario
+            })
+            .ToArray();
+
+        return new TransferenciaInventarioResponse
+        {
+            Id = entity.Id,
+            BodegaOrigenId = entity.BodegaOrigenId,
+            BodegaOrigenNombre = entity.BodegaOrigen.Nombre,
+            BodegaDestinoId = entity.BodegaDestinoId,
+            BodegaDestinoNombre = entity.BodegaDestino.Nombre,
+            FechaEmision = entity.FechaEmision,
+            FechaTraslado = entity.FechaTraslado,
+            Estado = entity.Estado,
+            MotivoTraslado = entity.MotivoTraslado,
+            GuiaRemisionId = entity.GuiaRemisionId,
+            TotalUnidades = detalles.Sum(detalle => detalle.CantidadEnviada),
+            TotalRecibido = detalles.Sum(detalle => detalle.CantidadRecibida),
+            Detalles = detalles
+        };
     }
 }
 

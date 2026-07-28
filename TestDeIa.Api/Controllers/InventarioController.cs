@@ -194,6 +194,70 @@ public sealed class InventarioController : ControllerBase
         }
     }
 
+    [HttpGet("transferencias")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+    public async Task<IActionResult> GetTransferencias(
+        [FromQuery] string? estado,
+        [FromQuery] Guid? bodegaOrigenId,
+        [FromQuery] Guid? bodegaDestinoId,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await inventarioUseCase.GetTransferenciasAsync(estado, bodegaOrigenId, bodegaDestinoId, cancellationToken));
+    }
+
+    [HttpGet("transferencias/{id:guid}")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+    public async Task<IActionResult> GetTransferenciaById(Guid id, CancellationToken cancellationToken = default)
+    {
+        var transferencia = await inventarioUseCase.GetTransferenciaByIdAsync(id, cancellationToken);
+        return transferencia is null ? NotFound() : Ok(transferencia);
+    }
+
+    [HttpPost("transferencias")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
+    public async Task<IActionResult> CreateTransferencia([FromBody] TransferenciaInventarioFormalRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var transferencia = await inventarioUseCase.CreateTransferenciaAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetTransferenciaById), new { id = transferencia.Id }, transferencia);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("transferencias/{id:guid}/despachar")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
+    public async Task<IActionResult> DespacharTransferencia(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var transferencia = await inventarioUseCase.DespacharTransferenciaAsync(id, cancellationToken);
+            return transferencia is null ? NotFound() : Ok(transferencia);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("transferencias/{id:guid}/recibir")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
+    public async Task<IActionResult> RecibirTransferencia(Guid id, [FromBody] RecepcionTransferenciaInventarioRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var transferencia = await inventarioUseCase.RecibirTransferenciaAsync(id, request, cancellationToken);
+            return transferencia is null ? NotFound() : Ok(transferencia);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
     [HttpPost("tomas-fisicas")]
     [Authorize(Policy = SecurityPolicyNames.InventarioManage)]
     public async Task<IActionResult> ProcesarTomaFisica([FromBody] TomaFisicaInventarioRequest request, CancellationToken cancellationToken)
