@@ -1,0 +1,223 @@
+@page "/inventario/productos"
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+
+<PageTitle>Mantenimiento de productos</PageTitle>
+
+<section class="module-page product-maintenance-page">
+    <header class="module-header">
+        <div>
+            <h1>Mantenimiento de productos</h1>
+            <p>Catalogo maestro de items. Aqui se crean productos, servicios y activos fijos sin mezclar movimientos de bodega.</p>
+        </div>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <button class="primary-action" type="button" @onclick="OpenCreateModal">Crear item</button>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por codigo, nombre, unidad o naturaleza..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p><em>Cargando catalogo...</em></p>
+        }
+        else if (productos.Count == 0)
+        {
+            <div class="empty-state">No hay items registrados para la empresa activa.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Item</th>
+                            <th>Naturaleza</th>
+                            <th>Unidad</th>
+                            <th>IVA</th>
+                            <th>Precio venta</th>
+                            <th>Costo referencial</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var producto in productos)
+                        {
+                            <tr>
+                                <td data-label="Codigo">@producto.Codigo</td>
+                                <td data-label="Item">
+                                    <strong>@producto.Nombre</strong>
+                                    @if (!string.IsNullOrWhiteSpace(producto.Descripcion))
+                                    {
+                                        <small>@producto.Descripcion</small>
+                                    }
+                                </td>
+                                <td data-label="Naturaleza">
+                                    <span class="status-pill @GetNatureBadgeClass(producto.NaturalezaItem)">@FormatNature(producto.NaturalezaItem)</span>
+                                </td>
+                                <td data-label="Unidad">@producto.UnidadMedida</td>
+                                <td data-label="IVA">@producto.PorcentajeIva.ToString("0.##")%</td>
+                                <td data-label="Precio venta">$ @producto.PrecioVenta.ToString("0.00")</td>
+                                <td data-label="Costo referencial">$ @producto.CostoReferencial.ToString("0.00")</td>
+                                <td data-label="Estado">
+                                    <span class="status-pill @(producto.IsActive ? string.Empty : "status-muted")">@(producto.IsActive ? "Activo" : "Inactivo")</span>
+                                </td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+                                        <Authorized>
+                                            <button class="ghost-button" type="button" @onclick="() => OpenEditModal(producto)">Editar</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @productos.Count de @totalCount items</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="PreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="NextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isModalOpen)
+{
+    <div class="modal-backdrop">
+        <EditForm Model="productoRequest" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <section class="modal-card product-modal-card">
+                <header class="modal-header">
+                    <div>
+                        <h2>@(editingProductId.HasValue ? "Editar item" : "Crear item")</h2>
+                        <p>Datos maestros del catalogo. El stock se administra solo desde compras, ajustes o movimientos.</p>
+                    </div>
+                    <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar">x</button>
+                </header>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Codigo / SKU / Barra</label>
+                        <InputText class="form-control" @bind-Value="productoRequest.Codigo" />
+                        <ValidationMessage For="@(() => productoRequest.Codigo)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="productoRequest.Nombre" />
+                        <ValidationMessage For="@(() => productoRequest.Nombre)" />
+                    </div>
+                    <div class="form-field">
+                        <label>CategoriaId</label>
+                        <InputText class="form-control" @bind-Value="categoriaIdText" placeholder="Opcional - GUID de categoria" />
+                    </div>
+                    <div class="form-field">
+                        <label>Unidad de medida</label>
+                        <InputSelect class="form-control" @bind-Value="productoRequest.UnidadMedida">
+                            @foreach (var unidad in unidadesMedida)
+                            {
+                                <option value="@unidad">@unidad</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Naturaleza del item</label>
+                        <InputSelect class="form-control" @bind-Value="productoRequest.NaturalezaItem" @bind-Value:after="OnNaturalezaChanged">
+                            <option value="Mercaderia">Mercaderia</option>
+                            <option value="Servicio">Servicio</option>
+                            <option value="ActivoFijo">Activo fijo</option>
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Tarifa IVA SRI</label>
+                        <InputSelect class="form-control" @bind-Value="tarifaIva" @bind-Value:after="OnTarifaIvaChanged">
+                            <option value="0">0%</option>
+                            <option value="15">15%</option>
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Precio de venta</label>
+                        <InputNumber class="form-control" @bind-Value="productoRequest.PrecioVenta" />
+                    </div>
+                    <div class="form-field">
+                        <label>Costo referencial</label>
+                        <InputNumber class="form-control" @bind-Value="productoRequest.CostoReferencial" />
+                    </div>
+                    @if (IsMercaderia)
+                    {
+                        <div class="form-field">
+                            <label>Stock minimo</label>
+                            <InputNumber class="form-control" @bind-Value="productoRequest.StockMinimo" />
+                        </div>
+                        @if (!editingProductId.HasValue)
+                        {
+                            <div class="form-field">
+                                <label>Stock inicial</label>
+                                <InputNumber class="form-control" @bind-Value="productoRequest.StockInicial" />
+                            </div>
+                            <div class="form-field">
+                                <label>Costo inicial</label>
+                                <InputNumber class="form-control" @bind-Value="productoRequest.CostoInicial" />
+                            </div>
+                        }
+                    }
+                    @if (IsServicio)
+                    {
+                        <div class="form-field switch-field">
+                            <label>
+                                <InputCheckbox @bind-Value="productoRequest.AplicaComision" />
+                                Aplica comision
+                            </label>
+                        </div>
+                        @if (productoRequest.AplicaComision)
+                        {
+                            <div class="form-field">
+                                <label>Tipo comision</label>
+                                <InputSelect class="form-control" @bind-Value="productoRequest.TipoComision">
+                                    <option value="Porcentaje">Porcentaje</option>
+                                    <option value="ValorFijo">Valor fijo</option>
+                                </InputSelect>
+                            </div>
+                            <div class="form-field">
+                                <label>Valor comision</label>
+                                <InputNumber class="form-control" @bind-Value="productoRequest.ValorComision" />
+                            </div>
+                        }
+                    }
+                    <div class="form-field form-field-wide">
+                        <label>Descripcion</label>
+                        <InputTextArea class="form-control" @bind-Value="productoRequest.Descripcion" />
+                    </div>
+                    <div class="form-field switch-field">
+                        <label>
+                            <InputCheckbox @bind-Value="productoRequest.IsActive" />
+                            Item activo
+                        </label>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(dialogMessage))
+                {
+                    <div class="modal-message">@dialogMessage</div>
+                }
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">@(isSaving ? "Guardando..." : "Guardar")</button>
+                </footer>
+            </section>
+        </EditForm>
+    </div>
+}

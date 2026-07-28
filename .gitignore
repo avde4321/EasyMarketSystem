@@ -5,3 +5,6 @@
 *.suo
 TestDeIa.Api/appsettings.Development.json
 *.p12
+ride-template-*.png
+.tmpbuild/
+tmp/

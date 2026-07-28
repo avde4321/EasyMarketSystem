@@ -1,0 +1,126 @@
+@page "/inventario/bodegas"
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+
+<PageTitle>Bodegas</PageTitle>
+
+<section class="module-page warehouses-page">
+    <header class="module-header">
+        <div>
+            <h1>Bodegas</h1>
+            <p>Catalogo de ubicaciones fisicas por empresa para controlar stock y transferencias internas.</p>
+        </div>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <button class="primary-action" type="button" @onclick="OpenCreateModal">Crear bodega</button>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando bodegas...</em></p>
+        }
+        else if (bodegas.Count == 0)
+        {
+            <div class="empty-state">No existen bodegas registradas.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Nombre</th>
+                            <th>Direccion</th>
+                            <th>Principal</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var bodega in bodegas)
+                        {
+                            <tr>
+                                <td data-label="Codigo"><strong>@bodega.Codigo</strong></td>
+                                <td data-label="Nombre">@bodega.Nombre</td>
+                                <td data-label="Direccion">@(string.IsNullOrWhiteSpace(bodega.Direccion) ? "Sin direccion" : bodega.Direccion)</td>
+                                <td data-label="Principal">
+                                    <span class="status-pill @(bodega.EsPrincipal ? "status-principal" : "status-muted")">@(bodega.EsPrincipal ? "Principal" : "Secundaria")</span>
+                                </td>
+                                <td data-label="Estado">
+                                    <span class="status-pill @(bodega.IsActive ? string.Empty : "status-muted")">@(bodega.IsActive ? "Activa" : "Inactiva")</span>
+                                </td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+                                        <Authorized>
+                                            <button class="ghost-button" type="button" @onclick="() => OpenEditModal(bodega)">Editar</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isModalOpen)
+{
+    <div class="modal-backdrop">
+        <EditForm Model="bodegaRequest" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <section class="modal-card warehouse-modal-card">
+                <header class="modal-header">
+                    <div>
+                        <h2>@(editingBodegaId.HasValue ? "Editar bodega" : "Crear bodega")</h2>
+                        <p>Usa un codigo de 3 digitos. La bodega principal sera la predeterminada del flujo operativo.</p>
+                    </div>
+                    <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar">x</button>
+                </header>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Codigo</label>
+                        <InputText class="form-control" @bind-Value="bodegaRequest.Codigo" maxlength="3" />
+                        <ValidationMessage For="@(() => bodegaRequest.Codigo)" />
+                    </div>
+                    <div class="form-field">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="bodegaRequest.Nombre" />
+                        <ValidationMessage For="@(() => bodegaRequest.Nombre)" />
+                    </div>
+                    <div class="form-field form-field-wide">
+                        <label>Direccion</label>
+                        <InputText class="form-control" @bind-Value="bodegaRequest.Direccion" />
+                    </div>
+                    <div class="form-field switch-field">
+                        <label>
+                            <InputCheckbox @bind-Value="bodegaRequest.EsPrincipal" />
+                            Marcar como bodega principal
+                        </label>
+                    </div>
+                    <div class="form-field switch-field">
+                        <label>
+                            <InputCheckbox @bind-Value="bodegaRequest.IsActive" />
+                            Bodega activa
+                        </label>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(dialogMessage))
+                {
+                    <div class="modal-message">@dialogMessage</div>
+                }
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">@(isSaving ? "Guardando..." : "Guardar")</button>
+                </footer>
+            </section>
+        </EditForm>
+    </div>
+}

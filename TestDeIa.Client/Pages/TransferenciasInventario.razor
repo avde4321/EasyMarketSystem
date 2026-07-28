@@ -1,0 +1,251 @@
+@page "/inventario/transferencias"
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+
+<PageTitle>Transferencias de inventario</PageTitle>
+
+<section class="module-page transfers-page">
+    <header class="module-header">
+        <div>
+            <h1>Transferencias internas</h1>
+            <p>Emision, despacho en transito y recepcion fisica entre bodegas de la empresa activa.</p>
+        </div>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <button class="primary-action" type="button" @onclick="OpenCreateModal">Nueva transferencia</button>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="table-card filter-card">
+        <div class="filter-grid">
+            <div class="form-field">
+                <label>Estado</label>
+                <InputSelect class="form-control" @bind-Value="estadoFiltro" @bind-Value:after="LoadTransferenciasAsync">
+                    <option value="">Todos</option>
+                    <option value="Borrador">Borrador</option>
+                    <option value="EnTransito">En transito</option>
+                    <option value="Completado">Completado</option>
+                    <option value="Anulado">Anulado</option>
+                </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Origen</label>
+                <InputSelect class="form-control" @bind-Value="origenFiltro" @bind-Value:after="LoadTransferenciasAsync">
+                    <option value="">Todas</option>
+                    @foreach (var bodega in activeBodegas)
+                    {
+                        <option value="@bodega.Id.ToString()">@bodega.Codigo - @bodega.Nombre</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Destino</label>
+                <InputSelect class="form-control" @bind-Value="destinoFiltro" @bind-Value:after="LoadTransferenciasAsync">
+                    <option value="">Todas</option>
+                    @foreach (var bodega in activeBodegas)
+                    {
+                        <option value="@bodega.Id.ToString()">@bodega.Codigo - @bodega.Nombre</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+    </section>
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando transferencias...</em></p>
+        }
+        else if (transferencias.Count == 0)
+        {
+            <div class="empty-state">No hay transferencias con el filtro actual.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Motivo</th>
+                            <th>Unidades</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var transferencia in transferencias)
+                        {
+                            <tr>
+                                <td data-label="Fecha">@transferencia.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td data-label="Origen">@transferencia.BodegaOrigenNombre</td>
+                                <td data-label="Destino">@transferencia.BodegaDestinoNombre</td>
+                                <td data-label="Motivo">@transferencia.MotivoTraslado</td>
+                                <td data-label="Unidades">@transferencia.TotalUnidades.ToString("0.####")</td>
+                                <td data-label="Estado"><span class="status-pill @GetEstadoBadgeClass(transferencia.Estado)">@FormatEstado(transferencia.Estado)</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+                                        <Authorized>
+                                            <button class="ghost-button" type="button" @onclick="() => DespacharAsync(transferencia)" disabled="@(isSaving || transferencia.Estado != "Borrador")">Despachar</button>
+                                            <button class="primary-soft-button" type="button" @onclick="() => OpenRecepcionModal(transferencia)" disabled="@(transferencia.Estado != "EnTransito")">Confirmar recepcion</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isCreateModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card transfer-modal-card">
+            <header class="modal-header">
+                <div>
+                    <h2>Nueva transferencia</h2>
+                    <p>Selecciona origen y destino, luego agrega productos validando el stock disponible.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseCreateModal" aria-label="Cerrar">x</button>
+            </header>
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>Bodega origen</label>
+                    <InputSelect class="form-control" @bind-Value="transferenciaRequest.BodegaOrigenId" @bind-Value:after="OnOrigenChangedAsync">
+                        <option value="@Guid.Empty">Seleccionar</option>
+                        @foreach (var bodega in activeBodegas)
+                        {
+                            <option value="@bodega.Id">@bodega.Codigo - @bodega.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Bodega destino</label>
+                    <InputSelect class="form-control" @bind-Value="transferenciaRequest.BodegaDestinoId">
+                        <option value="@Guid.Empty">Seleccionar</option>
+                        @foreach (var bodega in activeBodegas.Where(current => current.Id != transferenciaRequest.BodegaOrigenId))
+                        {
+                            <option value="@bodega.Id">@bodega.Codigo - @bodega.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-field form-field-wide">
+                    <label>Motivo traslado</label>
+                    <InputText class="form-control" @bind-Value="transferenciaRequest.MotivoTraslado" />
+                </div>
+            </div>
+
+            <div class="product-picker">
+                <div class="form-field">
+                    <label>Producto</label>
+                    <InputSelect class="form-control" @bind-Value="selectedProductoId">
+                        <option value="@Guid.Empty">Seleccionar producto</option>
+                        @foreach (var producto in productosOrigen)
+                        {
+                            <option value="@producto.Id">@producto.Codigo - @producto.Nombre (@producto.StockActual.ToString("0.####"))</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Cantidad</label>
+                    <InputNumber class="form-control" @bind-Value="selectedCantidad" />
+                </div>
+                <button class="secondary-action" type="button" @onclick="AddDetalle">Agregar</button>
+            </div>
+
+            @if (transferenciaRequest.Detalles.Count > 0)
+            {
+                <div class="table-scroll compact-table">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Stock origen</th>
+                                <th>Cantidad</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detalle in transferenciaRequest.Detalles)
+                            {
+                                var producto = productosOrigen.FirstOrDefault(current => current.Id == detalle.ProductoId);
+                                <tr>
+                                    <td data-label="Producto">@producto?.Nombre</td>
+                                    <td data-label="Stock origen">@((producto?.StockActual ?? 0).ToString("0.####"))</td>
+                                    <td data-label="Cantidad">@detalle.Cantidad.ToString("0.####")</td>
+                                    <td data-label="Acciones"><button class="ghost-button" type="button" @onclick="() => RemoveDetalle(detalle)">Quitar</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(dialogMessage))
+            {
+                <div class="modal-message">@dialogMessage</div>
+            }
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseCreateModal">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="SaveTransferenciaAsync" disabled="@(!CanSaveTransferencia)">Guardar borrador</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (isRecepcionModalOpen && selectedTransferencia is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card transfer-modal-card">
+            <header class="modal-header">
+                <div>
+                    <h2>Confirmar recepcion</h2>
+                    <p>@selectedTransferencia.BodegaOrigenNombre → @selectedTransferencia.BodegaDestinoNombre</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseRecepcionModal" aria-label="Cerrar">x</button>
+            </header>
+
+            <div class="table-scroll compact-table">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Enviado</th>
+                            <th>Recibido fisico</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detalle in recepcionRequest.Detalles)
+                        {
+                            var source = selectedTransferencia.Detalles.First(current => current.Id == detalle.DetalleId);
+                            <tr>
+                                <td data-label="Producto">@source.ProductoCodigo - @source.ProductoNombre</td>
+                                <td data-label="Enviado">@source.CantidadEnviada.ToString("0.####")</td>
+                                <td data-label="Recibido fisico">
+                                    <InputNumber class="form-control compact-input" @bind-Value="detalle.CantidadRecibida" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(dialogMessage))
+            {
+                <div class="modal-message">@dialogMessage</div>
+            }
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseRecepcionModal">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="RecibirAsync" disabled="@isSaving">@(isSaving ? "Procesando..." : "Confirmar recepcion")</button>
+            </footer>
+        </section>
+    </div>
+}

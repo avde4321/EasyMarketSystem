@@ -3,10 +3,15 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class KardexMovimientoEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public Guid ProductoId { get; set; }
 
     public ProductoEntity Producto { get; set; } = default!;
+
+    public Guid BodegaId { get; set; }
+
+    public BodegaEntity Bodega { get; set; } = default!;
 
     public string TipoMovimiento { get; set; } = string.Empty;
 

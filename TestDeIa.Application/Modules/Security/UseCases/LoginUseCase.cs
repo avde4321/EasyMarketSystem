@@ -2,6 +2,7 @@ using TestDeIa.Application.Modules.Security.Models;
 using TestDeIa.Application.Modules.Security.Ports.In;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Shared.Requests.Security;
+using TestDeIa.Shared.Responses.Empresa;
 using TestDeIa.Shared.Responses.Security;
 
 namespace TestDeIa.Application.Modules.Security.UseCases;
@@ -24,14 +25,15 @@ public sealed class LoginUseCase : ILoginUseCase
 
     public async Task<LoginResponse> LoginAsync(
         LoginRequest request,
+        string? ipAddress,
         CancellationToken cancellationToken = default)
     {
         var user = await userRepository.FindByUserNameAsync(request.UserName, cancellationToken);
 
-        if (user is null ||
-            !user.IsActive ||
-            !passwordHashService.Verify(request.Password, user.PasswordHash))
+        if (user is null)
         {
+            await userRepository.RecordFailedLoginAsync(request.UserName, ipAddress, cancellationToken);
+
             return new LoginResponse
             {
                 Succeeded = false,
@@ -39,12 +41,62 @@ public sealed class LoginUseCase : ILoginUseCase
             };
         }
 
+        if (!user.IsActive)
+        {
+            return new LoginResponse
+            {
+                Succeeded = false,
+                ErrorMessage = "La cuenta se encuentra inactiva. Contacta al administrador."
+            };
+        }
+
+        if (user.BloqueadoManualmente)
+        {
+            return new LoginResponse
+            {
+                Succeeded = false,
+                ErrorMessage = "La cuenta se encuentra bloqueada por un administrador."
+            };
+        }
+
+        if (user.BloqueadoHasta.HasValue && user.BloqueadoHasta.Value > DateTimeOffset.UtcNow)
+        {
+            return new LoginResponse
+            {
+                Succeeded = false,
+                ErrorMessage = $"Usuario bloqueado temporalmente hasta {user.BloqueadoHasta.Value.LocalDateTime:dd/MM/yyyy HH:mm}."
+            };
+        }
+
+        var verification = passwordHashService.Verify(request.Password, user.PasswordHash);
+        if (!verification.Succeeded)
+        {
+            var blocked = await userRepository.RecordFailedLoginAsync(request.UserName, ipAddress, cancellationToken);
+
+            return new LoginResponse
+            {
+                Succeeded = false,
+                ErrorMessage = blocked
+                    ? "Usuario bloqueado por 15 minutos tras 5 intentos fallidos."
+                    : "Usuario o contrasena incorrectos."
+            };
+        }
+
+        var replacementHash = verification.RequiresRehash
+            ? passwordHashService.Hash(request.Password)
+            : null;
+
+        await userRepository.RecordSuccessfulLoginAsync(user.Id, ipAddress, replacementHash, cancellationToken);
+
         var authenticatedUser = new AuthenticatedUser(
             user.Id,
             user.UserName,
             user.DisplayName,
+            user.Identification,
             user.Email,
-            user.Roles);
+            user.EmpresasAcceso.FirstOrDefault(current => current.IsDefault)?.EmpresaId ?? user.EmpresasAcceso.FirstOrDefault()?.EmpresaId,
+            user.Roles,
+            user.Permissions);
 
         var token = tokenGenerator.Generate(authenticatedUser);
 
@@ -55,7 +107,21 @@ public sealed class LoginUseCase : ILoginUseCase
             ExpiresAt = token.ExpiresAt,
             UserName = user.UserName,
             DisplayName = user.DisplayName,
-            Roles = user.Roles
+            Roles = user.Roles,
+            Permissions = user.Permissions,
+            ActiveEmpresaId = authenticatedUser.DefaultEmpresaId,
+            Empresas = user.EmpresasAcceso
+                .Select(current => new EmpresaOptionResponse
+                {
+                    Id = current.EmpresaId,
+                    RazonSocial = current.RazonSocial,
+                    NombreComercial = current.NombreComercial,
+                    Ruc = current.Ruc,
+                    AmbienteSri = TestDeIa.Shared.Sri.SriCatalogCodes.NormalizeAmbienteCode(current.AmbienteSri) ?? current.AmbienteSri,
+                    IsActive = current.IsActive,
+                    IsDefault = current.IsDefault
+                })
+                .ToArray()
         };
     }
 }

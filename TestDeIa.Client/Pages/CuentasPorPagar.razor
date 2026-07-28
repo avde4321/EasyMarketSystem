@@ -1,0 +1,218 @@
+@page "/compras/cuentas-por-pagar"
+@attribute [Authorize(Policy = SecurityPolicyNames.ComprasCuentasPorPagar)]
+
+<PageTitle>Cuentas por pagar</PageTitle>
+
+<section class="module-page cxp-page">
+    <header class="module-header">
+        <div>
+            <h1>Cuentas por pagar</h1>
+            <p>Control de saldos de proveedores, vencimientos y abonos parciales.</p>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="success-message">@successMessage</div>
+    }
+
+    <section class="summary-grid">
+        <article class="summary-card">
+            <span>Por vencer</span>
+            <strong>@resumen.TotalPorVencer.ToString("0.00")</strong>
+            <small>@resumen.TotalPendientes cuentas activas</small>
+        </article>
+        <article class="summary-card summary-card-warning">
+            <span>Vencido</span>
+            <strong>@resumen.TotalVencido.ToString("0.00")</strong>
+            <small>@resumen.TotalVencidas cuentas criticas</small>
+        </article>
+    </section>
+
+    <section class="table-card">
+        <div class="table-toolbar cxp-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por proveedor, identificacion o comprobante..." />
+            <InputSelect class="form-control compact-select" @bind-Value="selectedProveedorIdString">
+                <option value="">Todos los proveedores</option>
+                @foreach (var proveedor in proveedores)
+                {
+                    <option value="@proveedor.Id.ToString()">@proveedor.Identificacion - @proveedor.NombreCompleto</option>
+                }
+            </InputSelect>
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p><em>Cargando cuentas por pagar...</em></p>
+        }
+        else if (totalCount == 0)
+        {
+            <div class="empty-state">No hay cuentas por pagar registradas en la empresa activa.</div>
+        }
+        else if (!cuentas.Any())
+        {
+            <div class="empty-state">No hay resultados para el filtro actual.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Comprobante</th>
+                            <th>Emision</th>
+                            <th>Vence</th>
+                            <th>Monto</th>
+                            <th>Saldo</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cuenta in cuentas)
+                        {
+                            <tr class="@(cuenta.EstaVencida ? "stock-alert" : string.Empty)">
+                                <td data-label="Proveedor">
+                                    <strong>@cuenta.ProveedorNombre</strong>
+                                    <small>@cuenta.ProveedorIdentificacion</small>
+                                </td>
+                                <td data-label="Comprobante">@cuenta.NumeroComprobante</td>
+                                <td data-label="Emision">@cuenta.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                                <td data-label="Vence">@cuenta.FechaVence.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                                <td data-label="Monto">@cuenta.MontoOriginal.ToString("0.00")</td>
+                                <td data-label="Saldo">@cuenta.SaldoActual.ToString("0.00")</td>
+                                <td data-label="Estado"><span class="status-pill @(cuenta.EstaVencida ? "status-warning" : string.Empty)">@cuenta.EstadoDeuda</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="primary-soft-button" type="button" @onclick="() => OpenAbonoModal(cuenta)" disabled="@(cuenta.SaldoActual <= 0)">Abonar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @cuentas.Count de @totalCount cuentas</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isAbonoModalOpen && selectedCuenta is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <div>
+                    <h2>Registrar abono</h2>
+                    <p class="modal-subtitle">Selecciona la cuenta monetaria de salida y registra el comprobante bancario.</p>
+                </div>
+                <button class="icon-button" @onclick="CloseAbonoModal">x</button>
+            </header>
+
+            <div class="status-banner">
+                @selectedCuenta.ProveedorNombre | Saldo disponible: @selectedCuenta.SaldoActual.ToString("0.00")
+            </div>
+
+            <EditForm Model="abonoRequest" OnValidSubmit="SaveAbonoAsync">
+                <DataAnnotationsValidator />
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Fecha pago</label>
+                        <InputDate class="form-control" @bind-Value="fechaPagoLocal" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Forma pago</label>
+                        <InputSelect class="form-control" @bind-Value="abonoRequest.FormaPago">
+                            @foreach (var forma in formasPago)
+                            {
+                                <option value="@forma.Codigo">@forma.Nombre</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Cuenta salida</label>
+                        <InputSelect class="form-control" @bind-Value="abonoRequest.CuentaContableSalidaId">
+                            <option value="@Guid.Empty">Selecciona cuenta monetaria</option>
+                            @foreach (var cuenta in cuentasMonetarias)
+                            {
+                                <option value="@cuenta.Id">@cuenta.Codigo - @cuenta.Nombre</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => abonoRequest.CuentaContableSalidaId)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Monto abonado</label>
+                        <InputNumber class="form-control" @bind-Value="abonoRequest.MontoPagado" />
+                        <ValidationMessage For="@(() => abonoRequest.MontoPagado)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>No. comprobante / transferencia</label>
+                        <InputText class="form-control" @bind-Value="abonoRequest.NumeroComprobantePago" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Referencia interna</label>
+                        <InputText class="form-control" @bind-Value="abonoRequest.ReferenciaTransaccion" />
+                    </div>
+                </div>
+
+                @if (selectedCuenta.Pagos.Any())
+                {
+                    <section class="history-block">
+                        <h3>Historial reciente</h3>
+                        <div class="table-scroll">
+                            <table class="data-table responsive-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Forma pago</th>
+                                        <th>Monto</th>
+                                        <th>Comprobante</th>
+                                        <th>Referencia</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var pago in selectedCuenta.Pagos.Take(5))
+                                    {
+                                        <tr>
+                                            <td data-label="Fecha">@pago.FechaPago.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                                            <td data-label="Forma pago">@pago.FormaPago</td>
+                                            <td data-label="Monto">@pago.MontoPagado.ToString("0.00")</td>
+                                            <td data-label="Comprobante">@pago.NumeroComprobantePago</td>
+                                            <td data-label="Referencia">@pago.ReferenciaTransaccion</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                }
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseAbonoModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar abono")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

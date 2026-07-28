@@ -12,6 +12,9 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
 
         builder.HasKey(user => user.Id);
 
+        builder.Property(user => user.EmpresaId)
+            .IsRequired();
+
         builder.Property(user => user.UserName)
             .HasMaxLength(80)
             .IsRequired();
@@ -33,18 +36,28 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
 
         builder.Property(user => user.PasswordHash)
-            .HasMaxLength(128)
+            .HasMaxLength(512)
             .IsRequired();
 
-        builder.HasIndex(user => user.NormalizedUserName)
+        builder.Property(user => user.IntentosFallidos)
+            .HasDefaultValue(0);
+
+        builder.Property(user => user.BloqueadoManualmente)
+            .HasDefaultValue(false);
+
+        builder.HasIndex(user => new { user.EmpresaId, user.NormalizedUserName })
             .IsUnique();
 
-        builder.HasIndex(user => user.NormalizedEmail)
+        builder.HasIndex(user => new { user.EmpresaId, user.NormalizedEmail })
+            .IsUnique();
+
+        builder.HasIndex(user => new { user.EmpresaId, user.PersonaId })
             .IsUnique();
 
         builder.HasData(new SecurityUserEntity
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            EmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
             PersonaId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
             UserName = "admin",
             NormalizedUserName = "ADMIN",
@@ -53,12 +66,15 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             NormalizedEmail = "ADMIN@TESTDEIA.LOCAL",
             PasswordHash = "0A5BC3E342432F1BAD92FFD51B785343EC72906CDBA6A26131060B008E786656",
             IsActive = true,
-            CreatedAt = new DateTimeOffset(2026, 6, 17, 0, 0, 0, TimeSpan.Zero)
+            CreatedAt = new DateTimeOffset(2026, 6, 17, 0, 0, 0, TimeSpan.Zero),
+            IntentosFallidos = 0,
+            BloqueadoManualmente = false
         });
 
         builder.HasOne(user => user.Persona)
-            .WithMany(persona => persona.SecurityUsers)
-            .HasForeignKey(user => user.PersonaId)
+            .WithOne(persona => persona.SecurityUser)
+            .HasForeignKey<SecurityUserEntity>(user => user.PersonaId)
             .OnDelete(DeleteBehavior.Restrict);
+
     }
 }

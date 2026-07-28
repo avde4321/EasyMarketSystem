@@ -3,10 +3,15 @@ namespace TestDeIa.Shared.Responses.Empresa;
 public sealed class EmpresaResponse
 {
     public Guid Id { get; set; }
+    public Guid OwnerUserId { get; set; }
     public string RazonSocial { get; set; } = string.Empty;
     public string? NombreComercial { get; set; }
     public string Ruc { get; set; } = string.Empty;
     public string DireccionMatriz { get; set; } = string.Empty;
+    public string? RegionCodigo { get; set; }
+    public string? ProvinciaCodigo { get; set; }
+    public string? CiudadCodigo { get; set; }
+    public string? SectorCodigo { get; set; }
     public string? DireccionEstablecimiento { get; set; }
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;
@@ -22,4 +27,5 @@ public sealed class EmpresaResponse
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+    public IReadOnlyCollection<EmpresaPuntoEmisionResponse> PuntosEmision { get; set; } = Array.Empty<EmpresaPuntoEmisionResponse>();
 }

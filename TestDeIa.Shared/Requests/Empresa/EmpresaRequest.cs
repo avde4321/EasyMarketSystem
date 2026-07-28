@@ -19,24 +19,21 @@ public sealed class EmpresaRequest
     [StringLength(300, ErrorMessage = "La direccion matriz no puede superar 300 caracteres.")]
     public string DireccionMatriz { get; set; } = string.Empty;
 
-    [StringLength(300, ErrorMessage = "La direccion del establecimiento no puede superar 300 caracteres.")]
-    public string? DireccionEstablecimiento { get; set; }
+    public string? RegionCodigo { get; set; }
 
-    [Required(ErrorMessage = "El establecimiento es obligatorio.")]
-    [StringLength(3, MinimumLength = 3, ErrorMessage = "El establecimiento debe tener 3 digitos.")]
-    public string Establecimiento { get; set; } = "001";
+    public string? ProvinciaCodigo { get; set; }
 
-    [Required(ErrorMessage = "El punto de emision es obligatorio.")]
-    [StringLength(3, MinimumLength = 3, ErrorMessage = "El punto de emision debe tener 3 digitos.")]
-    public string PuntoEmision { get; set; } = "001";
+    public string? CiudadCodigo { get; set; }
+
+    public string? SectorCodigo { get; set; }
 
     [Required(ErrorMessage = "El ambiente SRI es obligatorio.")]
-    public string AmbienteSri { get; set; } = "Pruebas";
+    public string AmbienteSri { get; set; } = "1";
 
     public bool ModoDesarrollo { get; set; } = true;
 
     [Required(ErrorMessage = "El tipo de emision es obligatorio.")]
-    public string TipoEmision { get; set; } = "Normal";
+    public string TipoEmision { get; set; } = "1";
 
     public bool ObligadoContabilidad { get; set; }
 
@@ -58,4 +55,7 @@ public sealed class EmpresaRequest
     public string? CertificadoClave { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    [Required(ErrorMessage = "Debes registrar al menos un punto de emision.")]
+    public List<EmpresaPuntoEmisionRequest> PuntosEmision { get; set; } = [new() { IsDefault = true }];
 }

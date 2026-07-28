@@ -1,20 +1,25 @@
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Application.Modules.Facturacion.Ports.Out;
 
 public interface IFacturacionRepository
 {
-    Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default);
 
     Task<FacturaEmissionResponse> CreatePendingFacturaAsync(
         EmitirFacturaRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync(CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<Guid>> GetPendingFacturaIdsAsync(int batchSize, DateTimeOffset now, CancellationToken cancellationToken = default);
 
@@ -31,16 +36,35 @@ public interface IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 
+    Task MarkFacturaAsSignedPendingAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string xmlFirmado,
+        string mensaje,
+        string? auditoriaJson,
+        TimeSpan? retryDelay,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default);
+
     Task MarkFacturaAsRejectedAsync(
         Guid facturaId,
         string mensaje,
-        string xmlFirmado,
+        string? auditoriaJson,
+        string? xmlFirmado,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default);
+
+    Task MarkFacturaAsUnsignedAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string mensaje,
+        string xmlGenerado,
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default);
 
     Task MarkFacturaAsErrorAsync(
         Guid facturaId,
         string mensaje,
-        DateTimeOffset nextRetryAt,
+        string? auditoriaJson,
         CancellationToken cancellationToken = default);
 }

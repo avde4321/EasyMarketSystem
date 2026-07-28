@@ -1,0 +1,248 @@
+@page "/compras/reporte-fisico-financiero"
+@using TestDeIa.Shared.Compras
+@using TestDeIa.Client.Services
+@attribute [Authorize(Policy = SecurityPolicyNames.ComprasCuentasPorPagar)]
+@inject ComprasApiClient ComprasApiClient
+@inject PopupNotificationService PopupNotificationService
+
+<PageTitle>Reporte físico financiero de compras</PageTitle>
+
+<section class="module-page purchases-report-page">
+    <header class="module-header">
+        <div>
+            <h1>Reporte físico financiero de compras</h1>
+            <p>Consolida inventario, activos, IVA, desembolsos y pasivos de proveedores por empresa activa.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="ConsultarAsync" disabled="@isLoading">
+            @(isLoading ? "Consultando..." : "Consultar reporte")
+        </button>
+    </header>
+
+    <section class="table-card">
+        <div class="form-grid report-filter-grid">
+            <div class="form-field">
+                <label>Fecha inicio</label>
+                <InputDate class="form-control" @bind-Value="fechaInicio" />
+            </div>
+            <div class="form-field">
+                <label>Fecha fin</label>
+                <InputDate class="form-control" @bind-Value="fechaFin" />
+            </div>
+            <div class="form-field">
+                <label>Naturaleza</label>
+                <InputSelect class="form-control" @bind-Value="naturalezaSeleccionada">
+                    <option value="">Todos</option>
+                    <option value="@NaturalezaCompra.MercaderiaInventario">Inventario</option>
+                    <option value="@NaturalezaCompra.ActivoFijo">Activo fijo</option>
+                    <option value="@NaturalezaCompra.GastoServicio">Gastos</option>
+                </InputSelect>
+            </div>
+        </div>
+    </section>
+
+    @if (reporte is not null)
+    {
+        <section class="summary-grid">
+            <article class="summary-card">
+                <span>Total compras</span>
+                <strong>@Money(reporte.DimensionMonetaria.TotalCompras)</strong>
+                <small>@reporte.FechaInicio.ToString("dd/MM/yyyy") - @reporte.FechaFin.ToString("dd/MM/yyyy")</small>
+            </article>
+            <article class="summary-card">
+                <span>Inventario ingresado</span>
+                <strong>@Money(reporte.DimensionFisica.TotalImporteInventario)</strong>
+                <small>@reporte.DimensionFisica.TotalUnidadesInventario.ToString("N2") unidades</small>
+            </article>
+            <article class="summary-card">
+                <span>Activos dados de alta</span>
+                <strong>@Money(reporte.DimensionFisica.TotalImporteActivos)</strong>
+                <small>@reporte.DimensionFisica.TotalActivosDadosAlta bienes</small>
+            </article>
+            <article class="summary-card summary-card-warning">
+                <span>Pasivo CxP acumulado</span>
+                <strong>@Money(reporte.DimensionMonetaria.PasivoAcumuladoCxP)</strong>
+                <small>Abonos: @Money(reporte.DimensionMonetaria.TotalAbonosCxP)</small>
+            </article>
+        </section>
+
+        <section class="table-card report-tabs-card">
+            <div class="tab-strip" role="tablist" aria-label="Dimensiones del reporte">
+                <button type="button" class="tab-button @(activeTab == "fisico" ? "active" : string.Empty)" @onclick='() => activeTab = "fisico"'>
+                    Movimiento físico
+                </button>
+                <button type="button" class="tab-button @(activeTab == "monetario" ? "active" : string.Empty)" @onclick='() => activeTab = "monetario"'>
+                    Flujo monetario y pasivos
+                </button>
+            </div>
+
+            @if (activeTab == "fisico")
+            {
+                <div class="section-header">
+                    <div>
+                        <h2>Entradas de Kardex y activos fijos</h2>
+                        <p>Detalle físico soportado por comprobante SRI de proveedor.</p>
+                    </div>
+                </div>
+
+                @if (!reporte.DimensionFisica.Movimientos.Any())
+                {
+                    <div class="empty-state">No hay movimientos físicos para el filtro seleccionado.</div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Descripción</th>
+                                    <th>Proveedor</th>
+                                    <th>Comprobante SRI</th>
+                                    <th>Cantidad</th>
+                                    <th>Importe</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var movimiento in reporte.DimensionFisica.Movimientos)
+                                {
+                                    <tr>
+                                        <td>@movimiento.Fecha.ToString("dd/MM/yyyy")</td>
+                                        <td><span class="status-badge">@movimiento.Tipo</span></td>
+                                        <td>
+                                            <strong>@movimiento.Descripcion</strong>
+                                            <small>@movimiento.Codigo · @movimiento.NaturalezaCompra</small>
+                                        </td>
+                                        <td>@movimiento.Proveedor</td>
+                                        <td>
+                                            <strong>@movimiento.ComprobanteSri</strong>
+                                            <small>@(movimiento.ClaveAccesoSri ?? "Sin clave")</small>
+                                        </td>
+                                        <td>@movimiento.Cantidad.ToString("N2")</td>
+                                        <td>@Money(movimiento.Importe)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="summary-grid compact-summary-grid">
+                    <article class="summary-card">
+                        <span>Base IVA 0%</span>
+                        <strong>@Money(reporte.DimensionMonetaria.BaseIva0)</strong>
+                    </article>
+                    <article class="summary-card">
+                        <span>Base IVA 15%</span>
+                        <strong>@Money(reporte.DimensionMonetaria.BaseIva15)</strong>
+                    </article>
+                    <article class="summary-card">
+                        <span>IVA compras</span>
+                        <strong>@Money(reporte.DimensionMonetaria.MontoIva)</strong>
+                    </article>
+                    <article class="summary-card">
+                        <span>Salida caja/banco</span>
+                        <strong>@Money(reporte.DimensionMonetaria.SalidaEfectivaCajaBanco)</strong>
+                    </article>
+                </div>
+
+                @if (!reporte.DimensionMonetaria.Flujos.Any())
+                {
+                    <div class="empty-state">No hay flujo monetario para el filtro seleccionado.</div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Proveedor</th>
+                                    <th>Documento</th>
+                                    <th>Forma pago</th>
+                                    <th>Total compra</th>
+                                    <th>Desembolso</th>
+                                    <th>Saldo CxP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var flujo in reporte.DimensionMonetaria.Flujos)
+                                {
+                                    <tr>
+                                        <td>@flujo.Fecha.ToString("dd/MM/yyyy")</td>
+                                        <td><span class="status-badge">@flujo.Tipo</span></td>
+                                        <td>@flujo.Proveedor</td>
+                                        <td>
+                                            <strong>@flujo.Documento</strong>
+                                            <small>@(flujo.ComprobantePago ?? "Sin comprobante pago")</small>
+                                        </td>
+                                        <td>@flujo.FormaPago</td>
+                                        <td>@Money(flujo.TotalCompra)</td>
+                                        <td>@Money(flujo.Desembolso)</td>
+                                        <td>@Money(flujo.SaldoPendiente)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </section>
+    }
+    else if (isLoading)
+    {
+        <section class="table-card">
+            <div class="empty-state">Preparando consolidado físico y financiero...</div>
+        </section>
+    }
+</section>
+
+@code {
+    private DateTime fechaInicio = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime fechaFin = DateTime.Today;
+    private string naturalezaSeleccionada = string.Empty;
+    private string activeTab = "fisico";
+    private bool isLoading;
+    private ReporteComprasConsolidadoResponse? reporte;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConsultarAsync();
+    }
+
+    private async Task ConsultarAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            var naturaleza = Enum.TryParse<NaturalezaCompra>(naturalezaSeleccionada, out var parsed)
+                ? parsed
+                : (NaturalezaCompra?)null;
+
+            var result = await ComprasApiClient.GetReporteFisicoFinancieroAsync(fechaInicio, fechaFin, naturaleza);
+
+            if (!result.Succeeded || result.Data is null)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo consultar el reporte consolidado.");
+                return;
+            }
+
+            reporte = result.Data;
+            await PopupNotificationService.ShowSuccessAsync("Reporte consolidado actualizado.");
+        }
+        catch (Exception exception)
+        {
+            await PopupNotificationService.ShowErrorAsync($"No se pudo consultar el reporte: {exception.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string Money(decimal value) => value.ToString("C2");
+}

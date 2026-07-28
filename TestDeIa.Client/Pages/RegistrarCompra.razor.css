@@ -1,0 +1,195 @@
+.compras-page .table-card {
+    overflow: visible;
+}
+
+.compras-header-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.file-upload-action {
+    position: relative;
+    cursor: pointer;
+}
+
+.file-upload-action.is-disabled {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.hidden-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.compra-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.compact-totals-grid {
+    margin-top: 1rem;
+}
+
+.compra-workflow-modal {
+    width: min(100%, 1080px);
+    max-width: 1080px;
+}
+
+.invoice-analysis-modal {
+    width: min(100%, 1080px);
+    max-width: 1080px;
+}
+
+.invoice-analysis-grid {
+    margin: 1rem 0;
+}
+
+.workflow-header {
+    margin-bottom: 1.25rem;
+}
+
+.workflow-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.workflow-step {
+    border: 1px solid rgba(18, 74, 117, 0.12);
+    background: linear-gradient(180deg, #f8fcff, #edf5fb);
+    border-radius: 1rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+    color: var(--brand-blue);
+}
+
+.workflow-step.is-active {
+    border-color: rgba(31, 150, 145, 0.38);
+    background: linear-gradient(180deg, #eefaf7, #dff4ee);
+}
+
+.workflow-step.is-done {
+    border-color: rgba(76, 146, 211, 0.26);
+    background: linear-gradient(180deg, #f2f9ff, #e4f0fb);
+}
+
+.workflow-step-index {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(18, 74, 117, 0.08);
+    font-weight: 800;
+}
+
+.workflow-step.is-active .workflow-step-index {
+    background: rgba(31, 150, 145, 0.16);
+}
+
+.workflow-step-text {
+    font-weight: 800;
+}
+
+.workflow-carousel {
+    min-height: 24rem;
+}
+
+.workflow-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.workflow-table-scroll {
+    max-height: 24rem;
+    overflow: auto;
+}
+
+.workflow-actions {
+    margin-top: 1.2rem;
+}
+
+.compras-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.compact-message {
+    margin-bottom: 1rem;
+}
+
+.projected-pill {
+    background: linear-gradient(180deg, #ecfaf7, #def5ef);
+    color: #1d665f;
+}
+
+.totals-grid {
+    margin-top: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.85rem;
+}
+
+.totals-box {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.95rem 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(73, 194, 211, 0.2);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(236, 247, 252, 0.9));
+    color: #1b4b6d;
+}
+
+.totals-box span {
+    font-size: 0.82rem;
+    color: #53718c;
+}
+
+.totals-box strong {
+    font-size: 1.15rem;
+}
+
+.totals-box-accent {
+    border-color: rgba(31, 150, 145, 0.32);
+    background: linear-gradient(180deg, rgba(216, 247, 245, 0.95), rgba(236, 247, 252, 0.94));
+}
+
+.success-message {
+    margin-bottom: 1rem;
+    padding: 0.95rem 1.1rem;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(216, 247, 245, 0.92), rgba(236, 247, 252, 0.92));
+    border: 1px solid rgba(31, 150, 145, 0.22);
+    color: #1f6966;
+    font-weight: 600;
+}
+
+@media (max-width: 1080px) {
+    .compra-summary-grid,
+    .workflow-stepper {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 860px) {
+    .compras-toolbar,
+    .compra-summary-grid,
+    .workflow-stepper {
+        grid-template-columns: 1fr;
+    }
+
+    .compras-header-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

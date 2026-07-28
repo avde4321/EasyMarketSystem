@@ -1,0 +1,141 @@
+@using TestDeIa.Shared.Security
+@using TestDeIa.Shared.Responses.Security
+
+@if (User is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card detail-modal-card">
+            <header class="modal-header">
+                <div>
+                    <h2>Detalle de acceso</h2>
+                    <p class="detail-subtitle">@User.DisplayName | @User.UserName</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="OnClose" aria-label="Cerrar modal">x</button>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <div class="alert-message compact-alert">@ErrorMessage</div>
+            }
+
+            <div class="detail-top-grid">
+                <article class="detail-summary-card">
+                    <span class="summary-label">Rol principal</span>
+                    <strong>@User.RolPrincipal</strong>
+                    <small>@User.PersonaNombre</small>
+                </article>
+
+                <article class="detail-summary-card">
+                    <span class="summary-label">Estado</span>
+                    <strong>@User.Estado</strong>
+                    <small>@(User.UltimoAcceso?.LocalDateTime.ToString("dd/MM/yyyy HH:mm") ?? "Sin acceso registrado")</small>
+                </article>
+
+                <article class="detail-summary-card">
+                    <span class="summary-label">Permisos activos</span>
+                    <strong>@User.Permissions.Count</strong>
+                    <small>@string.Join(", ", User.Permissions.Take(3))@(User.Permissions.Count > 3 ? "..." : string.Empty)</small>
+                </article>
+            </div>
+
+            <section class="role-panel">
+                <header class="role-panel-header">
+                    <div>
+                        <h3>Roles y accesos</h3>
+                        <p>Los permisos se heredan automaticamente desde los roles activos.</p>
+                    </div>
+                </header>
+
+                <div class="role-switch-grid">
+                    @foreach (var role in Roles)
+                    {
+                        <label class="role-switch-card">
+                            <span class="role-switch-content">
+                                <strong>@role.Name</strong>
+                                <small>@string.Join(", ", role.Permissions.Take(4))@(role.Permissions.Count > 4 ? "..." : string.Empty)</small>
+                            </span>
+                            <span class="role-switch">
+                                <input type="checkbox"
+                                       checked="@SelectedRoles.Contains(role.Name)"
+                                       @onchange="() => OnToggleRole.InvokeAsync(role.Name)" />
+                                <span class="role-slider"></span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+
+            <section class="permission-preview">
+                <h3>Permisos efectivos</h3>
+                <div class="permission-chip-grid">
+                    @foreach (var permission in SelectedPermissions)
+                    {
+                        <span class="permission-chip">@permission</span>
+                    }
+                </div>
+            </section>
+
+            <footer class="modal-actions detail-actions">
+                <div class="detail-state-actions">
+                    @if (User.Estado == SecurityUserEstados.Bloqueado)
+                    {
+                        <button class="secondary-action" type="button" @onclick="() => OnChangeEstado.InvokeAsync(SecurityUserEstados.Activo)">Desbloquear cuenta</button>
+                    }
+                    else
+                    {
+                        <button class="danger-button" type="button" @onclick="() => OnChangeEstado.InvokeAsync(SecurityUserEstados.Bloqueado)">Bloquear cuenta</button>
+                    }
+
+                    @if (User.Estado == SecurityUserEstados.Inactivo)
+                    {
+                        <button class="secondary-action" type="button" @onclick="() => OnChangeEstado.InvokeAsync(SecurityUserEstados.Activo)">Activar</button>
+                    }
+                    else
+                    {
+                        <button class="ghost-button" type="button" @onclick="() => OnChangeEstado.InvokeAsync(SecurityUserEstados.Inactivo)">Inactivar</button>
+                    }
+                </div>
+
+                <div class="detail-primary-actions">
+                    <button class="secondary-action" type="button" @onclick="OnClose">Cerrar</button>
+                    <button class="primary-action" type="button" @onclick="OnSave" disabled="@IsSaving">
+                        @(IsSaving ? "Guardando..." : "Guardar perfil")
+                    </button>
+                </div>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public SecurityUserResponse? User { get; set; }
+
+    [Parameter]
+    public IReadOnlyCollection<SecurityRoleResponse> Roles { get; set; } = Array.Empty<SecurityRoleResponse>();
+
+    [Parameter]
+    public IReadOnlyCollection<string> SelectedRoles { get; set; } = Array.Empty<string>();
+
+    [Parameter]
+    public IReadOnlyCollection<string> SelectedPermissions { get; set; } = Array.Empty<string>();
+
+    [Parameter]
+    public bool IsSaving { get; set; }
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnToggleRole { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnChangeEstado { get; set; }
+}
+

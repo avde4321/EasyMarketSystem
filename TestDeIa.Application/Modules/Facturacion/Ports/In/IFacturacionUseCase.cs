@@ -1,15 +1,20 @@
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Application.Modules.Facturacion.Ports.In;
 
 public interface IFacturacionUseCase
 {
-    Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default);
 
     Task<FacturaEmissionResponse> EmitirFacturaAsync(EmitirFacturaRequest request, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync(CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 }

@@ -4,6 +4,8 @@ namespace TestDeIa.Shared.Requests.Inventario;
 
 public sealed class AjusteStockRequest
 {
+    public Guid? BodegaId { get; set; }
+
     [Required(ErrorMessage = "El tipo de movimiento es obligatorio.")]
     public string TipoMovimiento { get; set; } = "Entrada";
 

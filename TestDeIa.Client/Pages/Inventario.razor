@@ -1,5 +1,5 @@
 @page "/inventario"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
 
 <PageTitle>Inventario</PageTitle>
 
@@ -7,9 +7,16 @@
     <header class="module-header">
         <div>
             <h1>Inventario</h1>
-            <p>Catalogo, alertas de stock minimo, Kardex y ajustes manuales.</p>
+            <p>Control multi-bodega, alertas por ubicacion, Kardex filtrable y movimientos operativos.</p>
         </div>
-        <button class="primary-action" @onclick="OpenProductModal">Crear producto</button>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <div class="header-actions">
+                    <button class="secondary-action" @onclick="OpenTomaFisicaModal">Toma fisica</button>
+                    <button class="primary-action" @onclick="OpenProductModal">Crear producto</button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -18,54 +25,105 @@
     }
 
     <section class="table-card">
+        <div class="inventory-context-bar">
+            <div class="context-field">
+                <label>Bodega operativa</label>
+                <InputSelect class="form-control" @bind-Value="selectedBodegaIdString" @bind-Value:after="OnBodegaChangedAsync">
+                    @foreach (var bodega in activeBodegas)
+                    {
+                        <option value="@bodega.Id.ToString()">@BuildBodegaLabel(bodega)</option>
+                    }
+                </InputSelect>
+            </div>
+
+            @if (selectedBodega is not null)
+            {
+                <div class="context-summary">
+                    <span class="status-pill context-pill">Stock visible: @selectedBodega.Nombre</span>
+                    @if (!string.IsNullOrWhiteSpace(selectedBodega.Direccion))
+                    {
+                        <small>@selectedBodega.Direccion</small>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por codigo, producto, descripcion o IVA..." />
+            <button class="secondary-action" type="button" @onclick="SearchProductsAsync">Buscar</button>
+        </div>
+
         @if (isLoading)
         {
             <p><em>Cargando productos...</em></p>
         }
-        else if (productos.Count == 0)
+        else if (totalCount == 0)
         {
-            <div class="empty-state">No hay productos registrados.</div>
+            <div class="empty-state">No hay productos registrados en la empresa activa.</div>
+        }
+        else if (!VisibleProductos.Any())
+        {
+            <div class="empty-state">No hay resultados para la busqueda actual.</div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Codigo</th>
-                        <th>Producto</th>
-                        <th>IVA</th>
-                        <th>PVP</th>
-                        <th>Stock</th>
-                        <th>Minimo</th>
-                        <th>Costo prom.</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var producto in productos)
-                    {
-                        <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
-                            <td>@producto.Codigo</td>
-                            <td>
-                                <strong>@producto.Nombre</strong>
-                                <small>@producto.Descripcion</small>
-                            </td>
-                            <td>@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
-                            <td>@producto.PrecioVenta.ToString("0.00")</td>
-                            <td>@producto.StockActual.ToString("0.####")</td>
-                            <td>@producto.StockMinimo.ToString("0.####")</td>
-                            <td>@producto.CostoPromedio.ToString("0.######")</td>
-                            <td><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
-                            <td class="row-actions">
-                                <button class="ghost-button" @onclick="() => OpenEditProductModal(producto)">Editar</button>
-                                <button class="ghost-button" @onclick="() => LoadKardexAsync(producto)">Kardex</button>
-                                <button class="primary-soft-button" @onclick="() => OpenAdjustmentModal(producto)">Ajustar</button>
-                            </td>
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Producto</th>
+                            <th>Tipo</th>
+                            <th>IVA</th>
+                            <th>PVP</th>
+                            <th>Stock bodega</th>
+                            <th>Minimo</th>
+                            <th>Costo prom.</th>
+                            <th>Estado</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var producto in VisibleProductos)
+                        {
+                            <tr class="@(producto.TieneAlertaStockMinimo ? "stock-alert" : string.Empty)">
+                                <td data-label="Codigo">@producto.Codigo</td>
+                                <td data-label="Producto">
+                                    <strong>@producto.Nombre</strong>
+                                    <small>@producto.Descripcion</small>
+                                </td>
+                                <td data-label="Tipo">
+                                    <span class="status-pill @(producto.ControlaStock ? string.Empty : "status-servicio")">
+                                        @(producto.ControlaStock ? "Inventariable" : "Servicio")
+                                    </span>
+                                </td>
+                                <td data-label="IVA">@producto.CodigoIva (@producto.PorcentajeIva.ToString("0.##")%)</td>
+                                <td data-label="PVP">@producto.PrecioVenta.ToString("0.00")</td>
+                                <td data-label="Stock bodega">@(producto.ControlaStock ? producto.StockActual.ToString("0.####") : "No aplica")</td>
+                                <td data-label="Minimo">@(producto.ControlaStock ? (producto.StockMinimo?.ToString("0.####") ?? "0") : "No aplica")</td>
+                                <td data-label="Costo prom.">@(producto.ControlaStock ? producto.CostoPromedio.ToString("0.######") : "No aplica")</td>
+                                <td data-label="Estado"><span class="status-pill">@((producto.IsActive ? "Activo" : "Inactivo"))</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" @onclick="() => OpenEditProductModal(producto)">Editar</button>
+                                    <button class="ghost-button" @onclick="() => LoadKardexAsync(producto)" disabled="@(!producto.ControlaStock)">Kardex</button>
+                                    <button class="primary-soft-button" @onclick="() => OpenAdjustmentModal(producto)" disabled="@(!producto.ControlaStock)">Ajustar</button>
+                                    <button class="secondary-action inline-action" @onclick="() => OpenMermaModal(producto)" disabled="@(!producto.ControlaStock)">Merma</button>
+                                    <button class="secondary-action inline-action" @onclick="() => OpenTransferModal(producto)" disabled="@(!producto.ControlaStock || activeBodegas.Count < 2)">Transferir</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <span class="table-count">Mostrando @productos.Count de @totalCount productos</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </div>
         }
     </section>
 
@@ -75,43 +133,77 @@
             <header class="section-header">
                 <div>
                     <h2>Kardex: @selectedProduct.Nombre</h2>
-                    <p>Entradas, salidas y saldos del producto seleccionado.</p>
+                    <p>Movimientos por ubicacion fisica del producto seleccionado.</p>
                 </div>
             </header>
 
-            @if (kardex.Count == 0)
+            @if (!selectedProduct.ControlaStock)
             {
-                <div class="empty-state">Este producto aun no tiene movimientos.</div>
+                <div class="empty-state">Este item no controla stock, por lo que no genera Kardex.</div>
             }
             else
             {
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Concepto</th>
-                            <th>Entrada</th>
-                            <th>Salida</th>
-                            <th>Saldo</th>
-                            <th>Costo prom.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var movimiento in kardex)
+                <div class="table-toolbar kardex-toolbar">
+                    <InputText class="form-control search-control" @bind-Value="kardexSearchTerm" placeholder="Buscar por tipo, concepto, referencia o bodega..." />
+                    <InputSelect class="form-control compact-select" @bind-Value="selectedKardexBodegaIdString" @bind-Value:after="OnKardexBodegaChangedAsync">
+                        <option value="">Global - Todas las bodegas</option>
+                        @foreach (var bodega in activeBodegas)
                         {
-                            <tr>
-                                <td>@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
-                                <td>@movimiento.TipoMovimiento</td>
-                                <td>@movimiento.Concepto</td>
-                                <td>@movimiento.CantidadEntrada.ToString("0.####")</td>
-                                <td>@movimiento.CantidadSalida.ToString("0.####")</td>
-                                <td>@movimiento.SaldoCantidad.ToString("0.####")</td>
-                                <td>@movimiento.CostoPromedio.ToString("0.######")</td>
-                            </tr>
+                            <option value="@bodega.Id.ToString()">@BuildBodegaLabel(bodega)</option>
                         }
-                    </tbody>
-                </table>
+                    </InputSelect>
+                </div>
+
+                @if (isKardexLoading)
+                {
+                    <p><em>Cargando movimientos...</em></p>
+                }
+                else if (kardex.Count == 0)
+                {
+                    <div class="empty-state">Este producto aun no tiene movimientos para el filtro actual.</div>
+                }
+                else if (!FilteredKardex.Any())
+                {
+                    <div class="empty-state">No hay movimientos que coincidan con la busqueda.</div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Bodega</th>
+                                    <th>Tipo</th>
+                                    <th>Factura/Comprobante</th>
+                                    <th>Concepto</th>
+                                    <th>Entrada</th>
+                                    <th>Salida</th>
+                                    <th>Saldo</th>
+                                    <th>Costo prom.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var movimiento in FilteredKardex)
+                                {
+                                    <tr>
+                                        <td data-label="Fecha">@movimiento.FechaMovimiento.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td data-label="Bodega">@movimiento.BodegaNombre</td>
+                                        <td data-label="Tipo">@movimiento.TipoMovimiento</td>
+                                        <td data-label="Factura/Comprobante">
+                                            <strong>@GetKardexDocumento(movimiento)</strong>
+                                        </td>
+                                        <td data-label="Concepto">@movimiento.Concepto</td>
+                                        <td data-label="Entrada">@movimiento.CantidadEntrada.ToString("0.####")</td>
+                                        <td data-label="Salida">@movimiento.CantidadSalida.ToString("0.####")</td>
+                                        <td data-label="Saldo">@movimiento.SaldoCantidad.ToString("0.####")</td>
+                                        <td data-label="Costo prom.">@movimiento.CostoPromedio.ToString("0.######")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             }
         </section>
     }
@@ -123,7 +215,7 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>@(editingProductId.HasValue ? "Actualizar producto" : "Crear producto")</h2>
-                <button class="icon-button" @onclick="CloseProductModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseProductModal" aria-label="Cerrar modal">x</button>
             </header>
 
             <EditForm Model="productoRequest" OnValidSubmit="SaveProductAsync">
@@ -155,30 +247,51 @@
                         <label>PVP</label>
                         <InputNumber class="form-control" @bind-Value="productoRequest.PrecioVenta" />
                     </div>
-                    <div class="form-field">
-                        <label>Stock minimo</label>
-                        <InputNumber class="form-control" @bind-Value="productoRequest.StockMinimo" />
+                    <div class="form-field full">
+                        <label class="form-check soft-check inline-check">
+                            <InputCheckbox class="form-check-input"
+                                           Value="productoRequest.ControlaStock"
+                                           ValueChanged="OnControlaStockChanged"
+                                           ValueExpression="@(() => productoRequest.ControlaStock)" />
+                            <span class="form-check-label">Es bien inventariable (si lo desmarcas se tratara como servicio)</span>
+                        </label>
                     </div>
-                    @if (!editingProductId.HasValue)
+                    @if (productoRequest.ControlaStock)
                     {
                         <div class="form-field">
-                            <label>Stock inicial</label>
-                            <InputNumber class="form-control" @bind-Value="productoRequest.StockInicial" />
+                            <label>Stock minimo</label>
+                            <InputNumber class="form-control" @bind-Value="productoRequest.StockMinimo" />
                         </div>
-                        <div class="form-field">
-                            <label>Costo inicial</label>
-                            <InputNumber class="form-control" @bind-Value="productoRequest.CostoInicial" />
-                        </div>
+
+                        @if (!editingProductId.HasValue)
+                        {
+                            <div class="form-field">
+                                <label>Stock inicial</label>
+                                <InputNumber class="form-control" @bind-Value="productoRequest.StockInicial" />
+                            </div>
+                            <div class="form-field">
+                                <label>Costo inicial</label>
+                                <InputNumber class="form-control" @bind-Value="productoRequest.CostoInicial" />
+                            </div>
+                        }
+                        else if (editingProductSnapshot is not null)
+                        {
+                            <div class="form-field">
+                                <label>Stock visible</label>
+                                <input class="form-control" value="@editingProductSnapshot.StockActual.ToString("0.####")" disabled />
+                            </div>
+                            <div class="form-field">
+                                <label>Costo promedio actual</label>
+                                <input class="form-control" value="@editingProductSnapshot.CostoPromedio.ToString("0.######")" disabled />
+                            </div>
+                        }
                     }
-                    else if (editingProductSnapshot is not null)
+                    else
                     {
-                        <div class="form-field">
-                            <label>Stock actual</label>
-                            <input class="form-control" value="@editingProductSnapshot.StockActual.ToString("0.####")" disabled />
-                        </div>
-                        <div class="form-field">
-                            <label>Costo promedio actual</label>
-                            <input class="form-control" value="@editingProductSnapshot.CostoPromedio.ToString("0.######")" disabled />
+                        <div class="form-field full">
+                            <div class="soft-info-message compact-message">
+                                Este item se tratara como servicio o intangible. No validara stock ni generara Kardex.
+                            </div>
                         </div>
                     }
                 </div>
@@ -187,7 +300,7 @@
                     <span class="form-check-label">Producto activo</span>
                 </label>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseProductModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseProductModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar")
                     </button>
@@ -203,10 +316,10 @@
         <section class="modal-card narrow">
             <header class="modal-header">
                 <h2>Ajuste de stock</h2>
-                <button class="icon-button" @onclick="CloseAdjustmentModal">x</button>
+                <button class="icon-button" type="button" @onclick="CloseAdjustmentModal" aria-label="Cerrar modal">x</button>
             </header>
             <p class="modal-subtitle">@selectedAdjustmentProduct.Nombre</p>
-            <p class="modal-subtitle">Stock actual: @selectedAdjustmentProduct.StockActual.ToString("0.####") | Costo promedio: @selectedAdjustmentProduct.CostoPromedio.ToString("0.######")</p>
+            <p class="modal-subtitle">Bodega origen: @selectedBodega?.Nombre | Stock visible: @selectedAdjustmentProduct.StockActual.ToString("0.####")</p>
 
             <EditForm Model="ajusteRequest" OnValidSubmit="SaveAdjustmentAsync">
                 <DataAnnotationsValidator />
@@ -236,7 +349,7 @@
                     </div>
                 </div>
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseAdjustmentModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseAdjustmentModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Aplicando..." : "Aplicar ajuste")
                     </button>
@@ -245,3 +358,156 @@
         </section>
     </div>
 }
+
+@if (isMermaModalOpen && selectedMermaProduct is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow">
+            <header class="modal-header">
+                <h2>Registrar merma o dano</h2>
+                <button class="icon-button" type="button" @onclick="CloseMermaModal" aria-label="Cerrar modal">x</button>
+            </header>
+            <p class="modal-subtitle">@selectedMermaProduct.Nombre</p>
+            <p class="modal-subtitle">Bodega origen: @selectedBodega?.Nombre | Stock actual: @selectedMermaProduct.StockActual.ToString("0.####")</p>
+
+            <EditForm Model="mermaRequest" OnValidSubmit="SaveMermaAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid single">
+                    <div class="form-field">
+                        <label>Motivo</label>
+                        <InputText class="form-control" @bind-Value="mermaRequest.Motivo" />
+                    </div>
+                    <div class="form-field">
+                        <label>Referencia</label>
+                        <InputText class="form-control" @bind-Value="mermaRequest.Referencia" />
+                    </div>
+                    <div class="form-field">
+                        <label>Cantidad</label>
+                        <InputNumber class="form-control" @bind-Value="mermaRequest.Cantidad" />
+                        @if (!CanSubmitMerma)
+                        {
+                            <small class="field-hint danger-hint">La cantidad no puede dejar el stock de la bodega en negativo.</small>
+                        }
+                    </div>
+                </div>
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseMermaModal">Cerrar</button>
+                    <button class="primary-action" type="submit" disabled="@(!CanSubmitMerma || isSaving)">
+                        @(isSaving ? "Registrando..." : "Registrar merma")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isTransferModalOpen && selectedTransferProduct is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow">
+            <header class="modal-header">
+                <h2>Transferencia entre bodegas</h2>
+                <button class="icon-button" type="button" @onclick="CloseTransferModal" aria-label="Cerrar modal">x</button>
+            </header>
+            <p class="modal-subtitle">@selectedTransferProduct.Nombre</p>
+            <p class="modal-subtitle">Origen: @selectedBodega?.Nombre | Stock disponible: @selectedTransferProduct.StockActual.ToString("0.####")</p>
+
+            <EditForm Model="transferenciaRequest" OnValidSubmit="SaveTransferAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid single">
+                    <div class="form-field">
+                        <label>Bodega destino</label>
+                        <InputSelect class="form-control" @bind-Value="transferenciaDestinoIdString">
+                            <option value="">Seleccione...</option>
+                            @foreach (var bodega in destinationBodegas)
+                            {
+                                <option value="@bodega.Id.ToString()">@BuildBodegaLabel(bodega)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Referencia</label>
+                        <InputText class="form-control" @bind-Value="transferenciaRequest.Referencia" />
+                    </div>
+                    <div class="form-field">
+                        <label>Cantidad</label>
+                        <InputNumber class="form-control" @bind-Value="transferenciaRequest.Cantidad" />
+                        @if (!CanSubmitTransfer)
+                        {
+                            <small class="field-hint danger-hint">Valida destino y cantidad para no dejar stock negativo.</small>
+                        }
+                    </div>
+                </div>
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseTransferModal">Cerrar</button>
+                    <button class="primary-action" type="submit" disabled="@(!CanSubmitTransfer || isSaving)">
+                        @(isSaving ? "Transfiriendo..." : "Transferir")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isTomaFisicaModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Toma fisica por bodega</h2>
+                <button class="icon-button" type="button" @onclick="CloseTomaFisicaModal" aria-label="Cerrar modal">x</button>
+            </header>
+            <p class="modal-subtitle">Bodega: @selectedBodega?.Nombre. Ajusta las cantidades contadas y el sistema conciliara automaticamente el Kardex.</p>
+
+            <EditForm Model="tomaFisicaRequest" OnValidSubmit="SaveTomaFisicaAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid single">
+                    <div class="form-field">
+                        <label>Concepto</label>
+                        <InputText class="form-control" @bind-Value="tomaFisicaRequest.Concepto" />
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Producto</th>
+                                <th>Stock sistema</th>
+                                <th>Contado</th>
+                                <th>Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in tomaFisicaRows)
+                            {
+                                <tr>
+                                    <td data-label="Codigo">@row.Codigo</td>
+                                    <td data-label="Producto">@row.Nombre</td>
+                                    <td data-label="Stock sistema">@row.StockSistema.ToString("0.####")</td>
+                                    <td data-label="Contado">
+                                        <InputNumber class="form-control compact-input" @bind-Value="row.CantidadContada" />
+                                    </td>
+                                    <td data-label="Diferencia">
+                                        <span class="status-pill @(row.Diferencia == 0 ? string.Empty : (row.Diferencia > 0 ? "is-active" : "status-servicio"))">
+                                            @row.Diferencia.ToString("0.####")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseTomaFisicaModal">Cerrar</button>
+                    <button class="primary-action" type="submit" disabled="@(!CanSubmitTomaFisica || isSaving)">
+                        @(isSaving ? "Conciliando..." : "Aplicar toma fisica")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+

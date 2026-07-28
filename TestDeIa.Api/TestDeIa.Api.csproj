@@ -14,12 +14,23 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="ReportViewerCore.NETCore" Version="15.1.33" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TestDeIa.Application\TestDeIa.Application.csproj" />
     <ProjectReference Include="..\TestDeIa.Infrastructure\TestDeIa.Infrastructure.csproj" />
     <ProjectReference Include="..\TestDeIa.Shared\TestDeIa.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Reporting\Templates\FacturaRide.rdlc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Reporting\Templates\SriFacturaBanner.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,8 @@ public sealed class DescontarStockFacturaRequest
     [Required]
     public string ReferenciaFactura { get; set; } = string.Empty;
 
+    public Guid? BodegaId { get; set; }
+
     [Required]
     public IReadOnlyCollection<DescontarStockFacturaItemRequest> Items { get; set; } = [];
 }

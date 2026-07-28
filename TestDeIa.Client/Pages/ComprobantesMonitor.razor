@@ -1,5 +1,5 @@
 @page "/facturacion/monitor"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
 @implements IAsyncDisposable
 
 <PageTitle>Monitor de Comprobantes</PageTitle>
@@ -10,7 +10,7 @@
             <h1>Monitor de Comprobantes</h1>
             <p>Seguimiento en tiempo real del estado de facturas ante el SRI.</p>
         </div>
-        <button class="secondary-action" @onclick="LoadMonitorAsync">Actualizar</button>
+        <button class="secondary-action" @onclick="() => LoadMonitorAsync()">Actualizar</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -19,6 +19,16 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por numero, cliente, identificacion, pago o estado..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+            <button class="ghost-button" type="button" @onclick="() => LoadMonitorAsync()">Refrescar lista</button>
+        </div>
+        <div class="monitor-summary">
+            <span class="summary-chip">Total: @totalCount</span>
+            <span class="summary-chip summary-pending">Pendientes: @facturas.Count(factura => factura.Estado.Equals("Pendiente", StringComparison.OrdinalIgnoreCase))</span>
+            <span class="summary-chip summary-success">Autorizadas: @facturas.Count(factura => factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase))</span>
+        </div>
         @if (isLoading)
         {
             <p><em>Cargando comprobantes...</em></p>
@@ -29,42 +39,73 @@
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Numero</th>
-                        <th>Cliente</th>
-                        <th>Pago</th>
-                        <th>Estado</th>
-                        <th>Total</th>
-                        <th>Emision</th>
-                        <th>Autorizacion</th>
-                        <th>Mensaje</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var factura in facturas)
-                    {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
                         <tr>
-                            <td>@factura.NumeroComprobante</td>
-                            <td>
-                                <strong>@factura.ClienteNombre</strong>
-                                <small>@factura.ClienteTipoIdentificacion</small>
-                                <small>@factura.ClienteIdentificacion</small>
-                            </td>
-                            <td>@factura.FormaPago</td>
-                            <td><span class="status-pill status-@factura.Estado.ToLowerInvariant()">@factura.Estado</span></td>
-                            <td>
-                                <strong>@factura.Total.ToString("0.00")</strong>
-                                <small>Sub: @factura.Subtotal.ToString("0.00") | IVA: @factura.IvaTotal.ToString("0.00")</small>
-                            </td>
-                            <td>@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                            <td>@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
-                            <td>@factura.MensajeEstado</td>
+                            <th>Numero</th>
+                            <th>Cliente</th>
+                            <th>Pago</th>
+                            <th>Estado</th>
+                            <th>Total</th>
+                            <th>Emision</th>
+                            <th>Autorizacion</th>
+                            <th>Mensaje</th>
+                            <th>Documentos</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var factura in VisibleFacturas)
+                        {
+                            <tr>
+                                <td data-label="Numero">@factura.NumeroComprobante</td>
+                                <td data-label="Cliente">
+                                    <strong>@factura.ClienteNombre</strong>
+                                    <small>@factura.ClienteTipoIdentificacion</small>
+                                    <small>@factura.ClienteIdentificacion</small>
+                                </td>
+                                <td data-label="Pago">@factura.FormaPago</td>
+                                <td data-label="Estado"><span class="status-pill status-@factura.Estado.ToLowerInvariant()">@factura.Estado</span></td>
+                                <td data-label="Total">
+                                    <strong>@factura.Total.ToString("0.00")</strong>
+                                    <small>Sub: @factura.Subtotal.ToString("0.00") | IVA: @factura.IvaTotal.ToString("0.00")</small>
+                                </td>
+                                <td data-label="Emision">@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td data-label="Autorizacion">@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                                <td data-label="Mensaje">@factura.MensajeEstado</td>
+                                <td data-label="Documentos">
+                                    <div class="table-actions">
+                                        <button class="table-action"
+                                                @onclick="() => DownloadXmlGeneradoAsync(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            @GetXmlGeneradoLabel(factura.Id)
+                                        </button>
+                                        <button class="table-action"
+                                                @onclick="() => DownloadXmlFirmadoAsync(factura)"
+                                                disabled="@(!factura.TieneXmlFirmado || IsBusyFor(factura.Id))">
+                                            @GetXmlFirmadoLabel(factura.Id)
+                                        </button>
+                                        <button class="table-action primary"
+                                                @onclick="() => DownloadRideAsync(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            @GetRideLabel(factura.Id)
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="table-footer">
+                <span class="table-count">@totalCount comprobante(s) encontrados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
         }
     </section>
 </section>

@@ -18,16 +18,24 @@ public sealed class PersonasController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        var personas = await personaUseCase.GetAllAsync(cancellationToken);
-        return Ok(personas);
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        return Ok(await personaUseCase.GetPagedAsync(term, skip, take, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var persona = await personaUseCase.GetByIdAsync(id, cancellationToken);
+        return persona is null ? NotFound() : Ok(persona);
+    }
+
+    [HttpGet("buscar")]
+    public async Task<IActionResult> FindByIdentificacion([FromQuery] string identificacion, CancellationToken cancellationToken)
+    {
+        var persona = await personaUseCase.FindByIdentificacionAsync(identificacion, cancellationToken);
         return persona is null ? NotFound() : Ok(persona);
     }
 

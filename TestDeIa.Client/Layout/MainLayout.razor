@@ -1,6 +1,19 @@
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using TestDeIa.Shared.Security
+@using TestDeIa.Shared.Sri
 @inherits LayoutComponentBase
+@inject TestDeIa.Client.Services.Empresa.EmpresaApiClient EmpresaApiClient
+@inject TestDeIa.Client.Services.Empresa.EmpresaSessionService EmpresaSessionService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
 
-<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty) @(isMobileSidebarOpen ? "mobile-sidebar-open" : string.Empty)">
+    @if (isMobileSidebarOpen)
+    {
+        <button class="sidebar-backdrop" type="button" @onclick="CloseMobileSidebar" aria-label="Cerrar menu lateral"></button>
+    }
+
     <aside class="sidebar">
         <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" />
     </aside>
@@ -8,13 +21,47 @@
     <main>
         <header class="top-row">
             <div class="top-brand">
+                <button class="mobile-menu-button" type="button" @onclick="ToggleMobileSidebar" aria-label="Abrir menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
                 <img class="top-brand-image" src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
                 <div class="top-brand-copy">
                     <span class="top-title">Plataforma operativa</span>
                     <small>Inventario, clientes y facturacion en una sola vista</small>
                 </div>
             </div>
-            <div class="top-accent">Ecuador SRI Ready</div>
+            <div class="top-actions">
+                @if (selectedEmpresa is not null)
+                {
+                    <div class="sri-environment-badge @GetAmbienteBadgeClass(selectedEmpresa.AmbienteSri)" title="Ambiente activo de emisión SRI">
+                        <span>Ambiente SRI</span>
+                        <strong>@GetAmbienteBadgeText(selectedEmpresa.AmbienteSri)</strong>
+                    </div>
+                }
+                <div class="user-context-card compact-user-card">
+                    <span class="summary-label">Usuario</span>
+                    <strong>@loggedInUserName</strong>
+                    <small>@loggedInIdentification</small>
+                </div>
+                <div class="company-switch">
+                    <label for="empresa-global">Empresa</label>
+                    <select id="empresa-global" class="company-select" @bind="selectedEmpresaId" @bind:after="OnEmpresaChangedAsync">
+                        @if (empresas.Count == 0)
+                        {
+                            <option value="">Sin empresas</option>
+                        }
+                        else
+                        {
+                            @foreach (var empresa in empresas)
+                            {
+                                <option value="@empresa.Id.ToString()">@($"{empresa.RazonSocial} - {empresa.Ruc}")</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
         </header>
 
         <article class="content">
@@ -25,9 +72,97 @@
 
 @code {
     private bool isSidebarCollapsed;
+    private bool isMobileSidebarOpen;
+    private string? selectedEmpresaId;
+    private string loggedInUserName = "Sesion activa";
+    private string loggedInIdentification = "Sin identificacion";
+    private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse> empresas = [];
+    private TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse? selectedEmpresa =>
+        Guid.TryParse(selectedEmpresaId, out var empresaId)
+            ? empresas.FirstOrDefault(current => current.Id == empresaId)
+            : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authenticationState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            loggedInUserName = user.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value
+                ?? user.FindFirst("unique_name")?.Value
+                ?? user.Identity?.Name
+                ?? "Sesion activa";
+            loggedInIdentification = user.FindFirst(SecurityClaimTypes.Identification)?.Value
+                ?? "Sin identificacion";
+
+            await LoadEmpresasAsync();
+        }
+    }
 
     private void ToggleSidebar()
     {
         isSidebarCollapsed = !isSidebarCollapsed;
+    }
+
+    private void ToggleMobileSidebar()
+    {
+        isMobileSidebarOpen = !isMobileSidebarOpen;
+    }
+
+    private void CloseMobileSidebar()
+    {
+        isMobileSidebarOpen = false;
+    }
+
+    private async Task LoadEmpresasAsync()
+    {
+        try
+        {
+            empresas.Clear();
+            empresas.AddRange(await EmpresaApiClient.GetMineAsync());
+            selectedEmpresaId = await EmpresaSessionService.GetEmpresaIdAsync();
+
+            if (string.IsNullOrWhiteSpace(selectedEmpresaId) && empresas.Count > 0)
+            {
+                selectedEmpresaId = empresas.First().Id.ToString();
+                await EmpresaSessionService.SetEmpresaIdAsync(empresas.First().Id);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            empresas.Clear();
+            selectedEmpresaId = null;
+            await EmpresaSessionService.ClearEmpresaIdAsync();
+        }
+    }
+
+    private async Task OnEmpresaChangedAsync()
+    {
+        if (Guid.TryParse(selectedEmpresaId, out var empresaId))
+        {
+            await EmpresaSessionService.SetEmpresaIdAsync(empresaId);
+        }
+        else
+        {
+            await EmpresaSessionService.ClearEmpresaIdAsync();
+        }
+
+        isMobileSidebarOpen = false;
+        NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+    }
+
+    private static string GetAmbienteBadgeText(string? ambienteSri)
+    {
+        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri) == "2"
+            ? "PRODUCCION"
+            : "PRUEBAS";
+    }
+
+    private static string GetAmbienteBadgeClass(string? ambienteSri)
+    {
+        return SriCatalogCodes.NormalizeAmbienteCode(ambienteSri) == "2"
+            ? "sri-production"
+            : "sri-testing";
     }
 }

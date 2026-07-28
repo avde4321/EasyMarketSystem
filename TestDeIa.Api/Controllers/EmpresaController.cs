@@ -21,15 +21,47 @@ public sealed class EmpresaController : ControllerBase
     public async Task<IActionResult> GetCurrent(CancellationToken cancellationToken)
     {
         var empresa = await empresaUseCase.GetCurrentAsync(cancellationToken);
-        return Ok(empresa);
+        return empresa is null ? NoContent() : Ok(empresa);
     }
 
-    [HttpPut("actual")]
-    public async Task<IActionResult> Upsert([FromBody] EmpresaRequest request, CancellationToken cancellationToken)
+    [HttpGet]
+    public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
+    {
+        return Ok(await empresaUseCase.GetMineAsync(cancellationToken));
+    }
+
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetPaged([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 25);
+        skip = Math.Max(0, skip);
+        return Ok(await empresaUseCase.GetPagedAsync(term, skip, take, cancellationToken));
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var empresa = await empresaUseCase.GetByIdAsync(id, cancellationToken);
+        return empresa is null ? NotFound() : Ok(empresa);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] EmpresaRequest request, CancellationToken cancellationToken)
+    {
+        return await SaveInternalAsync(null, request, cancellationToken);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] EmpresaRequest request, CancellationToken cancellationToken)
+    {
+        return await SaveInternalAsync(id, request, cancellationToken);
+    }
+
+    private async Task<IActionResult> SaveInternalAsync(Guid? id, EmpresaRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var empresa = await empresaUseCase.UpsertAsync(request, cancellationToken);
+            var empresa = await empresaUseCase.SaveAsync(id, request, cancellationToken);
             return Ok(empresa);
         }
         catch (InvalidOperationException exception)

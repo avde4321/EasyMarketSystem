@@ -1,0 +1,132 @@
+@page "/contabilidad/balance-general"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Client.Components
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+
+<PageTitle>Balance General</PageTitle>
+
+<section class="module-page financial-page">
+    <header class="module-header">
+        <div>
+            <h1>Balance General NIIF</h1>
+            <p>Situación financiera agrupada en Activo, Pasivo y Patrimonio.</p>
+        </div>
+        <button class="primary-action rounded-xl-button" type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="summary-grid">
+        <article class="summary-card"><span>Activo</span><strong>@balance.TotalActivo.ToString("N2")</strong></article>
+        <article class="summary-card"><span>Pasivo</span><strong>@balance.TotalPasivo.ToString("N2")</strong></article>
+        <article class="summary-card"><span>Patrimonio</span><strong>@balance.TotalPatrimonio.ToString("N2")</strong></article>
+        <article class="summary-card"><span>Diferencia ecuación</span><strong>@balance.DiferenciaEcuacion.ToString("N2")</strong></article>
+    </section>
+
+    <section class="table-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Ecuación contable</h2>
+                <p>Activo = Pasivo + Patrimonio. Total pasivo y patrimonio: @balance.TotalPasivoPatrimonio.ToString("N2").</p>
+            </div>
+        </header>
+
+        <div class="table-responsive">
+            <table class="data-table financial-tree-table">
+                <thead>
+                    <tr>
+                        <th>Cuenta NIIF</th>
+                        <th>Tipo</th>
+                        <th class="amount-cell">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="3" class="empty-state">Cargando balance general...</td></tr>
+                    }
+                    else
+                    {
+                        @RenderGroup("Activo", balance.Activos, balance.TotalActivo)
+                        @RenderGroup("Pasivo", balance.Pasivos, balance.TotalPasivo)
+                        @RenderGroup("Patrimonio", balance.Patrimonio, balance.TotalPatrimonio)
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+
+@code {
+    private readonly HashSet<string> expandedCodes = [];
+    private BalanceGeneralResponse balance = new();
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            balance = await ContabilidadApiClient.GetBalanceGeneralAsync();
+            ExpandRoots(balance.Activos);
+            ExpandRoots(balance.Pasivos);
+            ExpandRoots(balance.Patrimonio);
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar el balance general.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private RenderFragment RenderGroup(string title, IReadOnlyCollection<EstadoFinancieroCuentaResponse> cuentas, decimal total) => @<text>
+        <tr class="financial-group-title">
+            <td colspan="2">@title</td>
+            <td class="amount-cell">@total.ToString("N2")</td>
+        </tr>
+        @if (cuentas.Count == 0)
+        {
+            <tr><td colspan="3" class="empty-state">Sin cuentas para @title.ToLowerInvariant().</td></tr>
+        }
+        else
+        {
+            @foreach (var cuenta in cuentas)
+            {
+                <EstadoFinancieroCuentaRow Cuenta="cuenta" ExpandedCodes="expandedCodes" OnToggle="ToggleNode" />
+            }
+        }
+    </text>;
+
+    private void ToggleNode(string codigo)
+    {
+        if (!expandedCodes.Add(codigo))
+        {
+            expandedCodes.Remove(codigo);
+        }
+    }
+
+    private void ExpandRoots(IEnumerable<EstadoFinancieroCuentaResponse> cuentas)
+    {
+        foreach (var cuenta in cuentas)
+        {
+            expandedCodes.Add(cuenta.Codigo);
+        }
+    }
+}

@@ -1,0 +1,129 @@
+.plan-cuentas-page {
+    gap: 1.2rem;
+}
+
+.plan-cuentas-header {
+    align-items: center;
+}
+
+.plan-cuentas-card {
+    border-radius: 26px;
+}
+
+.plan-summary-pill {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 10rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #d9e8ef;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #fbfeff 0%, #eef7fb 100%);
+}
+
+.plan-summary-pill span {
+    color: #678298;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.plan-summary-pill strong {
+    color: #124a75;
+    font-size: 1.35rem;
+}
+
+.plan-tree-wrapper {
+    padding-top: 0.35rem;
+}
+
+.plan-tree-root,
+.plan-tree-children {
+    list-style: none;
+    margin: 0;
+    padding-left: 0;
+}
+
+.plan-tree-children {
+    margin-left: 1.25rem;
+    padding-left: 1rem;
+    border-left: 1px dashed #d6e5ee;
+}
+
+.plan-node {
+    margin-bottom: 0.8rem;
+}
+
+.plan-node-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #dfebf2;
+    border-radius: 18px;
+    background: #fbfdfe;
+}
+
+.plan-node-row.is-group {
+    background: linear-gradient(180deg, #f8fbfd 0%, #f1f7fa 100%);
+}
+
+.plan-node-row.is-group .plan-node-name {
+    font-weight: 800;
+}
+
+.plan-node-row.is-aceptable {
+    background: linear-gradient(180deg, #fffdf8 0%, #fef7ec 100%);
+    border-color: #f0dfbf;
+}
+
+.plan-node-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.plan-node-code {
+    color: #2c6a95;
+    font-weight: 800;
+}
+
+.plan-node-name {
+    color: #163f65;
+}
+
+.plan-node-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.plan-node-type {
+    color: #688398;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.plan-saldo-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    background: #e9f7ef;
+    color: #237054;
+    font-weight: 700;
+}
+
+@media (max-width: 860px) {
+    .plan-node-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .plan-node-meta {
+        justify-content: flex-start;
+    }
+}

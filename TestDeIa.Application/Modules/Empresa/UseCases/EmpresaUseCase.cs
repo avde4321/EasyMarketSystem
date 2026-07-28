@@ -1,18 +1,29 @@
+using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.In;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
+using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Empresa.Entities;
 using TestDeIa.Shared.Requests.Empresa;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Empresa;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Application.Modules.Empresa.UseCases;
 
 public sealed class EmpresaUseCase : IEmpresaUseCase
 {
     private readonly IEmpresaRepository empresaRepository;
+    private readonly ICatalogoRepository catalogoRepository;
+    private readonly ICurrentUserAccessor currentUserAccessor;
 
-    public EmpresaUseCase(IEmpresaRepository empresaRepository)
+    public EmpresaUseCase(
+        IEmpresaRepository empresaRepository,
+        ICatalogoRepository catalogoRepository,
+        ICurrentUserAccessor currentUserAccessor)
     {
         this.empresaRepository = empresaRepository;
+        this.catalogoRepository = catalogoRepository;
+        this.currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<EmpresaResponse?> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -21,22 +32,63 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         return empresa is null ? null : MapResponse(empresa);
     }
 
-    public async Task<EmpresaResponse> UpsertAsync(EmpresaRequest request, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<EmpresaOptionResponse>> GetMineAsync(CancellationToken cancellationToken = default)
     {
-        var current = await empresaRepository.GetCurrentAsync(cancellationToken);
-        ValidateRequest(request, current);
+        var empresas = await empresaRepository.GetMineAsync(cancellationToken);
+        return empresas.Select(MapOption).ToArray();
+    }
+
+    public async Task<PagedResultResponse<EmpresaResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var page = await empresaRepository.GetPagedAsync(term, skip, take, cancellationToken);
+        return new PagedResultResponse<EmpresaResponse>
+        {
+            Items = page.Items.Select(MapResponse).ToArray(),
+            TotalCount = page.TotalCount,
+            Skip = page.Skip,
+            Take = page.Take
+        };
+    }
+
+    public async Task<EmpresaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var empresa = await empresaRepository.GetByIdAsync(id, cancellationToken);
+        return empresa is null ? null : MapResponse(empresa);
+    }
+
+    public async Task<EmpresaResponse> SaveAsync(Guid? id, EmpresaRequest request, CancellationToken cancellationToken = default)
+    {
+        var current = id.HasValue
+            ? await empresaRepository.GetByIdAsync(id.Value, cancellationToken)
+            : null;
+
+        await ValidateRequestAsync(request, current, cancellationToken);
+
+        var ambienteSri = SriCatalogCodes.NormalizeAmbienteCode(request.AmbienteSri)
+            ?? throw new InvalidOperationException("El ambiente SRI no existe en el catalogo parametrizado.");
+        var tipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(request.TipoEmision)
+            ?? throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
+        var empresaId = current?.Id ?? Guid.NewGuid();
+        var puntosEmision = BuildPuntosEmision(request, empresaId);
+        var puntoDefault = puntosEmision.First(currentPunto => currentPunto.IsDefault);
+
         var empresa = new EmpresaEmisora(
-            current?.Id ?? Guid.NewGuid(),
+            empresaId,
+            current?.OwnerUserId ?? currentUserAccessor.GetRequiredUserId(),
             request.RazonSocial.Trim(),
             NormalizeOptional(request.NombreComercial),
             request.Ruc.Trim(),
             request.DireccionMatriz.Trim(),
-            NormalizeOptional(request.DireccionEstablecimiento),
-            request.Establecimiento.Trim(),
-            request.PuntoEmision.Trim(),
-            request.AmbienteSri.Trim(),
+            NormalizeOptional(request.RegionCodigo),
+            NormalizeOptional(request.ProvinciaCodigo),
+            NormalizeOptional(request.CiudadCodigo),
+            NormalizeOptional(request.SectorCodigo),
+            puntoDefault.DireccionEstablecimiento,
+            puntoDefault.Establecimiento,
+            puntoDefault.PuntoEmision,
+            ambienteSri,
             request.ModoDesarrollo,
-            request.TipoEmision.Trim(),
+            tipoEmision,
             request.ObligadoContabilidad,
             NormalizeOptional(request.ContribuyenteEspecial),
             NormalizeOptional(request.RegimenRimpe),
@@ -44,11 +96,12 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             ResolveCertificadoNombreArchivo(request, current),
             ResolveCertificadoContenido(request, current),
             NormalizeOptional(request.CertificadoClave),
+            puntosEmision,
             request.IsActive,
             current?.CreatedAt ?? DateTimeOffset.UtcNow,
             current is null ? null : DateTimeOffset.UtcNow);
 
-        return MapResponse(await empresaRepository.UpsertAsync(empresa, cancellationToken));
+        return MapResponse(await empresaRepository.SaveAsync(empresa, cancellationToken));
     }
 
     private static EmpresaResponse MapResponse(EmpresaEmisora empresa)
@@ -56,10 +109,15 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         return new EmpresaResponse
         {
             Id = empresa.Id,
+            OwnerUserId = empresa.OwnerUserId,
             RazonSocial = empresa.RazonSocial,
             NombreComercial = empresa.NombreComercial,
             Ruc = empresa.Ruc,
             DireccionMatriz = empresa.DireccionMatriz,
+            RegionCodigo = empresa.RegionCodigo,
+            ProvinciaCodigo = empresa.ProvinciaCodigo,
+            CiudadCodigo = empresa.CiudadCodigo,
+            SectorCodigo = empresa.SectorCodigo,
             DireccionEstablecimiento = empresa.DireccionEstablecimiento,
             Establecimiento = empresa.Establecimiento,
             PuntoEmision = empresa.PuntoEmision,
@@ -74,11 +132,39 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             TieneCertificadoConfigurado = empresa.CertificadoContenido is { Length: > 0 },
             IsActive = empresa.IsActive,
             CreatedAt = empresa.CreatedAt,
-            UpdatedAt = empresa.UpdatedAt
+            UpdatedAt = empresa.UpdatedAt,
+            PuntosEmision = empresa.PuntosEmision
+                .OrderByDescending(punto => punto.IsDefault)
+                .ThenBy(punto => punto.Establecimiento)
+                .ThenBy(punto => punto.PuntoEmision)
+                .Select(punto => new EmpresaPuntoEmisionResponse
+                {
+                    Id = punto.Id,
+                    BodegaId = punto.BodegaId ?? Guid.Empty,
+                    BodegaNombre = punto.BodegaNombre,
+                    DireccionEstablecimiento = punto.DireccionEstablecimiento,
+                    Establecimiento = punto.Establecimiento,
+                    PuntoEmision = punto.PuntoEmision,
+                    IsDefault = punto.IsDefault
+                })
+                .ToArray()
         };
     }
 
-    private static void ValidateRequest(EmpresaRequest request, EmpresaEmisora? current)
+    private static EmpresaOptionResponse MapOption(EmpresaEmisora empresa)
+    {
+        return new EmpresaOptionResponse
+        {
+            Id = empresa.Id,
+            RazonSocial = empresa.RazonSocial,
+            NombreComercial = empresa.NombreComercial,
+            Ruc = empresa.Ruc,
+            AmbienteSri = SriCatalogCodes.NormalizeAmbienteCode(empresa.AmbienteSri) ?? empresa.AmbienteSri,
+            IsActive = empresa.IsActive
+        };
+    }
+
+    private async Task ValidateRequestAsync(EmpresaRequest request, EmpresaEmisora? current, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.RazonSocial))
         {
@@ -95,31 +181,54 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             throw new InvalidOperationException("La direccion matriz es obligatoria.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Establecimiento) || request.Establecimiento.Trim().Length != 3 || !request.Establecimiento.Trim().All(char.IsDigit))
+        if (request.PuntosEmision.Count == 0)
         {
-            throw new InvalidOperationException("El establecimiento debe tener 3 digitos.");
+            throw new InvalidOperationException("Debes registrar al menos un punto de emision.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.PuntoEmision) || request.PuntoEmision.Trim().Length != 3 || !request.PuntoEmision.Trim().All(char.IsDigit))
+        if (request.PuntosEmision.Count(currentPunto => currentPunto.IsDefault) != 1)
         {
-            throw new InvalidOperationException("El punto de emision debe tener 3 digitos.");
+            throw new InvalidOperationException("Debes definir un unico punto de emision predeterminado.");
         }
 
-        if (!string.Equals(request.AmbienteSri, "Pruebas", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase))
+        var combinaciones = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var punto in request.PuntosEmision)
         {
-            throw new InvalidOperationException("El ambiente SRI debe ser Pruebas o Produccion.");
+            if (string.IsNullOrWhiteSpace(punto.Establecimiento) || punto.Establecimiento.Trim().Length != 3 || !punto.Establecimiento.Trim().All(char.IsDigit))
+            {
+                throw new InvalidOperationException("Cada establecimiento debe tener 3 digitos.");
+            }
+
+            if (string.IsNullOrWhiteSpace(punto.PuntoEmision) || punto.PuntoEmision.Trim().Length != 3 || !punto.PuntoEmision.Trim().All(char.IsDigit))
+            {
+                throw new InvalidOperationException("Cada punto de emision debe tener 3 digitos.");
+            }
+
+            var clave = $"{punto.Establecimiento.Trim()}-{punto.PuntoEmision.Trim()}";
+            if (!combinaciones.Add(clave))
+            {
+                throw new InvalidOperationException($"La combinacion {clave} esta repetida en los puntos de emision.");
+            }
+        }
+
+        var ambienteSri = SriCatalogCodes.NormalizeAmbienteCode(request.AmbienteSri);
+        if (ambienteSri is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("AMBIENTE_SRI", ambienteSri, cancellationToken))
+        {
+            throw new InvalidOperationException("El ambiente SRI no existe en el catalogo parametrizado.");
         }
 
         if (request.ModoDesarrollo &&
-            string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase))
+            SriCatalogCodes.IsProductionEnvironment(ambienteSri))
         {
             throw new InvalidOperationException("No se puede dejar el modo desarrollo activo con ambiente SRI en Produccion.");
         }
 
-        if (!string.Equals(request.TipoEmision, "Normal", StringComparison.OrdinalIgnoreCase))
+        var tipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(request.TipoEmision);
+        if (tipoEmision is null ||
+            !await catalogoRepository.ExistsActiveItemAsync("TIPO_EMISION", tipoEmision, cancellationToken))
         {
-            throw new InvalidOperationException("Por ahora solo se soporta tipo de emision Normal.");
+            throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.ContribuyenteEspecial) &&
@@ -154,7 +263,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         var hasCertificatePassword = !string.IsNullOrWhiteSpace(request.CertificadoClave) ||
             !string.IsNullOrWhiteSpace(current?.CertificadoClave);
 
-        if (string.Equals(request.AmbienteSri, "Produccion", StringComparison.OrdinalIgnoreCase) &&
+        if (SriCatalogCodes.IsProductionEnvironment(ambienteSri) &&
             (!hasCertificateConfigured || !hasCertificatePassword))
         {
             throw new InvalidOperationException("Para trabajar en Produccion debes tener certificado digital y clave configurados.");
@@ -164,6 +273,21 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static IReadOnlyCollection<EmpresaPuntoEmision> BuildPuntosEmision(EmpresaRequest request, Guid empresaId)
+    {
+        return request.PuntosEmision
+            .Select((punto, index) => new EmpresaPuntoEmision(
+                punto.Id ?? Guid.NewGuid(),
+                empresaId,
+                punto.Establecimiento.Trim(),
+                punto.PuntoEmision.Trim(),
+                NormalizeOptional(punto.DireccionEstablecimiento),
+                punto.IsDefault || (index == 0 && request.PuntosEmision.Count(current => current.IsDefault) == 0),
+                punto.BodegaId,
+                null))
+            .ToArray();
     }
 
     private static string? ResolveCertificadoNombreArchivo(EmpresaRequest request, EmpresaEmisora? current)

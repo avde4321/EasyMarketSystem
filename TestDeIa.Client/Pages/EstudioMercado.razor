@@ -1,0 +1,152 @@
+@page "/compras/estudio-mercado"
+@attribute [Authorize(Policy = SecurityPolicyNames.ComprasEstudioMercado)]
+
+<PageTitle>Estudio de mercado</PageTitle>
+
+<section class="module-page market-page">
+    <header class="module-header">
+        <div>
+            <h1>Estudio de mercado con IA</h1>
+            <p>Lectura mensual de rotacion, margen y propuesta automatica de compra para la empresa activa.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="ConsultarAsync" disabled="@isLoading">
+            @(isLoading ? "Analizando..." : "Generar estudio")
+        </button>
+    </header>
+
+    <section class="table-card">
+        <div class="form-grid market-filter-grid">
+            <div class="form-field">
+                <label>Mes</label>
+                <InputSelect class="form-control" @bind-Value="selectedMes">
+                    @foreach (var mes in meses)
+                    {
+                        <option value="@mes.Numero">@mes.Nombre</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Anio</label>
+                <InputSelect class="form-control" @bind-Value="selectedAnio">
+                    @foreach (var anio in anios)
+                    {
+                        <option value="@anio">@anio</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!isLoaded && isLoading)
+    {
+        <section class="table-card">
+            <div class="empty-state">Construyendo estudio de mercado...</div>
+        </section>
+    }
+    else if (isLoaded)
+    {
+        <section class="market-grid">
+            <article class="dashboard-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Productos mas vendidos</h2>
+                        <p>Top 5 del mes por volumen y contribucion comercial.</p>
+                    </div>
+                </header>
+
+                @if (estudio.TopProductosVendidos.Count == 0)
+                {
+                    <div class="empty-state compact">No hubo ventas para el periodo consultado.</div>
+                }
+                else
+                {
+                    <div class="market-podium">
+                        @foreach (var item in BuildPodium())
+                        {
+                            <article class="podium-item">
+                                <div class="podium-head">
+                                    <strong>@item.Nombre</strong>
+                                    <span>@item.CantidadVendida.ToString("N2") u.</span>
+                                </div>
+                                <div class="podium-bar-track">
+                                    <div class="podium-bar-fill" style="width:@item.Width;"></div>
+                                </div>
+                                <div class="podium-meta">
+                                    <small>@item.Codigo</small>
+                                    <small>Margen: @item.MargenEstimado.ToString("C2")</small>
+                                    <small>Stock: @item.StockActual.ToString("N2")</small>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="dashboard-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Propuesta automatica de compra</h2>
+                        <p>Reposicion sugerida para el proximo mes con stock de seguridad del 15%.</p>
+                    </div>
+                </header>
+
+                <div class="table-shell">
+                    <table class="data-table market-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Costo estimado</th>
+                                <th>Justificacion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (estudio.SugerenciasCompra.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="4" class="empty-cell">No se generaron sugerencias para este periodo.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var sugerencia in estudio.SugerenciasCompra)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@sugerencia.Nombre</strong>
+                                            <div class="row-subtext">@sugerencia.Codigo</div>
+                                        </td>
+                                        <td>@sugerencia.CantidadRecomendada.ToString("N2")</td>
+                                        <td>@sugerencia.CostoEstimado.ToString("C2")</td>
+                                        <td>@sugerencia.JustificacionAlgoritmo</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
+        <section class="dashboard-section market-analysis-card">
+            <header class="section-header">
+                <div>
+                    <h2>Analisis estrategico de IA</h2>
+                    <p>Lectura ejecutiva del comportamiento comercial y la oportunidad de compra.</p>
+                </div>
+            </header>
+
+            <div class="analysis-stack">
+                @foreach (var paragraph in analysisParagraphs)
+                {
+                    <p>@paragraph</p>
+                }
+            </div>
+        </section>
+    }
+</section>

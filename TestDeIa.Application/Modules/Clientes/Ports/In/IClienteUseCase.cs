@@ -1,4 +1,5 @@
 using TestDeIa.Shared.Requests.Clientes;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Clientes;
 
 namespace TestDeIa.Application.Modules.Clientes.Ports.In;
@@ -6,6 +7,8 @@ namespace TestDeIa.Application.Modules.Clientes.Ports.In;
 public interface IClienteUseCase
 {
     Task<IReadOnlyCollection<ClienteResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResultResponse<ClienteResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

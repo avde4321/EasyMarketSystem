@@ -6,25 +6,41 @@ public sealed class Persona
         Guid id,
         string tipoIdentificacion,
         string identificacion,
-        string nombres,
-        string apellidos,
+        string razonSocialONombresCompletos,
+        string? nombreComercial,
+        string direccionPrincipal,
+        string? telefonoCelular,
+        string? correoElectronicoPrincipal,
         DateOnly? fechaNacimiento,
-        string? email,
-        string? telefono,
-        string? direccion,
+        string? genero,
+        bool esPersonaJuridica,
+        bool esEmpresa,
+        IReadOnlyCollection<string> rolesPersona,
         bool isActive,
         DateTimeOffset createdAt,
-        DateTimeOffset? updatedAt)
+        DateTimeOffset? updatedAt,
+        string? regionCodigo = null,
+        string? provinciaCodigo = null,
+        string? ciudadCodigo = null,
+        string? sectorCodigo = null)
     {
         Id = id;
         TipoIdentificacion = tipoIdentificacion;
         Identificacion = identificacion;
-        Nombres = nombres;
-        Apellidos = apellidos;
+        RazonSocialONombresCompletos = razonSocialONombresCompletos;
+        NombreComercial = nombreComercial;
+        DireccionPrincipal = direccionPrincipal;
+        TelefonoCelular = telefonoCelular;
+        CorreoElectronicoPrincipal = correoElectronicoPrincipal;
         FechaNacimiento = fechaNacimiento;
-        Email = email;
-        Telefono = telefono;
-        Direccion = direccion;
+        Genero = genero;
+        EsPersonaJuridica = esPersonaJuridica;
+        EsEmpresa = esEmpresa;
+        RegionCodigo = regionCodigo;
+        ProvinciaCodigo = provinciaCodigo;
+        CiudadCodigo = ciudadCodigo;
+        SectorCodigo = sectorCodigo;
+        RolesPersona = rolesPersona;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -36,17 +52,35 @@ public sealed class Persona
 
     public string Identificacion { get; }
 
-    public string Nombres { get; }
+    public string RazonSocialONombresCompletos { get; }
 
-    public string Apellidos { get; }
+    public string? NombreComercial { get; }
+
+    public string DireccionPrincipal { get; }
+
+    public string? TelefonoCelular { get; }
+
+    public string? CorreoElectronicoPrincipal { get; }
 
     public DateOnly? FechaNacimiento { get; }
 
-    public string? Email { get; }
+    public string? Genero { get; }
 
-    public string? Telefono { get; }
+    public bool EsPersonaJuridica { get; }
 
-    public string? Direccion { get; }
+    public bool EsEmpresa { get; }
+
+    public string? RegionCodigo { get; }
+
+    public string? ProvinciaCodigo { get; }
+
+    public string? CiudadCodigo { get; }
+
+    public string? SectorCodigo { get; }
+
+    public string NombreCompleto => RazonSocialONombresCompletos;
+
+    public IReadOnlyCollection<string> RolesPersona { get; }
 
     public bool IsActive { get; }
 

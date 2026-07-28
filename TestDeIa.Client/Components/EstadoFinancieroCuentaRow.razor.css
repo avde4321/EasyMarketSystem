@@ -1,0 +1,26 @@
+.group-row {
+    font-weight: 700;
+}
+
+.tree-toggle {
+    width: 1.55rem;
+    height: 1.55rem;
+    margin-right: 0.45rem;
+    border: 1px solid rgba(125, 184, 176, 0.45);
+    border-radius: 999px;
+    background: #edf9f7;
+    color: #0d4266;
+    font-weight: 800;
+}
+
+.account-code {
+    display: inline-block;
+    min-width: 6.5rem;
+    color: #2a9d8f;
+    font-weight: 800;
+}
+
+.amount-cell {
+    text-align: right;
+    white-space: nowrap;
+}

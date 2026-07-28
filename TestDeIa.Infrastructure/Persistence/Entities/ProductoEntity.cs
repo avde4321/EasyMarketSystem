@@ -3,6 +3,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 public sealed class ProductoEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public string Codigo { get; set; } = string.Empty;
 
@@ -10,17 +11,31 @@ public sealed class ProductoEntity
 
     public string? Descripcion { get; set; }
 
+    public Guid? CategoriaId { get; set; }
+
+    public string UnidadMedida { get; set; } = "Unidad";
+
+    public string NaturalezaItem { get; set; } = "Mercaderia";
+
     public string CodigoIva { get; set; } = string.Empty;
 
     public decimal PorcentajeIva { get; set; }
 
     public decimal PrecioVenta { get; set; }
 
-    public decimal StockActual { get; set; }
+    public decimal CostoReferencial { get; set; }
 
-    public decimal StockMinimo { get; set; }
+    public decimal? StockMinimo { get; set; }
 
     public decimal CostoPromedio { get; set; }
+
+    public bool ControlaStock { get; set; } = true;
+
+    public bool AplicaComision { get; set; }
+
+    public string? TipoComision { get; set; }
+
+    public decimal? ValorComision { get; set; }
 
     public bool IsActive { get; set; }
 
@@ -28,5 +43,7 @@ public sealed class ProductoEntity
 
     public DateTimeOffset? UpdatedAt { get; set; }
 
+    public ICollection<ProductoBodegaEntity> ProductosBodega { get; set; } = [];
     public ICollection<KardexMovimientoEntity> KardexMovimientos { get; set; } = [];
 }
+

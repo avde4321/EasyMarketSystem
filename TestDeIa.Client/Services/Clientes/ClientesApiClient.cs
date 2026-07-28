@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Clientes;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Clientes;
 
 namespace TestDeIa.Client.Services.Clientes;
@@ -14,10 +15,11 @@ public sealed class ClientesApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<IReadOnlyCollection<ClienteResponse>> GetAllAsync()
+    public async Task<PagedResultResponse<ClienteResponse>> GetPagedAsync(string? term, int skip, int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<ClienteResponse>>("api/clientes")
-            ?? Array.Empty<ClienteResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<ClienteResponse>>($"api/clientes?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<ClienteResponse> { Skip = skip, Take = take };
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateAsync(ClienteRequest request)

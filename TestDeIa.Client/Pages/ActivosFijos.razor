@@ -1,0 +1,331 @@
+@page "/inventario/activos-fijos"
+@using TestDeIa.Client.Services
+@using TestDeIa.Shared.ActivosFijos
+@attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+@inject ActivosFijosApiClient ActivosFijosApiClient
+@inject PopupNotificationService PopupNotificationService
+
+<PageTitle>Activos Fijos</PageTitle>
+
+<section class="module-page activos-page">
+    <header class="module-header compras-header">
+        <div>
+            <span class="eyebrow">Control patrimonial</span>
+            <h1>Activos fijos</h1>
+            <p>Hoja de vida, custodios y parámetros SRI/LRTI con depreciación sugerida por categoría.</p>
+        </div>
+        <AuthorizeView Policy="@SecurityPolicyNames.InventarioManage">
+            <Authorized>
+                <button class="primary-action rounded-xl-button" type="button" @onclick="OpenNew">Nuevo activo</button>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="table-card activo-summary-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Consulta principal</h2>
+                <p>Filtra activos por categoría, custodio o estado y abre la hoja de vida en popup.</p>
+            </div>
+            <button class="ghost-button" type="button" @onclick="LoadAsync">Actualizar</button>
+        </header>
+
+        <div class="form-grid activo-grid activo-filter-grid">
+            <div class="form-field">
+                <label>Categoría SRI</label>
+                <InputSelect class="form-control" @bind-Value="categoriaFilter">
+                    <option value="">Todas</option>
+                    @foreach (var categoria in Enum.GetValues<CategoriaSriActivoFijo>())
+                    {
+                        <option value="@categoria">@FormatCategoria(categoria.ToString())</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Custodio</label>
+                <InputText class="form-control" @bind-Value="custodioFilter" placeholder="Buscar responsable..." />
+            </div>
+            <div class="form-field">
+                <label>Estado</label>
+                <InputSelect class="form-control" @bind-Value="estadoFilter">
+                    <option value="">Todos</option>
+                    @foreach (var estado in Enum.GetValues<EstadoActivoFijo>())
+                    {
+                        <option value="@estado">@FormatEstado(estado.ToString())</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="table-toolbar compras-toolbar">
+            <button class="secondary-action" type="button" @onclick="LoadAsync">Consultar</button>
+            <button class="ghost-button" type="button" @onclick="ClearFilters">Limpiar</button>
+        </div>
+    </section>
+
+    <section class="table-card">
+        @if (isLoading)
+        {
+            <p><em>Cargando activos fijos...</em></p>
+        }
+        else if (!activos.Any())
+        {
+            <div class="empty-state">No existen activos fijos con los filtros seleccionados.</div>
+        }
+        else
+        {
+            <div class="table-scroll workflow-table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Activo</th>
+                            <th>Categoría</th>
+                            <th>Custodio</th>
+                            <th>Costo</th>
+                            <th>Vida útil</th>
+                            <th>Dep. anual</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var activo in activos)
+                        {
+                            <tr>
+                                <td data-label="Código"><strong>@activo.CodigoActivo</strong></td>
+                                <td data-label="Activo">
+                                    <strong>@activo.Nombre</strong>
+                                    <small>@activo.SerieMarca</small>
+                                </td>
+                                <td data-label="Categoría">@FormatCategoria(activo.CategoriaSRI)</td>
+                                <td data-label="Custodio">@(activo.CustodioResponsable ?? "Sin custodio")</td>
+                                <td data-label="Costo">@activo.CostoInicial.ToString("N2")</td>
+                                <td data-label="Vida útil">@activo.VidaUtilAnios años</td>
+                                <td data-label="Dep. anual">@activo.PorcentajeDepreciacionAnual.ToString("N2")%</td>
+                                <td data-label="Estado"><span class="status-pill projected-pill">@FormatEstado(activo.EstadoActivo)</span></td>
+                                <td data-label="Acciones" class="row-actions">
+                                    <button class="ghost-button" type="button" @onclick="() => OpenEdit(activo)">Hoja de vida</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@if (isModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card activo-workflow-modal">
+            <header class="modal-header workflow-header">
+                <div>
+                    <h2>@(editingId.HasValue ? "Editar activo fijo" : "Nuevo activo fijo")</h2>
+                    <p class="modal-subtitle">Completa la hoja de vida del bien. Los parámetros SRI se recalculan automáticamente por categoría.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <EditForm Model="request" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <div class="workflow-carousel activo-workflow-carousel">
+                    <section class="workflow-panel">
+                        <header class="section-header compact-section-header">
+                            <div>
+                                <h3>Ficha del bien</h3>
+                                <p>Registra datos físicos, custodio y valores base para la depreciación.</p>
+                            </div>
+                        </header>
+
+                        <div class="form-grid activo-grid">
+                            <div class="form-field full">
+                                <label>Nombre del activo</label>
+                                <InputText class="form-control" @bind-Value="request.Nombre" />
+                                <ValidationMessage For="@(() => request.Nombre)" />
+                            </div>
+                            <div class="form-field">
+                                <label>Serie / marca</label>
+                                <InputText class="form-control" @bind-Value="request.SerieMarca" />
+                            </div>
+                            <div class="form-field">
+                                <label>Categoría SRI</label>
+                                <InputSelect class="form-control" @bind-Value="request.CategoriaSRI">
+                                    @foreach (var categoria in Enum.GetValues<CategoriaSriActivoFijo>())
+                                    {
+                                        <option value="@categoria">@FormatCategoria(categoria.ToString())</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="form-field">
+                                <label>Fecha adquisición</label>
+                                <InputDate class="form-control" @bind-Value="request.FechaAdquisicion" />
+                            </div>
+                            <div class="form-field">
+                                <label>Costo inicial</label>
+                                <InputNumber class="form-control" @bind-Value="request.CostoInicial" />
+                            </div>
+                            <div class="form-field">
+                                <label>Valor residual</label>
+                                <InputNumber class="form-control" @bind-Value="request.ValorResidual" />
+                            </div>
+                            <div class="form-field">
+                                <label>Ubicación física</label>
+                                <InputText class="form-control" @bind-Value="request.UbicacionFisica" />
+                            </div>
+                            <div class="form-field">
+                                <label>Custodio responsable</label>
+                                <InputText class="form-control" @bind-Value="request.CustodioResponsable" />
+                            </div>
+                            <div class="form-field">
+                                <label>Estado</label>
+                                <InputSelect class="form-control" @bind-Value="request.EstadoActivo">
+                                    @foreach (var estado in Enum.GetValues<EstadoActivoFijo>())
+                                    {
+                                        <option value="@estado">@FormatEstado(estado.ToString())</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="form-field full">
+                                <label>Parámetro SRI</label>
+                                <div class="soft-info-message compact-message activo-sri-preview">
+                                    @GetParametroPreview(request.CategoriaSRI)
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">Guardar hoja de vida</button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly List<ActivoFijoResponse> activos = [];
+    private ActivoFijoRequest request = new();
+    private CategoriaSriActivoFijo? categoriaFilter;
+    private EstadoActivoFijo? estadoFilter;
+    private string? custodioFilter;
+    private Guid? editingId;
+    private bool isLoading;
+    private bool isSaving;
+    private bool isModalOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            activos.Clear();
+            activos.AddRange(await ActivosFijosApiClient.GetAsync(categoriaFilter, custodioFilter, estadoFilter));
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        categoriaFilter = null;
+        estadoFilter = null;
+        custodioFilter = null;
+        await LoadAsync();
+    }
+
+    private void OpenNew()
+    {
+        editingId = null;
+        request = new ActivoFijoRequest();
+        isModalOpen = true;
+    }
+
+    private void OpenEdit(ActivoFijoResponse activo)
+    {
+        editingId = activo.Id;
+        request = new ActivoFijoRequest
+        {
+            Nombre = activo.Nombre,
+            SerieMarca = activo.SerieMarca,
+            CategoriaSRI = Enum.TryParse<CategoriaSriActivoFijo>(activo.CategoriaSRI, out var categoria) ? categoria : CategoriaSriActivoFijo.EquiposComputo,
+            FechaAdquisicion = activo.FechaAdquisicion,
+            CostoInicial = activo.CostoInicial,
+            ValorResidual = activo.ValorResidual,
+            UbicacionFisica = activo.UbicacionFisica,
+            CustodioResponsable = activo.CustodioResponsable,
+            EstadoActivo = Enum.TryParse<EstadoActivoFijo>(activo.EstadoActivo, out var estado) ? estado : EstadoActivoFijo.Activo
+        };
+        isModalOpen = true;
+    }
+
+    private void CloseModal()
+    {
+        isModalOpen = false;
+        editingId = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        isSaving = true;
+        try
+        {
+            var result = editingId.HasValue
+                ? await ActivosFijosApiClient.UpdateAsync(editingId.Value, request)
+                : await ActivosFijosApiClient.CreateAsync(request);
+
+            if (!result.Succeeded)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo guardar el activo fijo.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Hoja de vida del activo fijo guardada correctamente.");
+            CloseModal();
+            await LoadAsync();
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetParametroPreview(CategoriaSriActivoFijo categoria) => categoria switch
+    {
+        CategoriaSriActivoFijo.EquiposComputo => "Equipos de cómputo: 33.33% anual / 3 años",
+        CategoriaSriActivoFijo.Vehiculos => "Vehículos: 20% anual / 5 años",
+        CategoriaSriActivoFijo.Edificios => "Inmuebles: 5% anual / 20 años",
+        CategoriaSriActivoFijo.MaquinariaEquipo => "Maquinaria y equipo: 10% anual / 10 años",
+        CategoriaSriActivoFijo.MueblesEnseres => "Muebles y enseres: 10% anual / 10 años",
+        _ => "Parámetro estándar: 10% anual / 10 años"
+    };
+
+    private static string FormatCategoria(string value) => value switch
+    {
+        "EquiposComputo" => "Equipos de cómputo",
+        "MaquinariaEquipo" => "Maquinaria y equipo",
+        "Vehiculos" => "Vehículos",
+        "Edificios" => "Edificios",
+        "MueblesEnseres" => "Muebles y enseres",
+        _ => value
+    };
+
+    private static string FormatEstado(string value) => value switch
+    {
+        "EnMantenimiento" => "En mantenimiento",
+        "DadoDeBaja" => "Dado de baja",
+        "DepreciadoTotal" => "Depreciado total",
+        _ => value
+    };
+}

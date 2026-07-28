@@ -5,6 +5,8 @@ public sealed class KardexMovimiento
     public KardexMovimiento(
         Guid id,
         Guid productoId,
+        Guid bodegaId,
+        string? bodegaNombre,
         string tipoMovimiento,
         string concepto,
         string? referencia,
@@ -18,6 +20,8 @@ public sealed class KardexMovimiento
     {
         Id = id;
         ProductoId = productoId;
+        BodegaId = bodegaId;
+        BodegaNombre = bodegaNombre;
         TipoMovimiento = tipoMovimiento;
         Concepto = concepto;
         Referencia = referencia;
@@ -33,6 +37,10 @@ public sealed class KardexMovimiento
     public Guid Id { get; }
 
     public Guid ProductoId { get; }
+
+    public Guid BodegaId { get; }
+
+    public string? BodegaNombre { get; }
 
     public string TipoMovimiento { get; }
 

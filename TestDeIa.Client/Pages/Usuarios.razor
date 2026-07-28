@@ -1,0 +1,335 @@
+@page "/usuarios"
+@attribute [Authorize(Roles = SecurityRoleNames.Administrador)]
+
+<PageTitle>Usuarios</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Usuarios</h1>
+            <p>Mantenimiento del modulo de seguridad y accesos vinculados a persona.</p>
+        </div>
+        <button class="primary-action" @onclick="OpenCreateModal">Crear usuario</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por usuario, persona, identificacion, correo o rol..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+        <div class="soft-info-message compact-message">
+            El perfil controla roles efectivos, bloqueo de acceso y trazabilidad por empresa activa.
+        </div>
+        @if (isLoading)
+        {
+            <p><em>Cargando usuarios...</em></p>
+        }
+        else if (users.Count == 0)
+        {
+            <div class="empty-state">No hay usuarios registrados.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Persona</th>
+                            <th>Rol principal</th>
+                            <th>Estado</th>
+                            <th>Ultimo acceso</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in VisibleUsers)
+                        {
+                            <tr>
+                                <td data-label="Usuario">@user.UserName</td>
+                                <td data-label="Persona">
+                                    <strong>@user.PersonaNombre</strong>
+                                    <small>@user.PersonaIdentificacion</small>
+                                </td>
+                                <td data-label="Rol principal">
+                                    <strong>@user.RolPrincipal</strong>
+                                    <small>@string.Join(", ", user.RolesPersona)</small>
+                                </td>
+                                <td data-label="Estado"><span class="@GetStatusClass(user)">@user.Estado</span></td>
+                                <td data-label="Ultimo acceso">
+                                    @if (user.UltimoAcceso.HasValue)
+                                    {
+                                        <span>@user.UltimoAcceso.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted-text">Sin ingresos</span>
+                                    }
+                                </td>
+                                <td data-label="Acciones">
+                                    <div class="row-actions">
+                                        <button class="ghost-button" @onclick="() => OpenEditModalAsync(user)">Editar</button>
+                                        <button class="ghost-button" @onclick="() => OpenProfileModal(user)">Perfil</button>
+                                        <button class="ghost-button" @onclick="() => OpenToggleStateModal(user)">@(user.Estado == SecurityUserEstados.Activo ? "Inactivar" : "Activar")</button>
+                                        <button class="ghost-button" @onclick="() => OpenResetPasswordModal(user)">Resetear clave</button>
+                                        <button class="ghost-button" @onclick="() => OpenUnlockModal(user)">Desbloquear</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="table-footer">
+                <span class="table-count">@totalCount usuario(s) registrados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
+        }
+    </section>
+</section>
+
+<DetalleUsuarioModal User="profileUser"
+                     Roles="roles"
+                     SelectedRoles="profileSelectedRoles"
+                     SelectedPermissions="SelectedPermissions"
+                     IsSaving="isSavingProfile"
+                     ErrorMessage="profileErrorMessage"
+                     OnSave="SaveProfileAsync"
+                     OnClose="CloseProfileModal"
+                     OnToggleRole="ToggleProfileRoleAsync"
+                     OnChangeEstado="OpenStateModalAsync" />
+
+@if (isEditorOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>@(editingUserId.HasValue ? "Actualizar usuario" : "Crear usuario")</h2>
+                <button class="icon-button" type="button" @onclick="CloseModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <EditForm Model="userRequest" OnValidSubmit="SaveUserAsync">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="status-banner dynamic-status-banner">@statusMessage</div>
+                }
+
+                <div class="status-banner">
+                    Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de usuario sin duplicar sus datos base.
+                </div>
+
+                <div class="soft-info-message compact-message">
+                    Empresa activa para este usuario: <strong>@currentEmpresaLabel</strong>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Tipo identificacion</label>
+                        <InputSelect class="form-control" @bind-Value="userRequest.TipoIdentificacion">
+                            @foreach (var item in tiposIdentificacion)
+                            {
+                                <option value="@item.Codigo">@item.Nombre</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Identificacion</label>
+                        <div class="input-action-row">
+                            <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
+                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                            </button>
+                        </div>
+                        <ValidationMessage For="@(() => userRequest.Identificacion)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Nombres</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Nombres" />
+                        <ValidationMessage For="@(() => userRequest.Nombres)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Apellidos</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Apellidos" />
+                        <ValidationMessage For="@(() => userRequest.Apellidos)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Correo</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Email" />
+                        <ValidationMessage For="@(() => userRequest.Email)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Celular</label>
+                        <InputText class="form-control" @bind-Value="userRequest.Telefono" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label>Direccion</label>
+                        <InputTextArea class="form-control" @bind-Value="userRequest.Direccion" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Usuario</label>
+                        <InputText class="form-control" @bind-Value="userRequest.UserName" />
+                        <ValidationMessage For="@(() => userRequest.UserName)" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Clave @(editingUserId.HasValue ? "(opcional)" : string.Empty)</label>
+                        <InputText class="form-control" type="password" @bind-Value="userRequest.Password" />
+                    </div>
+
+                    <div class="form-field full">
+                        <label>Roles del sistema</label>
+                        <div class="checkbox-grid">
+                            @foreach (var role in roles)
+                            {
+                                <label class="form-check soft-check">
+                                    <input class="form-check-input" type="checkbox" checked="@selectedRoles.Contains(role.Name)" @onchange="args => ToggleRole(role.Name, args.Value)" />
+                                    <span class="form-check-label">@role.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    @if (RequiresPuntosEmision)
+                    {
+                        <div class="form-field full">
+                            <label>Puntos de emision asignados</label>
+                            @if (puntosEmisionDisponibles.Count == 0)
+                            {
+                                <div class="soft-info-message compact-message">
+                                    No hay puntos de emision activos disponibles para asignar.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="checkbox-grid">
+                                    @foreach (var punto in puntosEmisionDisponibles)
+                                    {
+                                        <label class="form-check soft-check">
+                                            <input class="form-check-input" type="checkbox" checked="@selectedPuntoEmisionIds.Contains(punto.Id)" @onchange="args => TogglePuntoEmision(punto.Id, args.Value)" />
+                                            <span class="form-check-label">@punto.DisplayName</span>
+                                        </label>
+                                    }
+                                </div>
+                                <small class="muted-text">Selecciona uno o mas puntos de emision de la empresa activa para el usuario cajero.</small>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <label class="form-check soft-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="userRequest.IsActive" />
+                    <span class="form-check-label">Usuario activo</span>
+                </label>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseModal">Cerrar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isResetModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Resetear clave</h2>
+                <button class="icon-button" type="button" @onclick="CloseResetModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <EditForm Model="resetPasswordRequest" OnValidSubmit="ConfirmResetPasswordAsync">
+                <DataAnnotationsValidator />
+
+                <div class="status-banner">
+                    Se asignara una clave temporal nueva y se reiniciaran los bloqueos del usuario.
+                </div>
+
+                <div class="form-field">
+                    <label>Clave temporal</label>
+                    <InputText class="form-control" type="password" @bind-Value="resetPasswordRequest.TemporaryPassword" />
+                    <ValidationMessage For="@(() => resetPasswordRequest.TemporaryPassword)" />
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseResetModal">Cerrar</button>
+                    <button class="primary-action" type="submit" disabled="@isResettingPassword">
+                        @(isResettingPassword ? "Guardando..." : "Confirmar")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (isStateModalOpen && profileUser is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card state-modal-card">
+            <header class="modal-header">
+                <h2>Confirmar cambio de estado</h2>
+                <button class="icon-button" type="button" @onclick="CloseStateModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <div class="status-banner">
+                @stateConfirmationMessage
+            </div>
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseStateModal">Cerrar</button>
+                <button class="primary-action" type="button" @onclick="ConfirmStateChangeAsync" disabled="@isChangingState">
+                    @(isChangingState ? "Procesando..." : "Confirmar")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (isUnlockModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card">
+            <header class="modal-header">
+                <h2>Desbloquear usuario</h2>
+                <button class="icon-button" type="button" @onclick="CloseUnlockModal" aria-label="Cerrar modal">x</button>
+            </header>
+
+            <div class="status-banner">
+                Esta accion limpia intentos fallidos y libera el bloqueo temporal del usuario.
+            </div>
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseUnlockModal">Cerrar</button>
+                <button class="primary-action" type="button" @onclick="ConfirmUnlockAsync" disabled="@isUnlocking">
+                    @(isUnlocking ? "Procesando..." : "Desbloquear")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+
+
+

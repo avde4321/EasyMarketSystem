@@ -1,0 +1,80 @@
+@page "/seguridad/auditoria"
+@attribute [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
+
+<PageTitle>Auditoria de seguridad</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <h1>Auditoria de seguridad</h1>
+            <p>Seguimiento de ingresos, bloqueos, cambios de perfil y acciones administrativas.</p>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por usuario, evento, IP o detalle..." />
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+
+        <div class="soft-info-message compact-message">
+            La consulta respeta la empresa activa y muestra el historial operativo del tenant actual.
+        </div>
+
+        @if (isLoading)
+        {
+            <p><em>Cargando auditoria...</em></p>
+        }
+        else if (totalCount == 0)
+        {
+            <div class="empty-state">No hay eventos registrados para la empresa activa.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Evento</th>
+                            <th>IP</th>
+                            <th>Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in auditLogs)
+                        {
+                            <tr>
+                                <td data-label="Fecha">@item.FechaEvento.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td data-label="Usuario">
+                                    <strong>@item.DisplayName</strong>
+                                    <small>@item.UserName</small>
+                                </td>
+                                <td data-label="Evento">
+                                    <span class="audit-pill @GetAuditClass(item.TipoEvento)">@FormatEvent(item.TipoEvento)</span>
+                                </td>
+                                <td data-label="IP">@(!string.IsNullOrWhiteSpace(item.DireccionIp) ? item.DireccionIp : "No disponible")</td>
+                                <td data-label="Detalle">@item.Detalles</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="table-footer">
+                <span class="table-count">Mostrando @auditLogs.Count de @totalCount eventos</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
+        }
+    </section>
+</section>
