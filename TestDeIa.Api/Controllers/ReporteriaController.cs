@@ -37,6 +37,62 @@ public sealed class ReporteriaController : ControllerBase
         return File(pdfBytes, "application/pdf", fileName);
     }
 
+    [HttpGet("comprobantes/{comprobanteId:guid}/ride")]
+    public async Task<IActionResult> GetComprobanteRide(Guid comprobanteId, CancellationToken cancellationToken)
+    {
+        var comprobante = await facturaDocumentQueryService.GetComprobanteRideAsync(comprobanteId, cancellationToken);
+
+        if (comprobante is null)
+        {
+            return NotFound();
+        }
+
+        var pdfBytes = await facturaRideRdlcRenderer.RenderAsync(comprobante, cancellationToken);
+        return File(pdfBytes, "application/pdf", $"RIDE-{comprobante.NumeroComprobante}.pdf");
+    }
+
+    [HttpGet("comprobantes/{comprobanteId:guid}/xml-generado")]
+    public async Task<IActionResult> GetComprobanteXmlGenerado(Guid comprobanteId, CancellationToken cancellationToken)
+    {
+        var comprobante = await facturaDocumentQueryService.GetComprobanteRideAsync(comprobanteId, cancellationToken);
+
+        if (comprobante is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(comprobante.XmlGenerado))
+        {
+            return Conflict(new { message = "El comprobante aun no tiene XML generado." });
+        }
+
+        return File(
+            Encoding.UTF8.GetBytes(comprobante.XmlGenerado),
+            "application/xml",
+            $"COMPROBANTE-{comprobante.NumeroComprobante}-xml-generado.xml");
+    }
+
+    [HttpGet("comprobantes/{comprobanteId:guid}/xml-firmado")]
+    public async Task<IActionResult> GetComprobanteXmlFirmado(Guid comprobanteId, CancellationToken cancellationToken)
+    {
+        var comprobante = await facturaDocumentQueryService.GetComprobanteRideAsync(comprobanteId, cancellationToken);
+
+        if (comprobante is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(comprobante.XmlFirmado))
+        {
+            return Conflict(new { message = "El comprobante aun no tiene XML firmado disponible." });
+        }
+
+        return File(
+            Encoding.UTF8.GetBytes(comprobante.XmlFirmado),
+            "application/xml",
+            $"COMPROBANTE-{comprobante.NumeroComprobante}-xml-firmado.xml");
+    }
+
     [HttpGet("facturas/{facturaId:guid}/xml-generado")]
     public async Task<IActionResult> GetXmlGenerado(Guid facturaId, CancellationToken cancellationToken)
     {

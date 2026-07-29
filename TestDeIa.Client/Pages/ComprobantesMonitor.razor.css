@@ -47,6 +47,101 @@
     color: #1d665f;
 }
 
+.document-filter {
+    max-width: 14rem;
+}
+
+.doc-type-01 {
+    background: linear-gradient(180deg, #edf6ff, #dfeeff);
+    color: #23568d;
+}
+
+.doc-type-04 {
+    background: linear-gradient(180deg, #fff7e8, #ffefc9);
+    color: #946400;
+}
+
+.note-action {
+    background: linear-gradient(180deg, #fff7e8, #ffefc9);
+    border-color: rgba(235, 165, 37, 0.35);
+    color: #8a5b00;
+}
+
+.nota-credito-modal {
+    width: min(72rem, calc(100vw - 2rem));
+    max-width: min(1120px, calc(100vw - 2rem));
+    animation: panel-in 180ms ease;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 252, 255, 0.96));
+    border: 1px solid rgba(188, 219, 239, 0.82);
+    border-radius: 1.55rem;
+    box-shadow: 0 24px 70px rgba(16, 46, 74, 0.24);
+}
+
+.note-origin-card {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0 1.1rem;
+    padding: 1rem;
+    border: 1px solid rgba(57, 155, 144, 0.18);
+    border-radius: 1.25rem;
+    background: linear-gradient(135deg, rgba(235, 250, 247, 0.95), rgba(255, 249, 232, 0.85));
+}
+
+.note-origin-card small {
+    display: block;
+    color: #6b8298;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.note-origin-card strong {
+    color: #07385c;
+}
+
+.note-items-scroll {
+    border: 1px solid rgba(130, 202, 198, 0.32);
+    border-radius: 1rem;
+    max-height: 22rem;
+    margin-top: 1rem;
+    overflow: auto;
+}
+
+.note-quantity {
+    max-width: 9rem;
+    min-height: 2.75rem;
+    text-align: center;
+}
+
+.note-form-panel {
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(188, 219, 239, 0.65);
+    border-radius: 1.15rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+}
+
+.note-form-panel textarea {
+    min-height: 5.8rem;
+}
+
+.nota-credito-modal .modal-header {
+    align-items: flex-start;
+    border-bottom: 1px solid rgba(188, 219, 239, 0.5);
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+}
+
+.nota-credito-modal .modal-header p {
+    color: #61748a;
+    margin: 0.2rem 0 0;
+}
+
+.nota-credito-modal .modal-actions {
+    border-top: 1px solid rgba(188, 219, 239, 0.5);
+    padding-top: 1rem;
+}
+
 .status-rechazado,
 .status-error {
     background: linear-gradient(180deg, #fff0f0, #ffe2e0);
@@ -65,6 +160,10 @@
     .summary-chip {
         flex: 1 1 12rem;
         justify-content: center;
+    }
+
+    .note-origin-card {
+        grid-template-columns: 1fr;
     }
 }
 

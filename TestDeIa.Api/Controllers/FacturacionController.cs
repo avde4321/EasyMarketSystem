@@ -13,11 +13,16 @@ public sealed class FacturacionController : ControllerBase
 {
     private readonly IFacturacionUseCase facturacionUseCase;
     private readonly IComisionesUseCase comisionesUseCase;
+    private readonly INotaCreditoService notaCreditoService;
 
-    public FacturacionController(IFacturacionUseCase facturacionUseCase, IComisionesUseCase comisionesUseCase)
+    public FacturacionController(
+        IFacturacionUseCase facturacionUseCase,
+        IComisionesUseCase comisionesUseCase,
+        INotaCreditoService notaCreditoService)
     {
         this.facturacionUseCase = facturacionUseCase;
         this.comisionesUseCase = comisionesUseCase;
+        this.notaCreditoService = notaCreditoService;
     }
 
     [HttpGet("clientes")]
@@ -73,11 +78,11 @@ public sealed class FacturacionController : ControllerBase
 
     [HttpGet("monitor")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
-    public async Task<IActionResult> GetMonitor([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetMonitor([FromQuery] string? term, [FromQuery] string? tipoDocumentoId = null, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
         take = Math.Clamp(take, 1, 25);
         skip = Math.Max(0, skip);
-        return Ok(await facturacionUseCase.GetMonitorAsync(term, skip, take, cancellationToken));
+        return Ok(await facturacionUseCase.GetMonitorAsync(term, tipoDocumentoId, skip, take, cancellationToken));
     }
 
     [HttpGet("comisiones/liquidacion")]
@@ -87,6 +92,35 @@ public sealed class FacturacionController : ControllerBase
         try
         {
             return Ok(await comisionesUseCase.GetLiquidacionAsync(desde, hasta, operadorId, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("notas-credito")]
+    [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
+    public async Task<IActionResult> CrearNotaCredito([FromBody] NotaCreditoRequestDto request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await notaCreditoService.CrearNotaCredito(request, cancellationToken);
+            return Accepted(response);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpGet("facturas/{facturaId:guid}/nota-credito-origen")]
+    [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
+    public async Task<IActionResult> GetNotaCreditoOrigen(Guid facturaId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await notaCreditoService.GetFacturaOrigenAsync(facturaId, cancellationToken));
         }
         catch (InvalidOperationException exception)
         {

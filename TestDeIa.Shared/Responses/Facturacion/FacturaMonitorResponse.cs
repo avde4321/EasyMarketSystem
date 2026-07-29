@@ -12,6 +12,10 @@ public sealed class FacturaMonitorResponse
 
     public string NumeroComprobante => $"{Establecimiento}-{PuntoEmision}-{Secuencial:000000000}";
 
+    public string TipoDocumentoId { get; set; } = "01";
+
+    public string TipoDocumentoNombre { get; set; } = "Factura";
+
     public string ClienteIdentificacion { get; set; } = string.Empty;
 
     public string ClienteTipoIdentificacion { get; set; } = string.Empty;

@@ -13,6 +13,7 @@ using TestDeIa.Application.Modules.Compras.Ports.Out;
 using TestDeIa.Application.Modules.Dashboard.Ports.Out;
 using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
+using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Financiero.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
@@ -84,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<IComisionesRepository, EfComisionesRepository>();
         services.AddSingleton<SriResponseParser>();
         services.AddSingleton<ClaveAccesoService>();
+        services.AddSingleton<NotaCreditoXmlGenerator>();
         services.AddSingleton<SriUrlResolverService>();
         services.AddSingleton<SriFacturaXmlSchemaValidator>();
         services.AddSingleton<SriLiquidacionCompraXmlValidator>();
@@ -96,6 +98,7 @@ public static class DependencyInjection
         services.AddSingleton<IFacturaBackgroundQueue, FacturaBackgroundQueue>();
         services.AddScoped<ISriCompraProcessor, SriCompraProcessor>();
         services.AddScoped<ISriFacturaProcessor, SriFacturaProcessor>();
+        services.AddScoped<INotaCreditoService, NotaCreditoService>();
         services.AddHostedService<FacturacionBackgroundWorker>();
         services.AddHostedService<CompraBackgroundWorker>();
 

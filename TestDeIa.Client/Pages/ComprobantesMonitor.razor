@@ -21,6 +21,11 @@
     <section class="table-card">
         <div class="table-toolbar">
             <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por numero, cliente, identificacion, pago o estado..." />
+            <InputSelect class="form-control document-filter" @bind-Value="tipoDocumentoFiltro">
+                <option value="">Todos</option>
+                <option value="01">Facturas</option>
+                <option value="04">Notas de crédito</option>
+            </InputSelect>
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
             <button class="ghost-button" type="button" @onclick="() => LoadMonitorAsync()">Refrescar lista</button>
         </div>
@@ -28,6 +33,7 @@
             <span class="summary-chip">Total: @totalCount</span>
             <span class="summary-chip summary-pending">Pendientes: @facturas.Count(factura => factura.Estado.Equals("Pendiente", StringComparison.OrdinalIgnoreCase))</span>
             <span class="summary-chip summary-success">Autorizadas: @facturas.Count(factura => factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase))</span>
+            <span class="summary-chip">Notas crédito: @facturas.Count(factura => factura.TipoDocumentoId == "04")</span>
         </div>
         @if (isLoading)
         {
@@ -44,6 +50,7 @@
                     <thead>
                         <tr>
                             <th>Numero</th>
+                            <th>Tipo</th>
                             <th>Cliente</th>
                             <th>Pago</th>
                             <th>Estado</th>
@@ -59,6 +66,9 @@
                         {
                             <tr>
                                 <td data-label="Numero">@factura.NumeroComprobante</td>
+                                <td data-label="Tipo">
+                                    <span class="status-pill doc-type-@factura.TipoDocumentoId">@factura.TipoDocumentoNombre</span>
+                                </td>
                                 <td data-label="Cliente">
                                     <strong>@factura.ClienteNombre</strong>
                                     <small>@factura.ClienteTipoIdentificacion</small>
@@ -90,6 +100,11 @@
                                                 disabled="@IsBusyFor(factura.Id)">
                                             @GetRideLabel(factura.Id)
                                         </button>
+                                        <button class="table-action note-action"
+                                                @onclick="() => OpenNotaCreditoAsync(factura)"
+                                                disabled="@(!CanCreateNotaCredito(factura) || IsBusyFor(factura.Id))">
+                                            Nota crédito
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -108,4 +123,96 @@
             </footer>
         }
     </section>
+
+    @if (showNotaCreditoModal)
+    {
+        <div class="modal-backdrop">
+            <section class="modal-card nota-credito-modal" role="dialog" aria-modal="true" aria-labelledby="notaCreditoTitle">
+                <header class="modal-header">
+                    <div>
+                        <span class="page-kicker">DOCUMENTO ELECTRONICO</span>
+                        <h2 id="notaCreditoTitle">Crear nota de crédito</h2>
+                        <p>Selecciona los items a devolver de la factura autorizada.</p>
+                    </div>
+                    <button class="icon-button" type="button" @onclick="CloseNotaCreditoModal" disabled="@isGeneratingNotaCredito">x</button>
+                </header>
+
+                @if (isLoadingNotaCreditoOrigen)
+                {
+                    <p><em>Cargando detalle de factura...</em></p>
+                }
+                else if (notaCreditoOrigen is not null)
+                {
+                    <section class="note-origin-card client-lookup-panel carousel-pane active-pane">
+                        <div>
+                            <small>Factura origen</small>
+                            <strong>@notaCreditoOrigen.NumeroComprobante</strong>
+                        </div>
+                        <div>
+                            <small>Cliente</small>
+                            <strong>@notaCreditoOrigen.ClienteNombre</strong>
+                        </div>
+                        <div>
+                            <small>Total</small>
+                            <strong>$ @notaCreditoOrigen.Total.ToString("0.00")</strong>
+                        </div>
+                    </section>
+
+                    <label class="form-label" for="motivoNotaCredito">Motivo de modificación</label>
+                    <InputTextArea id="motivoNotaCredito"
+                                   class="form-control"
+                                   @bind-Value="notaCreditoMotivo"
+                                   placeholder="Ej: Devolución parcial de mercadería por solicitud del cliente" />
+
+                    <div class="lookup-table-scroll note-items-scroll">
+                        <table class="data-table responsive-table lookup-table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Facturado</th>
+                                    <th>Devuelto</th>
+                                    <th>Disponible</th>
+                                    <th>Cantidad NC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detalle in notaCreditoOrigen.Detalles)
+                                {
+                                    <tr>
+                                        <td data-label="Producto">
+                                            <strong>@detalle.NombreProducto</strong>
+                                            <small>@detalle.CodigoProducto</small>
+                                        </td>
+                                        <td data-label="Facturado">@detalle.CantidadFacturada.ToString("0.####")</td>
+                                        <td data-label="Devuelto">@detalle.CantidadDevuelta.ToString("0.####")</td>
+                                        <td data-label="Disponible"><span class="status-pill">@detalle.CantidadDisponible.ToString("0.####")</span></td>
+                                        <td data-label="Cantidad NC">
+                                            <input class="form-control note-quantity"
+                                                   type="number"
+                                                   min="0"
+                                                   max="@detalle.CantidadDisponible"
+                                                   step="0.0001"
+                                                   value="@GetNotaCreditoCantidad(detalle.FacturaDetalleId)"
+                                                   @oninput="eventArgs => OnNotaCreditoCantidadChanged(detalle.FacturaDetalleId, eventArgs)"
+                                                   disabled="@(detalle.CantidadDisponible <= 0m || isGeneratingNotaCredito)" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <footer class="modal-actions">
+                        <button class="ghost-button" type="button" @onclick="CloseNotaCreditoModal" disabled="@isGeneratingNotaCredito">Cancelar</button>
+                        <button class="primary-action"
+                                type="button"
+                                @onclick="CrearNotaCreditoAsync"
+                                disabled="@isGeneratingNotaCredito">
+                            @(isGeneratingNotaCredito ? "Generando..." : "Generar nota de crédito")
+                        </button>
+                    </footer>
+                }
+            </section>
+        </div>
+    }
 </section>

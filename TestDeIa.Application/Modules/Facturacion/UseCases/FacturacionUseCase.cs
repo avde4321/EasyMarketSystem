@@ -71,9 +71,9 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
         return response;
     }
 
-    public Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    public Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, string? tipoDocumentoId, int skip, int take, CancellationToken cancellationToken = default)
     {
-        return facturacionRepository.GetMonitorAsync(term, skip, take, cancellationToken);
+        return facturacionRepository.GetMonitorAsync(term, tipoDocumentoId, skip, take, cancellationToken);
     }
 
     private async Task ValidateRequestAsync(EmitirFacturaRequest request, CancellationToken cancellationToken)

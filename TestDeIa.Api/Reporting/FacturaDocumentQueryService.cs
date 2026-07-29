@@ -152,6 +152,138 @@ public sealed class FacturaDocumentQueryService
         };
     }
 
+    public async Task<FacturaRideReportModel?> GetComprobanteRideAsync(Guid comprobanteId, CancellationToken cancellationToken)
+    {
+        var factura = await GetFacturaRideAsync(comprobanteId, cancellationToken);
+        if (factura is not null)
+        {
+            return factura;
+        }
+
+        var comprobante = await dbContext.ComprobanteCabecera
+            .AsNoTracking()
+            .Include(current => current.Detalles)
+            .FirstOrDefaultAsync(current => current.Id == comprobanteId, cancellationToken);
+
+        if (comprobante is null)
+        {
+            return null;
+        }
+
+        var empresa = await dbContext.EmpresasEmisoras
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == comprobante.EmpresaId, cancellationToken);
+
+        var bannerPath = Path.Combine(AppContext.BaseDirectory, "Reporting", "Templates", "SriFacturaBanner.png");
+        var tarifaPrincipalIva = comprobante.Detalles
+            .Where(current => current.PorcentajeIva > 0m && current.Subtotal > 0m)
+            .OrderByDescending(current => current.Subtotal)
+            .ThenByDescending(current => current.PorcentajeIva)
+            .Select(current => current.PorcentajeIva)
+            .FirstOrDefault();
+
+        var subtotalTarifaPrincipal = comprobante.Detalles
+            .Where(current => current.PorcentajeIva == tarifaPrincipalIva)
+            .Sum(current => current.Subtotal);
+
+        var ivaTarifaPrincipal = comprobante.Detalles
+            .Where(current => current.PorcentajeIva == tarifaPrincipalIva)
+            .Sum(current => current.IvaValor);
+
+        var detalleRows = comprobante.Detalles
+            .OrderBy(current => current.NombreProducto)
+            .Select(current => new FacturaRideDetalleRow
+            {
+                CodigoPrincipal = current.CodigoProducto,
+                CodigoAuxiliar = string.Empty,
+                Cantidad = current.Cantidad.ToString("0.####"),
+                Descripcion = current.NombreProducto,
+                DetalleAdicional1 = comprobante.TipoDocumentoId == "04" ? "Nota de credito" : string.Empty,
+                DetalleAdicional2 = string.IsNullOrWhiteSpace(comprobante.NumDocModificado) ? string.Empty : $"Doc. modificado: {comprobante.NumDocModificado}",
+                DetalleAdicional3 = string.Empty,
+                PrecioUnitario = current.PrecioUnitario.ToString("0.00"),
+                Subsidio = "0.00",
+                PrecioSinSubsidio = "0.00",
+                Descuento = current.Descuento.ToString("0.00"),
+                PrecioTotal = current.Total.ToString("0.00")
+            })
+            .ToArray();
+
+        var subtotalIva0 = comprobante.Detalles
+            .Where(current => current.PorcentajeIva == 0m)
+            .Sum(current => current.Subtotal);
+
+        var totalesRows = new List<FacturaRideTotalRow>
+        {
+            new() { Label = $"SUBTOTAL {FormatPercentageLabel(tarifaPrincipalIva)}", Valor = subtotalTarifaPrincipal.ToString("0.00") },
+            new() { Label = "SUBTOTAL IVA 0%", Valor = subtotalIva0.ToString("0.00") },
+            new() { Label = "SUBTOTAL SIN IMPUESTOS", Valor = comprobante.Subtotal.ToString("0.00") },
+            new() { Label = "DESCUENTO", Valor = comprobante.TotalDescuento.ToString("0.00") },
+            new() { Label = $"IVA {FormatPercentageLabel(tarifaPrincipalIva)}", Valor = ivaTarifaPrincipal.ToString("0.00") },
+            new() { Label = "VALOR TOTAL", Valor = comprobante.Total.ToString("0.00") }
+        };
+
+        var numeroComprobante = $"{comprobante.Establecimiento}-{comprobante.PuntoEmision}-{comprobante.Secuencial:000000000}";
+        var observacion = comprobante.TipoDocumentoId == "04"
+            ? $"NOTA DE CREDITO. Modifica {comprobante.NumDocModificado}. Motivo: {comprobante.MotivoModificacion}"
+            : comprobante.MotivoModificacion ?? "-";
+
+        var emisorRazonSocial = string.IsNullOrWhiteSpace(empresa?.RazonSocial) ? comprobante.RazonSocialEmisor : empresa.RazonSocial;
+        var emisorNombreComercial = string.IsNullOrWhiteSpace(empresa?.NombreComercial)
+            ? (string.IsNullOrWhiteSpace(comprobante.NombreComercialEmisor) ? emisorRazonSocial : comprobante.NombreComercialEmisor)
+            : empresa.NombreComercial;
+        var emisorDireccionMatriz = string.IsNullOrWhiteSpace(empresa?.DireccionMatriz) ? comprobante.DireccionMatrizEmisor : empresa.DireccionMatriz;
+        var emisorDireccionSucursal = string.IsNullOrWhiteSpace(empresa?.DireccionEstablecimiento)
+            ? (string.IsNullOrWhiteSpace(comprobante.DireccionEstablecimientoEmisor) ? emisorDireccionMatriz : comprobante.DireccionEstablecimientoEmisor)
+            : empresa.DireccionEstablecimiento;
+
+        return new FacturaRideReportModel
+        {
+            FacturaId = comprobante.Id,
+            BannerImagePath = new Uri(bannerPath).AbsoluteUri,
+            BannerImageContent = empresa?.LogoRideContenido,
+            BannerImageMimeType = empresa?.LogoRideMimeType,
+            NumeroComprobante = numeroComprobante,
+            Estado = comprobante.Estado.ToApiValue(),
+            ClaveAcceso = comprobante.ClaveAcceso,
+            NumeroAutorizacion = string.IsNullOrWhiteSpace(comprobante.NumeroAutorizacion) ? "-" : comprobante.NumeroAutorizacion,
+            FechaEmision = comprobante.FechaEmision.LocalDateTime.ToString("dd/MM/yyyy"),
+            FechaAutorizacion = comprobante.Estado == FacturaEstado.AUTORIZADO
+                ? comprobante.FechaAutorizacion?.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss") ?? "-"
+                : "-",
+            EmisorRazonSocial = emisorRazonSocial,
+            EmisorNombreComercial = emisorNombreComercial,
+            EmisorRuc = string.IsNullOrWhiteSpace(empresa?.Ruc) ? comprobante.RucEmisor : empresa.Ruc,
+            EmisorDireccionMatriz = emisorDireccionMatriz,
+            EmisorDireccionSucursal = emisorDireccionSucursal,
+            AmbienteSri = string.IsNullOrWhiteSpace(empresa?.AmbienteSri) ? comprobante.AmbienteSri : empresa.AmbienteSri,
+            EmisionTipo = string.IsNullOrWhiteSpace(empresa?.TipoEmision) ? comprobante.TipoEmision.ToUpperInvariant() : empresa.TipoEmision.ToUpperInvariant(),
+            ObligadoContabilidad = (empresa?.ObligadoContabilidad ?? comprobante.ObligadoContabilidad) ? "SI" : "NO",
+            ContribuyenteEspecial = string.IsNullOrWhiteSpace(empresa?.ContribuyenteEspecial) ? string.Empty : empresa.ContribuyenteEspecial,
+            ClienteNombre = comprobante.ClienteNombre,
+            ClienteIdentificacion = comprobante.ClienteIdentificacion,
+            ClienteDireccion = string.IsNullOrWhiteSpace(comprobante.ClienteDireccion) ? "-" : comprobante.ClienteDireccion,
+            ClienteEmail = "-",
+            ClienteTelefono = "-",
+            FormaPago = comprobante.TipoDocumentoId == "04" ? "NOTA DE CREDITO" : string.Empty,
+            GuiaRemision = string.Empty,
+            Observacion = observacion,
+            WatermarkText = ResolveWatermark(comprobante.Estado),
+            XmlGenerado = comprobante.XmlGenerado ?? string.Empty,
+            XmlFirmado = comprobante.XmlFirmado,
+            Subtotal = comprobante.Subtotal,
+            IvaTotal = comprobante.IvaTotal,
+            Total = comprobante.Total,
+            SubtotalIva12 = subtotalTarifaPrincipal,
+            SubtotalIva0 = subtotalIva0,
+            SubtotalSinImpuestos = comprobante.Subtotal,
+            Descuento = comprobante.TotalDescuento,
+            TotalSinSubsidio = comprobante.Total,
+            Detalles = detalleRows,
+            Totales = totalesRows
+        };
+    }
+
     public async Task<FacturaEmailNotificationDocument?> GetFacturaEmailNotificationDocumentAsync(Guid facturaId, CancellationToken cancellationToken)
     {
         var factura = await dbContext.Facturas

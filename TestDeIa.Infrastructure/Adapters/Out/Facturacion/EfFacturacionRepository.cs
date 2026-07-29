@@ -535,37 +535,98 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         };
     }
 
-    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, string? tipoDocumentoId, int skip, int take, CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term?.Trim();
-        var query = dbContext.Set<FacturaEntity>()
+        var normalizedTipoDocumento = tipoDocumentoId?.Trim();
+        var facturasQuery = dbContext.Set<FacturaEntity>()
             .AsNoTracking()
-            .AsQueryable();
+            .Select(factura => new FacturaMonitorResponse
+            {
+                Id = factura.Id,
+                Secuencial = factura.Secuencial,
+                Establecimiento = factura.Establecimiento,
+                PuntoEmision = factura.PuntoEmision,
+                TipoDocumentoId = "01",
+                TipoDocumentoNombre = "Factura",
+                ClienteIdentificacion = factura.ClienteIdentificacion,
+                ClienteTipoIdentificacion = factura.ClienteTipoIdentificacion,
+                ClienteNombre = factura.ClienteNombre,
+                FormaPago = factura.FormaPago,
+                Estado = factura.Estado.ToApiValue(),
+                Subtotal = factura.Subtotal,
+                IvaTotal = factura.IvaTotal,
+                Total = factura.Total,
+                ClaveAcceso = factura.ClaveAcceso,
+                NumeroAutorizacion = factura.NumeroAutorizacion,
+                MensajeEstado = factura.MensajeEstado,
+                TieneXmlGenerado = factura.XmlGenerado != null && factura.XmlGenerado != string.Empty,
+                TieneXmlFirmado = factura.XmlFirmado != null && factura.XmlFirmado != string.Empty,
+                FechaEmision = factura.FechaEmision,
+                FechaAutorizacion = factura.FechaAutorizacion
+            });
+
+        var notasCreditoQuery = dbContext.ComprobanteCabecera
+            .AsNoTracking()
+            .Where(comprobante => comprobante.TipoDocumentoId == "04")
+            .Select(comprobante => new FacturaMonitorResponse
+            {
+                Id = comprobante.Id,
+                Secuencial = comprobante.Secuencial,
+                Establecimiento = comprobante.Establecimiento,
+                PuntoEmision = comprobante.PuntoEmision,
+                TipoDocumentoId = comprobante.TipoDocumentoId,
+                TipoDocumentoNombre = "Nota de credito",
+                ClienteIdentificacion = comprobante.ClienteIdentificacion,
+                ClienteTipoIdentificacion = comprobante.ClienteTipoIdentificacion,
+                ClienteNombre = comprobante.ClienteNombre,
+                FormaPago = "Devolucion",
+                Estado = comprobante.Estado.ToApiValue(),
+                Subtotal = comprobante.Subtotal,
+                IvaTotal = comprobante.IvaTotal,
+                Total = comprobante.Total,
+                ClaveAcceso = comprobante.ClaveAcceso,
+                NumeroAutorizacion = comprobante.NumeroAutorizacion,
+                MensajeEstado = comprobante.MotivoModificacion,
+                TieneXmlGenerado = comprobante.XmlGenerado != null && comprobante.XmlGenerado != string.Empty,
+                TieneXmlFirmado = comprobante.XmlFirmado != null && comprobante.XmlFirmado != string.Empty,
+                FechaEmision = comprobante.FechaEmision,
+                FechaAutorizacion = comprobante.FechaAutorizacion
+            });
+
+        var query = facturasQuery.Concat(notasCreditoQuery);
+
+        if (!string.IsNullOrWhiteSpace(normalizedTipoDocumento))
+        {
+            query = query.Where(comprobante => comprobante.TipoDocumentoId == normalizedTipoDocumento);
+        }
 
         if (!string.IsNullOrWhiteSpace(normalizedTerm))
         {
-            query = query.Where(factura =>
-                factura.Establecimiento.Contains(normalizedTerm) ||
-                factura.PuntoEmision.Contains(normalizedTerm) ||
-                factura.ClienteNombre.Contains(normalizedTerm) ||
-                factura.ClienteIdentificacion.Contains(normalizedTerm) ||
-                factura.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
-                factura.FormaPago.Contains(normalizedTerm) ||
-                factura.ClaveAcceso.Contains(normalizedTerm) ||
-                factura.Estado.ToString().Contains(normalizedTerm) ||
-                (factura.MensajeEstado != null && factura.MensajeEstado.Contains(normalizedTerm)));
+            query = query.Where(comprobante =>
+                comprobante.Establecimiento.Contains(normalizedTerm) ||
+                comprobante.PuntoEmision.Contains(normalizedTerm) ||
+                comprobante.ClienteNombre.Contains(normalizedTerm) ||
+                comprobante.ClienteIdentificacion.Contains(normalizedTerm) ||
+                comprobante.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                comprobante.FormaPago.Contains(normalizedTerm) ||
+                comprobante.TipoDocumentoNombre.Contains(normalizedTerm) ||
+                comprobante.TipoDocumentoId.Contains(normalizedTerm) ||
+                (comprobante.ClaveAcceso != null && comprobante.ClaveAcceso.Contains(normalizedTerm)) ||
+                comprobante.Estado.Contains(normalizedTerm) ||
+                (comprobante.MensajeEstado != null && comprobante.MensajeEstado.Contains(normalizedTerm)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var facturas = await query
-            .OrderByDescending(factura => factura.CreatedAt)
+        var comprobantes = await query
+            .OrderByDescending(comprobante => comprobante.FechaEmision)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
 
         return new PagedResultResponse<FacturaMonitorResponse>
         {
-            Items = facturas.Select(MapMonitor).ToArray(),
+            Items = comprobantes,
             TotalCount = totalCount,
             Skip = skip,
             Take = take

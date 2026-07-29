@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using System.Globalization;
 using TestDeIa.Client.Services;
 using TestDeIa.Client.Services.Facturacion;
+using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Client.Pages;
@@ -26,6 +28,13 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private Guid? busyFacturaId;
     private string? busyDocumentKind;
     private string? downloadStatusMessage;
+    private string tipoDocumentoFiltro = string.Empty;
+    private bool showNotaCreditoModal;
+    private bool isLoadingNotaCreditoOrigen;
+    private bool isGeneratingNotaCredito;
+    private NotaCreditoOrigenResponseDto? notaCreditoOrigen;
+    private string notaCreditoMotivo = string.Empty;
+    private readonly Dictionary<Guid, decimal> notaCreditoCantidades = [];
     private const int PageSize = 10;
     private int totalCount;
     private int currentSkip;
@@ -56,7 +65,7 @@ public partial class ComprobantesMonitor : IAsyncDisposable
 
         try
         {
-            var page = await FacturacionApiClient.GetMonitorAsync(searchTerm, currentSkip, PageSize);
+            var page = await FacturacionApiClient.GetMonitorAsync(searchTerm, tipoDocumentoFiltro, currentSkip, PageSize);
             facturas.Clear();
             facturas.AddRange(page.Items);
             totalCount = page.TotalCount;
@@ -97,9 +106,130 @@ public partial class ComprobantesMonitor : IAsyncDisposable
         await ExecuteDownloadAsync(
             factura,
             "ride",
-            () => FacturacionApiClient.GetRidePdfAsync(factura.Id),
-            $"RIDE-{factura.NumeroComprobante}.pdf",
+            () => FacturacionApiClient.GetComprobanteRidePdfAsync(factura.Id),
+            $"RIDE-{factura.TipoDocumentoId}-{factura.NumeroComprobante}.pdf",
             "application/pdf");
+    }
+
+    private async Task OpenNotaCreditoAsync(FacturaMonitorResponse factura)
+    {
+        if (!CanCreateNotaCredito(factura))
+        {
+            await PopupNotificationService.ShowInfoAsync("La nota de credito solo aplica para facturas autorizadas.");
+            return;
+        }
+
+        showNotaCreditoModal = true;
+        isLoadingNotaCreditoOrigen = true;
+        notaCreditoOrigen = null;
+        notaCreditoMotivo = string.Empty;
+        notaCreditoCantidades.Clear();
+        await InvokeAsync(StateHasChanged);
+
+        var result = await FacturacionApiClient.GetNotaCreditoOrigenAsync(factura.Id);
+        if (!result.Succeeded || result.Data is null)
+        {
+            showNotaCreditoModal = false;
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo cargar la factura para nota de credito.");
+        }
+        else
+        {
+            notaCreditoOrigen = result.Data;
+            foreach (var detalle in notaCreditoOrigen.Detalles.Where(current => current.CantidadDisponible > 0m))
+            {
+                notaCreditoCantidades[detalle.FacturaDetalleId] = 0m;
+            }
+        }
+
+        isLoadingNotaCreditoOrigen = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CrearNotaCreditoAsync()
+    {
+        if (isGeneratingNotaCredito)
+        {
+            return;
+        }
+
+        if (notaCreditoOrigen is null)
+        {
+            await PopupNotificationService.ShowErrorAsync("No se encontro la factura origen para la nota de credito.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCreditoMotivo))
+        {
+            await PopupNotificationService.ShowInfoAsync("Ingresa el motivo de modificacion antes de generar la nota de credito.");
+            return;
+        }
+
+        var detallesSeleccionados = notaCreditoCantidades
+            .Where(current => current.Value > 0m)
+            .Select(current => new NotaCreditoDetalleRequestDto
+            {
+                FacturaDetalleId = current.Key,
+                Cantidad = current.Value
+            })
+            .ToArray();
+
+        if (detallesSeleccionados.Length == 0)
+        {
+            await PopupNotificationService.ShowInfoAsync("Ingresa al menos una cantidad a devolver para generar la nota de credito.");
+            return;
+        }
+
+        isGeneratingNotaCredito = true;
+        busyFacturaId = notaCreditoOrigen.FacturaId;
+        busyDocumentKind = "nota_credito";
+        await PopupNotificationService.ShowInfoAsync("Generando nota de credito y registrando devolucion de inventario...");
+        await InvokeAsync(StateHasChanged);
+
+        var request = new NotaCreditoRequestDto
+        {
+            FacturaId = notaCreditoOrigen.FacturaId,
+            MotivoModificacion = notaCreditoMotivo.Trim(),
+            Detalles = detallesSeleccionados
+        };
+
+        try
+        {
+            var result = await FacturacionApiClient.CrearNotaCreditoAsync(request);
+
+            if (!result.Succeeded || result.Data is null)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo generar la nota de credito.");
+                return;
+            }
+
+            showNotaCreditoModal = false;
+            await PopupNotificationService.ShowSuccessAsync($"Nota de credito {result.Data.NumeroComprobante} generada y enviada a cola SRI.");
+            await LoadMonitorAsync();
+        }
+        catch (HttpRequestException)
+        {
+            await PopupNotificationService.ShowErrorAsync("No se pudo comunicar con el servidor para generar la nota de credito.");
+        }
+        finally
+        {
+            isGeneratingNotaCredito = false;
+            busyFacturaId = null;
+            busyDocumentKind = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CloseNotaCreditoModal()
+    {
+        if (isGeneratingNotaCredito)
+        {
+            return;
+        }
+
+        showNotaCreditoModal = false;
+        notaCreditoOrigen = null;
+        notaCreditoMotivo = string.Empty;
+        notaCreditoCantidades.Clear();
     }
 
     private async Task DownloadXmlGeneradoAsync(FacturaMonitorResponse factura)
@@ -107,8 +237,8 @@ public partial class ComprobantesMonitor : IAsyncDisposable
         await ExecuteDownloadAsync(
             factura,
             "xml_generado",
-            () => FacturacionApiClient.GetXmlGeneradoAsync(factura.Id),
-            $"FACTURA-{factura.NumeroComprobante}-xml-generado.xml",
+            () => FacturacionApiClient.GetComprobanteXmlGeneradoAsync(factura.Id),
+            $"{factura.TipoDocumentoId}-{factura.NumeroComprobante}-xml-generado.xml",
             "application/xml");
     }
 
@@ -117,8 +247,8 @@ public partial class ComprobantesMonitor : IAsyncDisposable
         await ExecuteDownloadAsync(
             factura,
             "xml_firmado",
-            () => FacturacionApiClient.GetXmlFirmadoAsync(factura.Id),
-            $"FACTURA-{factura.NumeroComprobante}-xml-firmado.xml",
+            () => FacturacionApiClient.GetComprobanteXmlFirmadoAsync(factura.Id),
+            $"{factura.TipoDocumentoId}-{factura.NumeroComprobante}-xml-firmado.xml",
             "application/xml");
     }
 
@@ -206,6 +336,39 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             _ => "el documento"
         };
     }
+
+    private static bool CanCreateNotaCredito(FacturaMonitorResponse factura)
+    {
+        return factura.TipoDocumentoId == "01" && factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private decimal GetNotaCreditoCantidad(Guid detalleId)
+    {
+        return notaCreditoCantidades.TryGetValue(detalleId, out var cantidad) ? cantidad : 0m;
+    }
+
+    private void SetNotaCreditoCantidad(Guid detalleId, decimal value)
+    {
+        var max = notaCreditoOrigen?.Detalles.FirstOrDefault(current => current.FacturaDetalleId == detalleId)?.CantidadDisponible ?? 0m;
+        notaCreditoCantidades[detalleId] = Math.Clamp(value, 0m, max);
+    }
+
+    private void OnNotaCreditoCantidadChanged(Guid detalleId, ChangeEventArgs eventArgs)
+    {
+        var rawValue = Convert.ToString(eventArgs.Value, CultureInfo.InvariantCulture);
+        if (!decimal.TryParse(rawValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+        {
+            value = 0m;
+        }
+
+        SetNotaCreditoCantidad(detalleId, value);
+    }
+
+    private bool CanSubmitNotaCredito =>
+        notaCreditoOrigen is not null &&
+        !isGeneratingNotaCredito &&
+        !string.IsNullOrWhiteSpace(notaCreditoMotivo) &&
+        notaCreditoCantidades.Any(current => current.Value > 0m);
 
     private Task SearchAsync() => LoadMonitorAsync(resetPaging: true);
 

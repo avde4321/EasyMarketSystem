@@ -60,11 +60,36 @@ public sealed class FacturacionApiClient
         return (false, "No se pudo emitir la factura.", null);
     }
 
-    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, int skip, int take)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, string? tipoDocumentoId, int skip, int take)
     {
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
-        return await httpClient.GetFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}")
+        var tipoDocumentoQuery = string.IsNullOrWhiteSpace(tipoDocumentoId) ? string.Empty : $"&tipoDocumentoId={Uri.EscapeDataString(tipoDocumentoId)}";
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}{tipoDocumentoQuery}")
             ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, NotaCreditoOrigenResponseDto? Data)> GetNotaCreditoOrigenAsync(Guid facturaId)
+    {
+        var response = await httpClient.GetAsync($"api/facturacion/facturas/{facturaId}/nota-credito-origen");
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<NotaCreditoOrigenResponseDto>());
+        }
+
+        return (false, await ReadErrorAsync(response, "No se pudo cargar la factura origen."), null);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, NotaCreditoResponseDto? Data)> CrearNotaCreditoAsync(NotaCreditoRequestDto request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/facturacion/notas-credito", request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<NotaCreditoResponseDto>());
+        }
+
+        return (false, await ReadErrorAsync(response, "No se pudo generar la nota de credito."), null);
     }
 
     public async Task<LiquidacionComisionResponse> GetLiquidacionComisionesAsync(DateOnly desde, DateOnly hasta, Guid? operadorId = null)
@@ -81,14 +106,29 @@ public sealed class FacturacionApiClient
         return GetFileAsync($"api/reporteria/facturas/{facturaId}/ride");
     }
 
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteRidePdfAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/ride");
+    }
+
     public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlGeneradoAsync(Guid facturaId)
     {
         return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-generado");
     }
 
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteXmlGeneradoAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/xml-generado");
+    }
+
     public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlFirmadoAsync(Guid facturaId)
     {
         return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-firmado");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteXmlFirmadoAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/xml-firmado");
     }
 
     private async Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetFileAsync(string url)
@@ -112,6 +152,19 @@ public sealed class FacturacionApiClient
         }
 
         return (false, errorMessage, null);
+    }
+
+    private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
+    {
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            return error?.Message ?? fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private sealed class ApiError
