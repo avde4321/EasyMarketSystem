@@ -127,9 +127,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
 
     public async Task<IReadOnlyCollection<Producto>> GetProductosAsync(Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var productos = await dbContext.Productos
-            .AsNoTracking()
-            .Include(producto => producto.ProductosBodega)
+        var query = ApplyBodegaFilter(
+            dbContext.Productos
+                .AsNoTracking()
+                .Include(producto => producto.ProductosBodega),
+            bodegaId);
+
+        var productos = await query
             .OrderBy(producto => producto.Nombre)
             .ToListAsync(cancellationToken);
 
@@ -138,11 +142,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
 
     public async Task<PagedResultResponse<Producto>> GetProductosPagedAsync(string? term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        var query = ApplyFilter(
-            dbContext.Productos
-                .AsNoTracking()
-                .Include(producto => producto.ProductosBodega),
-            term);
+        var query = ApplyBodegaFilter(
+            ApplyFilter(
+                dbContext.Productos
+                    .AsNoTracking()
+                    .Include(producto => producto.ProductosBodega),
+                term),
+            bodegaId);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var productos = await query
@@ -267,6 +273,48 @@ public sealed class EfInventarioRepository : IInventarioRepository
             .ToListAsync(cancellationToken);
 
         return movimientos.Select(MapKardex).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<StockDisponibleBodegaResponse>> GetDisponibilidadEnOtrasBodegasAsync(
+        Guid productoId,
+        Guid? bodegaActualId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var producto = await dbContext.Productos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current => current.Id == productoId && current.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("No se encontro el producto para consultar disponibilidad.");
+
+        if (!producto.ControlaStock)
+        {
+            return Array.Empty<StockDisponibleBodegaResponse>();
+        }
+
+        var query = dbContext.ProductosBodega
+            .AsNoTracking()
+            .Include(current => current.Bodega)
+            .Where(current =>
+                current.ProductoId == productoId &&
+                current.StockActual > 0 &&
+                current.Bodega.IsActive);
+
+        if (bodegaActualId.HasValue && bodegaActualId.Value != Guid.Empty)
+        {
+            query = query.Where(current => current.BodegaId != bodegaActualId.Value);
+        }
+
+        return await query
+            .OrderByDescending(current => current.StockActual)
+            .ThenBy(current => current.Bodega.Nombre)
+            .Select(current => new StockDisponibleBodegaResponse
+            {
+                ProductoId = current.ProductoId,
+                BodegaId = current.BodegaId,
+                BodegaCodigo = current.Bodega.Codigo,
+                BodegaNombre = current.Bodega.Nombre,
+                StockActual = current.StockActual
+            })
+            .ToArrayAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<StockAlerta>> GetAlertasStockAsync(CancellationToken cancellationToken = default)
@@ -1080,6 +1128,16 @@ public sealed class EfInventarioRepository : IInventarioRepository
             producto.UnidadMedida.Contains(normalizedTerm) ||
             producto.NaturalezaItem.Contains(normalizedTerm) ||
             producto.CodigoIva.Contains(normalizedTerm));
+    }
+
+    private static IQueryable<ProductoEntity> ApplyBodegaFilter(IQueryable<ProductoEntity> query, Guid? bodegaId)
+    {
+        if (!bodegaId.HasValue || bodegaId.Value == Guid.Empty)
+        {
+            return query;
+        }
+
+        return query.Where(producto => producto.ProductosBodega.Any(existencia => existencia.BodegaId == bodegaId.Value));
     }
 
     private IQueryable<TransferenciaInventarioEntity> BuildTransferenciasQuery()

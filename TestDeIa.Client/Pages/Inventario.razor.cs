@@ -49,7 +49,7 @@ public partial class Inventario
         ? activeBodegas.FirstOrDefault(bodega => bodega.Id == id)
         : activeBodegas.FirstOrDefault();
     private Guid? selectedBodegaId => selectedBodega?.Id;
-    private Guid? selectedKardexBodegaId => Guid.TryParse(selectedKardexBodegaIdString, out var id) ? id : null;
+    private Guid? selectedKardexBodegaId => Guid.TryParse(selectedKardexBodegaIdString, out var id) ? id : selectedBodegaId;
     private Guid? selectedTransferDestinoId => Guid.TryParse(transferenciaDestinoIdString, out var id) ? id : null;
     private IReadOnlyList<BodegaResponse> destinationBodegas => activeBodegas
         .Where(bodega => bodega.Id != selectedBodegaId)
@@ -153,7 +153,7 @@ public partial class Inventario
 
         if (!preserveCurrentFilter)
         {
-            selectedKardexBodegaIdString = string.Empty;
+            selectedKardexBodegaIdString = selectedBodegaId?.ToString() ?? string.Empty;
         }
 
         try
@@ -173,6 +173,7 @@ public partial class Inventario
 
     private async Task OnBodegaChangedAsync()
     {
+        selectedKardexBodegaIdString = selectedBodegaId?.ToString() ?? string.Empty;
         await LoadProductsAsync(resetPaging: true);
 
         if (selectedProduct is not null)
@@ -181,6 +182,11 @@ public partial class Inventario
             if (refreshed is not null)
             {
                 await LoadKardexAsync(refreshed, preserveCurrentFilter: true);
+            }
+            else
+            {
+                selectedProduct = null;
+                kardex.Clear();
             }
         }
     }

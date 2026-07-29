@@ -12,4 +12,5 @@ public interface IDashboardAnalyticsRepository
     Task<decimal> GetTotalVentasAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<DashboardProductividadUsuarioResponse>> GetProductividadUsuariosAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, int take, CancellationToken cancellationToken = default);
     Task<DashboardCajeroOverviewResponse> GetCajeroOverviewAsync(Guid usuarioId, DateTimeOffset periodoInicio, DateTimeOffset periodoFin, CancellationToken cancellationToken = default);
+    Task<DashboardBodegueroOverviewResponse> GetBodegueroOverviewAsync(DateTimeOffset diaInicio, DateTimeOffset diaFin, DateTimeOffset mesInicio, DateTimeOffset mesFin, CancellationToken cancellationToken = default);
 }

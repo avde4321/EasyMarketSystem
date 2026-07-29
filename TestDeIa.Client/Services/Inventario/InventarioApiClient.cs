@@ -48,6 +48,13 @@ public sealed class InventarioApiClient
             $"api/inventario/productos/{productoId}/kardex{bodegaQuery}") ?? Array.Empty<KardexMovimientoResponse>();
     }
 
+    public async Task<IReadOnlyCollection<StockDisponibleBodegaResponse>> GetDisponibilidadEnOtrasBodegasAsync(Guid productoId, Guid? bodegaActualId = null)
+    {
+        var bodegaQuery = bodegaActualId.HasValue && bodegaActualId.Value != Guid.Empty ? $"?bodegaActualId={bodegaActualId.Value}" : string.Empty;
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<StockDisponibleBodegaResponse>>(
+            $"api/inventario/productos/{productoId}/disponibilidad-bodegas{bodegaQuery}") ?? Array.Empty<StockDisponibleBodegaResponse>();
+    }
+
     public async Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync()
     {
         return await httpClient.GetFromJsonAsync<IReadOnlyCollection<StockAlertaResponse>>("api/inventario/alertas-stock")

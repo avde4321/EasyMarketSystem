@@ -16,4 +16,10 @@ public sealed class DashboardApiClient(HttpClient httpClient)
         return await httpClient.GetFromJsonAsync<DashboardCajeroOverviewResponse>("api/dashboard/cajero")
                ?? new DashboardCajeroOverviewResponse();
     }
+
+    public async Task<DashboardBodegueroOverviewResponse> GetBodegueroOverviewAsync()
+    {
+        return await httpClient.GetFromJsonAsync<DashboardBodegueroOverviewResponse>("api/dashboard/bodeguero")
+               ?? new DashboardBodegueroOverviewResponse();
+    }
 }

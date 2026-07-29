@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Personas;
 using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Personas;
@@ -104,6 +105,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
     {
         var entity = MapToEntity(persona);
         dbContext.Personas.Add(entity);
+        await SyncSpecializedPersonRecordAsync(entity, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetByIdAsync(entity.Id, cancellationToken) ?? MapToDomain(entity);
@@ -137,8 +139,116 @@ public sealed class EfPersonaRepository : IPersonaRepository
         entity.IsActive = persona.IsActive;
         entity.UpdatedAt = persona.UpdatedAt;
 
+        await SyncSpecializedPersonRecordAsync(entity, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(entity.Id, cancellationToken);
+    }
+
+    private async Task SyncSpecializedPersonRecordAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        if (entity.EsEmpresa)
+        {
+            await RemovePersonaNaturalAsync(entity.Id, cancellationToken);
+            await UpsertEmpresaClienteAsync(entity, cancellationToken);
+            return;
+        }
+
+        await RemoveEmpresaClienteAsync(entity.Id, cancellationToken);
+        await UpsertPersonaNaturalAsync(entity, cancellationToken);
+    }
+
+    private async Task UpsertPersonaNaturalAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        var personaNatural = await dbContext.PersonasNaturales
+            .FirstOrDefaultAsync(current => current.Id == entity.Id, cancellationToken);
+
+        var nameParts = SplitPersonName(entity.RazonSocialONombresCompletos);
+        if (personaNatural is null)
+        {
+            personaNatural = new PersonaNaturalEntity
+            {
+                Id = entity.Id
+            };
+            dbContext.PersonasNaturales.Add(personaNatural);
+        }
+
+        personaNatural.EmpresaId = entity.EmpresaId;
+        personaNatural.PrimerNombre = nameParts.PrimerNombre;
+        personaNatural.SegundoNombre = nameParts.SegundoNombre;
+        personaNatural.PrimerApellido = nameParts.PrimerApellido;
+        personaNatural.SegundoApellido = nameParts.SegundoApellido;
+        personaNatural.TipoDocumento = ResolveTipoDocumento(entity.TipoIdentificacion);
+        personaNatural.NumeroDocumento = entity.Identificacion;
+        personaNatural.TieneRuc = entity.TipoIdentificacion == "04";
+        personaNatural.Email = entity.CorreoElectronicoPrincipal;
+        personaNatural.Telefono = entity.TelefonoCelular;
+        personaNatural.Direccion = entity.DireccionPrincipal;
+    }
+
+    private async Task UpsertEmpresaClienteAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        var empresaCliente = await dbContext.EmpresasCliente
+            .FirstOrDefaultAsync(current => current.Id == entity.Id, cancellationToken);
+
+        if (empresaCliente is null)
+        {
+            empresaCliente = new EmpresaClienteEntity
+            {
+                Id = entity.Id
+            };
+            dbContext.EmpresasCliente.Add(empresaCliente);
+        }
+
+        empresaCliente.EmpresaId = entity.EmpresaId;
+        empresaCliente.RazonSocial = entity.RazonSocialONombresCompletos;
+        empresaCliente.NombreComercial = entity.NombreComercial;
+        empresaCliente.Ruc = entity.Identificacion;
+        empresaCliente.EmailFacturacion = entity.CorreoElectronicoPrincipal;
+        empresaCliente.Telefono = entity.TelefonoCelular;
+        empresaCliente.DireccionMatriz = entity.DireccionPrincipal;
+    }
+
+    private async Task RemovePersonaNaturalAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var personaNatural = await dbContext.PersonasNaturales
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        if (personaNatural is not null)
+        {
+            dbContext.PersonasNaturales.Remove(personaNatural);
+        }
+    }
+
+    private async Task RemoveEmpresaClienteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var empresaCliente = await dbContext.EmpresasCliente
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        if (empresaCliente is not null)
+        {
+            dbContext.EmpresasCliente.Remove(empresaCliente);
+        }
+    }
+
+    private static TipoDocumentoPersonaNatural ResolveTipoDocumento(string tipoIdentificacion)
+    {
+        return tipoIdentificacion switch
+        {
+            "04" => TipoDocumentoPersonaNatural.RucNatural,
+            "06" => TipoDocumentoPersonaNatural.Pasaporte,
+            _ => TipoDocumentoPersonaNatural.Cedula
+        };
+    }
+
+    private static (string PrimerNombre, string? SegundoNombre, string PrimerApellido, string? SegundoApellido) SplitPersonName(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return (
+            parts.ElementAtOrDefault(0) ?? fullName,
+            parts.ElementAtOrDefault(1),
+            parts.ElementAtOrDefault(2) ?? "-",
+            parts.ElementAtOrDefault(3));
     }
 
     private IQueryable<PersonaEntity> BaseQuery()

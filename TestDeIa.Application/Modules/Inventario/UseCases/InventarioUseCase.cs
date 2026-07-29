@@ -210,6 +210,19 @@ public sealed class InventarioUseCase : IInventarioUseCase
         return movimientos.Select(MapKardex).ToArray();
     }
 
+    public Task<IReadOnlyCollection<StockDisponibleBodegaResponse>> GetDisponibilidadEnOtrasBodegasAsync(
+        Guid productoId,
+        Guid? bodegaActualId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (productoId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El producto es obligatorio para consultar disponibilidad.");
+        }
+
+        return inventarioRepository.GetDisponibilidadEnOtrasBodegasAsync(productoId, bodegaActualId, cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync(CancellationToken cancellationToken = default)
     {
         var alertas = await inventarioRepository.GetAlertasStockAsync(cancellationToken);

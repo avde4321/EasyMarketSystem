@@ -96,6 +96,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .Include(producto => producto.ProductosBodega)
             .Where(producto =>
                 producto.IsActive &&
+                (!producto.ControlaStock || producto.ProductosBodega.Any(existencia => existencia.BodegaId == operationalBodegaId)) &&
                 (producto.Codigo.Contains(normalizedTerm) ||
                  producto.Nombre.Contains(normalizedTerm) ||
                  (producto.Descripcion != null && producto.Descripcion.Contains(normalizedTerm))));
@@ -368,7 +369,13 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
             if (producto.ControlaStock && stockDespacho < item.Cantidad)
             {
-                throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre}.");
+                var disponibilidadAlterna = await BuildDisponibilidadAlternaMessageAsync(
+                    producto.Id,
+                    operationalBodegaId,
+                    item.Cantidad - stockDespacho,
+                    cancellationToken);
+
+                throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre} en la bodega {puntoEmision.Bodega.Nombre}. Stock local: {stockDespacho:0.####}. Requerido: {item.Cantidad:0.####}.{disponibilidadAlterna}");
             }
 
             var precioUnitario = producto.ControlaStock ? producto.PrecioVenta : item.PrecioUnitarioOverride ?? producto.PrecioVenta;
@@ -897,6 +904,42 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             await dbContext.SaveChangesAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
         }
+    }
+
+    private async Task<string> BuildDisponibilidadAlternaMessageAsync(
+        Guid productoId,
+        Guid bodegaActualId,
+        decimal cantidadFaltante,
+        CancellationToken cancellationToken)
+    {
+        var alternativas = await dbContext.ProductosBodega
+            .AsNoTracking()
+            .Include(current => current.Bodega)
+            .Where(current =>
+                current.ProductoId == productoId &&
+                current.BodegaId != bodegaActualId &&
+                current.StockActual > 0 &&
+                current.Bodega.IsActive)
+            .OrderByDescending(current => current.StockActual)
+            .ThenBy(current => current.Bodega.Nombre)
+            .Take(3)
+            .Select(current => new
+            {
+                current.Bodega.Nombre,
+                current.StockActual
+            })
+            .ToArrayAsync(cancellationToken);
+
+        if (alternativas.Length == 0)
+        {
+            return " No existe disponibilidad en otras bodegas activas.";
+        }
+
+        var detalle = string.Join(
+            "; ",
+            alternativas.Select(current => $"{current.Nombre}: {current.StockActual:0.####}"));
+
+        return $" Faltante: {cantidadFaltante:0.####}. Disponible en otras bodegas: {detalle}. Registra una transferencia interna antes de facturar.";
     }
 
     private async Task EnsurePuntoEmisionAllowedForCurrentUserAsync(

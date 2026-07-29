@@ -124,6 +124,23 @@ public sealed class InventarioController : ControllerBase
         return Ok(movimientos);
     }
 
+    [HttpGet("productos/{id:guid}/disponibilidad-bodegas")]
+    [Authorize(Policy = SecurityPolicyNames.InventarioView)]
+    public async Task<IActionResult> GetDisponibilidadEnOtrasBodegas(
+        Guid id,
+        [FromQuery] Guid? bodegaActualId = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await inventarioUseCase.GetDisponibilidadEnOtrasBodegasAsync(id, bodegaActualId, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
     [HttpGet("alertas-stock")]
     [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetAlertasStock(CancellationToken cancellationToken = default)

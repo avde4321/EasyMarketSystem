@@ -59,7 +59,7 @@
         }
         else if (totalCount == 0)
         {
-            <div class="empty-state">No hay productos registrados en la empresa activa.</div>
+            <div class="empty-state">No hay productos registrados en la bodega seleccionada.</div>
         }
         else if (!VisibleProductos.Any())
         {
@@ -146,7 +146,7 @@
                 <div class="table-toolbar kardex-toolbar">
                     <InputText class="form-control search-control" @bind-Value="kardexSearchTerm" placeholder="Buscar por tipo, concepto, referencia o bodega..." />
                     <InputSelect class="form-control compact-select" @bind-Value="selectedKardexBodegaIdString" @bind-Value:after="OnKardexBodegaChangedAsync">
-                        <option value="">Global - Todas las bodegas</option>
+                        <option value="">Bodega operativa seleccionada</option>
                         @foreach (var bodega in activeBodegas)
                         {
                             <option value="@bodega.Id.ToString()">@BuildBodegaLabel(bodega)</option>

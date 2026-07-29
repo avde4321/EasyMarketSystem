@@ -26,6 +26,11 @@ public interface IInventarioUseCase
 
     Task<IReadOnlyCollection<KardexMovimientoResponse>> GetKardexAsync(Guid productoId, Guid? bodegaId = null, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<StockDisponibleBodegaResponse>> GetDisponibilidadEnOtrasBodegasAsync(
+        Guid productoId,
+        Guid? bodegaActualId = null,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<StockAlertaResponse>> GetAlertasStockAsync(CancellationToken cancellationToken = default);
 
     Task<ProductoResponse?> AjustarStockAsync(Guid productoId, AjusteStockRequest request, CancellationToken cancellationToken = default);

@@ -121,11 +121,6 @@
             <EditForm Model="userRequest" OnValidSubmit="SaveUserAsync">
                 <DataAnnotationsValidator />
 
-                @if (!string.IsNullOrWhiteSpace(statusMessage))
-                {
-                    <div class="status-banner dynamic-status-banner">@statusMessage</div>
-                }
-
                 <div class="status-banner">
                     Si la persona ya existe por cedula o RUC, se reutiliza y se agrega el rol de usuario sin duplicar sus datos base.
                 </div>
@@ -134,117 +129,219 @@
                     Empresa activa para este usuario: <strong>@currentEmpresaLabel</strong>
                 </div>
 
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label>Tipo identificacion</label>
-                        <InputSelect class="form-control" @bind-Value="userRequest.TipoIdentificacion">
-                            @foreach (var item in tiposIdentificacion)
-                            {
-                                <option value="@item.Codigo">@item.Nombre</option>
-                            }
-                        </InputSelect>
-                    </div>
+                @if (!editingUserId.HasValue && selectedPersonaForUser is null && !isManualUserEntry)
+                {
+                    <section class="client-lookup-panel carousel-pane active-pane">
+                        <div class="lookup-heading">
+                            <div>
+                                <span class="eyebrow">Busqueda previa</span>
+                                <h3>Personas disponibles para convertir en usuario</h3>
+                                <p>Busca una persona existente y usa la accion de la fila para agregar solamente los datos de acceso faltantes.</p>
+                            </div>
+                            <button class="secondary-action" type="button" @onclick="StartManualUserEntry">Nuevo registro</button>
+                        </div>
 
-                    <div class="form-field">
-                        <label>Identificacion</label>
-                        <div class="input-action-row">
-                            <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
-                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
-                                @(isSearchingPersona ? "Buscando..." : "Buscar")
+                        <div class="lookup-search-row">
+                            <InputText class="form-control search-control" @bind-Value="personaSearchTerm" placeholder="Buscar por identificacion, nombre, correo, telefono o rol..." />
+                            <button class="secondary-action" type="button" @onclick="SearchPersonasForUserAsync" disabled="@isSearchingPersonas">
+                                @(isSearchingPersonas ? "Buscando..." : "Buscar")
                             </button>
                         </div>
-                        <ValidationMessage For="@(() => userRequest.Identificacion)" />
-                    </div>
 
-                    <div class="form-field">
-                        <label>Nombres</label>
-                        <InputText class="form-control" @bind-Value="userRequest.Nombres" />
-                        <ValidationMessage For="@(() => userRequest.Nombres)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Apellidos</label>
-                        <InputText class="form-control" @bind-Value="userRequest.Apellidos" />
-                        <ValidationMessage For="@(() => userRequest.Apellidos)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Correo</label>
-                        <InputText class="form-control" @bind-Value="userRequest.Email" />
-                        <ValidationMessage For="@(() => userRequest.Email)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Celular</label>
-                        <InputText class="form-control" @bind-Value="userRequest.Telefono" />
-                    </div>
-
-                    <div class="form-field full">
-                        <label>Direccion</label>
-                        <InputTextArea class="form-control" @bind-Value="userRequest.Direccion" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Usuario</label>
-                        <InputText class="form-control" @bind-Value="userRequest.UserName" />
-                        <ValidationMessage For="@(() => userRequest.UserName)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Clave @(editingUserId.HasValue ? "(opcional)" : string.Empty)</label>
-                        <InputText class="form-control" type="password" @bind-Value="userRequest.Password" />
-                    </div>
-
-                    <div class="form-field full">
-                        <label>Roles del sistema</label>
-                        <div class="checkbox-grid">
-                            @foreach (var role in roles)
-                            {
-                                <label class="form-check soft-check">
-                                    <input class="form-check-input" type="checkbox" checked="@selectedRoles.Contains(role.Name)" @onchange="args => ToggleRole(role.Name, args.Value)" />
-                                    <span class="form-check-label">@role.Name</span>
-                                </label>
-                            }
+                        <div class="soft-info-message compact-message">
+                            Selecciona una persona existente para autollenar el formulario y evitar duplicados.
                         </div>
-                    </div>
 
-                    @if (RequiresPuntosEmision)
+                        @if (personaSearchResults.Count == 0)
+                        {
+                            <div class="empty-state">Busca una persona para convertirla en usuario o usa nuevo registro.</div>
+                        }
+                        else
+                        {
+                            <div class="table-scroll lookup-table-scroll">
+                                <table class="data-table responsive-table lookup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Identificacion</th>
+                                            <th>Nombre / Razon social</th>
+                                            <th>Correo</th>
+                                            <th>Telefono</th>
+                                            <th>Roles</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var persona in personaSearchResults)
+                                        {
+                                            <tr>
+                                                <td data-label="Identificacion">@persona.Identificacion</td>
+                                                <td data-label="Nombre">@persona.RazonSocialONombresCompletos</td>
+                                                <td data-label="Correo">@persona.CorreoElectronicoPrincipal</td>
+                                                <td data-label="Telefono">@persona.TelefonoCelular</td>
+                                                <td data-label="Roles">
+                                                    @if (persona.RolesPersona.Any())
+                                                    {
+                                                        @string.Join(", ", persona.RolesPersona)
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Sin rol comercial</span>
+                                                    }
+                                                </td>
+                                                <td data-label="Accion" class="row-actions">
+                                                    <button class="ghost-button" type="button" @onclick="() => SelectPersonaForUser(persona)" disabled="@TieneRolUsuario(persona)">
+                                                        @(TieneRolUsuario(persona) ? "Ya es" : "Convertir")
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <footer class="table-footer lookup-footer">
+                                <span class="table-count">Mostrando @personaSearchResults.Count de @personaLookupTotalCount personas</span>
+                                <div class="pager-actions">
+                                    <button class="ghost-button" type="button" @onclick="GoToPreviousPersonaLookupAsync" disabled="@(!CanGoPreviousPersonaLookup)">Anterior</button>
+                                    <span class="pager-meta">Pagina @PersonaLookupPageNumber de @PersonaLookupTotalPages</span>
+                                    <button class="ghost-button" type="button" @onclick="GoToNextPersonaLookupAsync" disabled="@(!CanGoNextPersonaLookup)">Siguiente</button>
+                                </div>
+                            </footer>
+                        }
+                    </section>
+                }
+
+                @if (editingUserId.HasValue || selectedPersonaForUser is not null || isManualUserEntry)
+                {
+                    @if (selectedPersonaForUser is not null && !editingUserId.HasValue)
                     {
-                        <div class="form-field full">
-                            <label>Puntos de emision asignados</label>
-                            @if (puntosEmisionDisponibles.Count == 0)
-                            {
-                                <div class="soft-info-message compact-message">
-                                    No hay puntos de emision activos disponibles para asignar.
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="checkbox-grid">
-                                    @foreach (var punto in puntosEmisionDisponibles)
-                                    {
-                                        <label class="form-check soft-check">
-                                            <input class="form-check-input" type="checkbox" checked="@selectedPuntoEmisionIds.Contains(punto.Id)" @onchange="args => TogglePuntoEmision(punto.Id, args.Value)" />
-                                            <span class="form-check-label">@punto.DisplayName</span>
-                                        </label>
-                                    }
-                                </div>
-                                <small class="muted-text">Selecciona uno o mas puntos de emision de la empresa activa para el usuario cajero.</small>
-                            }
-                        </div>
+                        <section class="conversion-summary">
+                            <span class="conversion-avatar">✓</span>
+                            <div>
+                                <strong>@selectedPersonaForUser.NombreCompleto</strong>
+                                <small>@selectedPersonaForUser.TipoIdentificacion - @selectedPersonaForUser.Identificacion · la informacion base de Persona se usara por debajo.</small>
+                            </div>
+                            <button class="secondary-action" type="button" @onclick="ReturnToPersonaSelection">Cambiar persona</button>
+                        </section>
                     }
-                </div>
 
-                <label class="form-check soft-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="userRequest.IsActive" />
-                    <span class="form-check-label">Usuario activo</span>
-                </label>
+                    <div class="form-grid">
+                        @if (editingUserId.HasValue || isManualUserEntry)
+                        {
+                            <div class="form-field">
+                                <label>Tipo identificacion</label>
+                                <InputSelect class="form-control" @bind-Value="userRequest.TipoIdentificacion">
+                                    @foreach (var item in tiposIdentificacion)
+                                    {
+                                        <option value="@item.Codigo">@item.Nombre</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            <div class="form-field">
+                                <label>Identificacion</label>
+                                <div class="input-action-row">
+                                    <InputText class="form-control" @bind-Value="userRequest.Identificacion" />
+                                    <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
+                                        @(isSearchingPersona ? "Buscando..." : "Buscar")
+                                    </button>
+                                </div>
+                                <ValidationMessage For="@(() => userRequest.Identificacion)" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>Nombres</label>
+                                <InputText class="form-control" @bind-Value="userRequest.Nombres" />
+                                <ValidationMessage For="@(() => userRequest.Nombres)" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>Apellidos</label>
+                                <InputText class="form-control" @bind-Value="userRequest.Apellidos" />
+                                <ValidationMessage For="@(() => userRequest.Apellidos)" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>Correo</label>
+                                <InputText class="form-control" @bind-Value="userRequest.Email" />
+                                <ValidationMessage For="@(() => userRequest.Email)" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>Celular</label>
+                                <InputText class="form-control" @bind-Value="userRequest.Telefono" />
+                            </div>
+
+                            <div class="form-field full">
+                                <label>Direccion</label>
+                                <InputTextArea class="form-control" @bind-Value="userRequest.Direccion" />
+                            </div>
+                        }
+
+                        <div class="form-field">
+                            <label>Usuario</label>
+                            <InputText class="form-control" @bind-Value="userRequest.UserName" />
+                            <ValidationMessage For="@(() => userRequest.UserName)" />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Clave @(editingUserId.HasValue ? "(opcional)" : string.Empty)</label>
+                            <InputText class="form-control" type="password" @bind-Value="userRequest.Password" />
+                        </div>
+
+                        <div class="form-field full">
+                            <label>Roles del sistema</label>
+                            <div class="checkbox-grid">
+                                @foreach (var role in roles)
+                                {
+                                    <label class="form-check soft-check">
+                                        <input class="form-check-input" type="checkbox" checked="@selectedRoles.Contains(role.Name)" @onchange="args => ToggleRole(role.Name, args.Value)" />
+                                        <span class="form-check-label">@role.Name</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+
+                        @if (RequiresPuntosEmision)
+                        {
+                            <div class="form-field full">
+                                <label>Puntos de emision asignados</label>
+                                @if (puntosEmisionDisponibles.Count == 0)
+                                {
+                                    <div class="soft-info-message compact-message">
+                                        No hay puntos de emision activos disponibles para asignar.
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="checkbox-grid">
+                                        @foreach (var punto in puntosEmisionDisponibles)
+                                        {
+                                            <label class="form-check soft-check">
+                                                <input class="form-check-input" type="checkbox" checked="@selectedPuntoEmisionIds.Contains(punto.Id)" @onchange="args => TogglePuntoEmision(punto.Id, args.Value)" />
+                                                <span class="form-check-label">@punto.DisplayName</span>
+                                            </label>
+                                        }
+                                    </div>
+                                    <small class="muted-text">Selecciona uno o mas puntos de emision de la empresa activa para el usuario cajero.</small>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <label class="form-check soft-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="userRequest.IsActive" />
+                        <span class="form-check-label">Usuario activo</span>
+                    </label>
+                }
 
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal">Cerrar</button>
-                    <button class="primary-action" type="submit" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Guardar")
-                    </button>
+                    @if (editingUserId.HasValue || selectedPersonaForUser is not null || isManualUserEntry)
+                    {
+                        <button class="primary-action" type="submit" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : "Guardar")
+                        </button>
+                    }
                 </footer>
             </EditForm>
         </section>

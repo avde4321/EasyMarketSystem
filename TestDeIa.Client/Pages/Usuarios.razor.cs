@@ -4,8 +4,10 @@ using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Client.Services.Personas;
 using TestDeIa.Client.Services.Security;
+using TestDeIa.Client.Services;
 using TestDeIa.Shared.Requests.Security;
 using TestDeIa.Shared.Responses.Catalogos;
+using TestDeIa.Shared.Responses.Personas;
 using TestDeIa.Shared.Responses.Security;
 using TestDeIa.Shared.Security;
 
@@ -28,12 +30,16 @@ public partial class Usuarios
     [Inject]
     private EmpresaApiClient EmpresaApiClient { get; set; } = default!;
 
+    [Inject]
+    private PopupNotificationService PopupNotificationService { get; set; } = default!;
+
     private SecurityUserAdminApiClient UserAdminApiClient => new(HttpClient);
 
     private readonly List<SecurityUserResponse> users = [];
     private readonly List<SecurityRoleResponse> roles = [];
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
     private readonly List<SecurityPointEmissionResponse> puntosEmisionDisponibles = [];
+    private readonly List<PersonaResponse> personaSearchResults = [];
     private readonly HashSet<string> selectedRoles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> profileSelectedRoles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<Guid> selectedPuntoEmisionIds = [];
@@ -53,17 +59,24 @@ public partial class Usuarios
     private bool isUnlockModalOpen;
     private bool isStateModalOpen;
     private bool isSearchingPersona;
+    private bool isSearchingPersonas;
+    private bool isManualUserEntry;
     private string? errorMessage;
     private string? statusMessage;
     private string? profileErrorMessage;
     private string searchTerm = string.Empty;
+    private string personaSearchTerm = string.Empty;
     private string? pendingState;
     private string currentEmpresaLabel = "Sin empresa activa";
     private SecurityUserResponse? profileUser;
+    private PersonaResponse? selectedPersonaForUser;
     private string stateConfirmationMessage = string.Empty;
     private const int PageSize = 10;
+    private const int PersonaLookupPageSize = 5;
     private int totalCount;
     private int currentSkip;
+    private int personaLookupTotalCount;
+    private int personaLookupSkip;
     private IEnumerable<SecurityUserResponse> VisibleUsers => users;
     private IReadOnlyCollection<string> SelectedPermissions => roles
         .Where(role => profileSelectedRoles.Contains(role.Name))
@@ -76,6 +89,10 @@ public partial class Usuarios
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
     private bool RequiresPuntosEmision => selectedRoles.Contains(SecurityRoleNames.Cajero);
+    private bool CanGoPreviousPersonaLookup => personaLookupSkip > 0;
+    private bool CanGoNextPersonaLookup => personaLookupSkip + PersonaLookupPageSize < personaLookupTotalCount;
+    private int PersonaLookupPageNumber => (personaLookupSkip / PersonaLookupPageSize) + 1;
+    private int PersonaLookupTotalPages => Math.Max(1, (int)Math.Ceiling(personaLookupTotalCount / (double)PersonaLookupPageSize));
 
     protected override async Task OnInitializedAsync()
     {
@@ -130,6 +147,7 @@ public partial class Usuarios
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo cargar la lista de usuarios.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -137,7 +155,7 @@ public partial class Usuarios
         }
     }
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModal()
     {
         editingUserId = null;
         userRequest = new SecurityUserAdminRequest
@@ -147,9 +165,16 @@ public partial class Usuarios
         };
         selectedRoles.Clear();
         selectedPuntoEmisionIds.Clear();
+        personaSearchResults.Clear();
+        selectedPersonaForUser = null;
+        personaSearchTerm = string.Empty;
+        personaLookupSkip = 0;
+        personaLookupTotalCount = 0;
+        isManualUserEntry = false;
         errorMessage = null;
         statusMessage = null;
         isEditorOpen = true;
+        await LoadPersonasForUserLookupAsync(resetPaging: true, showEmptyPopup: false);
     }
 
     private async Task OpenEditModalAsync(SecurityUserResponse user)
@@ -158,7 +183,7 @@ public partial class Usuarios
         var persona = await PersonasApiClient.FindByIdentificacionAsync(user.PersonaIdentificacion);
         var tipoIdentificacion = persona?.TipoIdentificacion ?? tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05";
         var identificacion = persona?.Identificacion ?? user.PersonaIdentificacion;
-        var nombres = persona?.RazonSocialONombresCompletos ?? user.PersonaNombre;
+        var (nombres, apellidos) = SplitDisplayName(persona?.RazonSocialONombresCompletos ?? user.PersonaNombre);
         var email = persona?.CorreoElectronicoPrincipal ?? user.Email;
         var telefono = persona?.TelefonoCelular;
         var direccion = persona?.DireccionPrincipal;
@@ -169,7 +194,7 @@ public partial class Usuarios
             TipoIdentificacion = tipoIdentificacion,
             Identificacion = identificacion,
             Nombres = nombres,
-            Apellidos = string.Empty,
+            Apellidos = apellidos,
             Email = email,
             Telefono = telefono,
             Direccion = direccion,
@@ -192,6 +217,9 @@ public partial class Usuarios
 
         errorMessage = null;
         statusMessage = null;
+        selectedPersonaForUser = null;
+        personaSearchResults.Clear();
+        isManualUserEntry = false;
         isEditorOpen = true;
     }
 
@@ -264,6 +292,10 @@ public partial class Usuarios
         errorMessage = null;
         statusMessage = null;
         selectedPuntoEmisionIds.Clear();
+        selectedPersonaForUser = null;
+        personaSearchResults.Clear();
+        personaSearchTerm = string.Empty;
+        isManualUserEntry = false;
     }
 
     private void CloseResetModal()
@@ -297,6 +329,118 @@ public partial class Usuarios
         pendingState = null;
     }
 
+    private async Task SearchPersonasForUserAsync()
+    {
+        await LoadPersonasForUserLookupAsync(resetPaging: true, showEmptyPopup: true);
+    }
+
+    private async Task LoadPersonasForUserLookupAsync(bool resetPaging, bool showEmptyPopup)
+    {
+        isSearchingPersonas = true;
+        errorMessage = null;
+        statusMessage = null;
+        personaSearchResults.Clear();
+
+        if (resetPaging)
+        {
+            personaLookupSkip = 0;
+        }
+
+        try
+        {
+            var page = await PersonasApiClient.GetPagedAsync(personaSearchTerm, personaLookupSkip, PersonaLookupPageSize);
+            personaSearchResults.AddRange(page.Items);
+            personaLookupTotalCount = page.TotalCount;
+            if (personaSearchResults.Count == 0)
+            {
+                statusMessage = "No se encontraron personas con ese filtro. Puedes usar ingreso manual.";
+                if (showEmptyPopup)
+                {
+                    await PopupNotificationService.ShowInfoAsync(statusMessage);
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar personas para convertir en usuario.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
+        }
+        finally
+        {
+            isSearchingPersonas = false;
+        }
+    }
+
+    private async Task GoToPreviousPersonaLookupAsync()
+    {
+        if (!CanGoPreviousPersonaLookup)
+        {
+            return;
+        }
+
+        personaLookupSkip = Math.Max(0, personaLookupSkip - PersonaLookupPageSize);
+        await LoadPersonasForUserLookupAsync(resetPaging: false, showEmptyPopup: false);
+    }
+
+    private async Task GoToNextPersonaLookupAsync()
+    {
+        if (!CanGoNextPersonaLookup)
+        {
+            return;
+        }
+
+        personaLookupSkip += PersonaLookupPageSize;
+        await LoadPersonasForUserLookupAsync(resetPaging: false, showEmptyPopup: false);
+    }
+
+    private async Task SelectPersonaForUser(PersonaResponse persona)
+    {
+        selectedPersonaForUser = persona;
+        isManualUserEntry = false;
+        FillUserRequestFromPersona(persona);
+        statusMessage = "Persona seleccionada. Completa usuario, clave y roles para guardar el acceso.";
+        await PopupNotificationService.ShowSuccessAsync(statusMessage);
+    }
+
+    private async Task StartManualUserEntry()
+    {
+        selectedPersonaForUser = null;
+        personaSearchResults.Clear();
+        isManualUserEntry = true;
+        statusMessage = "Ingreso manual habilitado. Completa los datos base y de acceso.";
+        await PopupNotificationService.ShowInfoAsync(statusMessage);
+    }
+
+    private void ReturnToPersonaSelection()
+    {
+        selectedPersonaForUser = null;
+        isManualUserEntry = false;
+        statusMessage = null;
+    }
+
+    private void FillUserRequestFromPersona(PersonaResponse persona)
+    {
+        var (nombres, apellidos) = SplitDisplayName(persona.RazonSocialONombresCompletos);
+        userRequest.TipoIdentificacion = persona.TipoIdentificacion;
+        userRequest.Identificacion = persona.Identificacion;
+        userRequest.Nombres = nombres;
+        userRequest.Apellidos = apellidos;
+        userRequest.Email = persona.CorreoElectronicoPrincipal;
+        userRequest.Telefono = persona.TelefonoCelular;
+        userRequest.Direccion = persona.DireccionPrincipal;
+        userRequest.IsActive = persona.IsActive;
+
+        if (string.IsNullOrWhiteSpace(userRequest.UserName))
+        {
+            userRequest.UserName = BuildUserNameSuggestion(persona);
+        }
+    }
+
+    private static bool TieneRolUsuario(PersonaResponse persona)
+    {
+        return persona.RolesPersona.Any(role => string.Equals(role, "Usuario", StringComparison.OrdinalIgnoreCase));
+    }
+
     private async Task BuscarPersonaAsync()
     {
         errorMessage = null;
@@ -305,6 +449,7 @@ public partial class Usuarios
         if (string.IsNullOrWhiteSpace(userRequest.Identificacion))
         {
             errorMessage = "Ingresa una identificacion antes de buscar.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
             return;
         }
 
@@ -316,23 +461,27 @@ public partial class Usuarios
             if (persona is null)
             {
                 statusMessage = "No se encontro una persona registrada con esa identificacion.";
+                await PopupNotificationService.ShowInfoAsync(statusMessage);
                 return;
             }
 
             userRequest.TipoIdentificacion = persona.TipoIdentificacion;
             userRequest.Identificacion = persona.Identificacion;
-            userRequest.Nombres = persona.RazonSocialONombresCompletos;
-            userRequest.Apellidos = string.Empty;
+            var (nombres, apellidos) = SplitDisplayName(persona.RazonSocialONombresCompletos);
+            userRequest.Nombres = nombres;
+            userRequest.Apellidos = apellidos;
             userRequest.Email = persona.CorreoElectronicoPrincipal;
             userRequest.Telefono = persona.TelefonoCelular;
             userRequest.Direccion = persona.DireccionPrincipal;
             userRequest.IsActive = persona.IsActive;
 
             statusMessage = "Se cargo la informacion de la persona existente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
         }
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo consultar la persona.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -350,6 +499,7 @@ public partial class Usuarios
         if (RequiresPuntosEmision && userRequest.PuntoEmisionIds.Count == 0)
         {
             errorMessage = "Si el usuario tiene el rol Cajero debes asignar al menos un punto de emision.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
             isSaving = false;
             return;
         }
@@ -363,15 +513,18 @@ public partial class Usuarios
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                await PopupNotificationService.ShowErrorAsync(errorMessage ?? "No se pudo guardar el usuario.");
                 return;
             }
 
             CloseModal();
+            await PopupNotificationService.ShowSuccessAsync("Usuario guardado correctamente.");
             await LoadUsersAsync();
         }
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo guardar el usuario.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -441,12 +594,14 @@ public partial class Usuarios
             if (!result.Succeeded)
             {
                 profileErrorMessage = result.ErrorMessage ?? "No se pudo actualizar el perfil.";
+                await PopupNotificationService.ShowErrorAsync(profileErrorMessage);
                 return;
             }
 
             await LoadUsersAsync();
             profileUser = users.FirstOrDefault(current => current.Id == profileUser.Id);
             statusMessage = "Perfil actualizado correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
 
             if (profileUser is null)
             {
@@ -456,6 +611,7 @@ public partial class Usuarios
         catch (HttpRequestException)
         {
             profileErrorMessage = "No se pudo actualizar el perfil del usuario.";
+            await PopupNotificationService.ShowErrorAsync(profileErrorMessage);
         }
         finally
         {
@@ -483,6 +639,7 @@ public partial class Usuarios
             if (!result.Succeeded)
             {
                 profileErrorMessage = result.ErrorMessage ?? "No se pudo cambiar el estado del usuario.";
+                await PopupNotificationService.ShowErrorAsync(profileErrorMessage);
                 return;
             }
 
@@ -490,10 +647,12 @@ public partial class Usuarios
             await LoadUsersAsync();
             profileUser = users.FirstOrDefault(current => current.Id == profileUser.Id);
             statusMessage = "Estado del usuario actualizado correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
         }
         catch (HttpRequestException)
         {
             profileErrorMessage = "No se pudo cambiar el estado del usuario.";
+            await PopupNotificationService.ShowErrorAsync(profileErrorMessage);
         }
         finally
         {
@@ -517,16 +676,19 @@ public partial class Usuarios
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                await PopupNotificationService.ShowErrorAsync(errorMessage ?? "No se pudo resetear la clave.");
                 return;
             }
 
             CloseResetModal();
             statusMessage = "Clave temporal actualizada correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
             await LoadUsersAsync();
         }
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo resetear la clave.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -550,16 +712,19 @@ public partial class Usuarios
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                await PopupNotificationService.ShowErrorAsync(errorMessage ?? "No se pudo desbloquear el usuario.");
                 return;
             }
 
             CloseUnlockModal();
             statusMessage = "Usuario desbloqueado correctamente.";
+            await PopupNotificationService.ShowSuccessAsync(statusMessage);
             await LoadUsersAsync();
         }
         catch (HttpRequestException)
         {
             errorMessage = "No se pudo desbloquear el usuario.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
         {
@@ -598,6 +763,39 @@ public partial class Usuarios
             SecurityUserEstados.Bloqueado => "status-pill danger-pill",
             _ => "status-pill soft-pill"
         };
+
+    private static (string Nombres, string Apellidos) SplitDisplayName(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return ("Usuario", "-");
+        }
+
+        if (parts.Length == 1)
+        {
+            return (parts[0], "-");
+        }
+
+        if (parts.Length == 2)
+        {
+            return (parts[0], parts[1]);
+        }
+
+        var splitIndex = Math.Max(1, parts.Length - 2);
+        return (string.Join(' ', parts.Take(splitIndex)), string.Join(' ', parts.Skip(splitIndex)));
+    }
+
+    private static string BuildUserNameSuggestion(PersonaResponse persona)
+    {
+        if (!string.IsNullOrWhiteSpace(persona.CorreoElectronicoPrincipal))
+        {
+            return persona.CorreoElectronicoPrincipal.Split('@')[0].Trim();
+        }
+
+        var normalized = new string(persona.Identificacion.Where(char.IsLetterOrDigit).ToArray());
+        return string.IsNullOrWhiteSpace(normalized) ? "usuario" : normalized.ToLowerInvariant();
+    }
 }
 
 

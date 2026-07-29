@@ -91,7 +91,7 @@
                 <button class="icon-button" @onclick="CloseModal">x</button>
             </header>
 
-            <EditForm Model="personaRequest" OnValidSubmit="SavePersonaAsync">
+            <EditForm Model="personaRequest" OnSubmit="SavePersonaAsync">
                 <DataAnnotationsValidator />
 
                 @if (registroCrudTipo is null)

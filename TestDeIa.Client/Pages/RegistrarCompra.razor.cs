@@ -51,7 +51,6 @@ public partial class RegistrarCompra
     private bool isLoadingProducts;
     private bool isSaving;
     private bool isAnalyzingInvoice;
-    private bool isInvoiceAnalysisModalOpen;
     private bool isLiquidacionRoute;
     private bool isWorkflowModalOpen = true;
     private int currentStep = 1;
@@ -600,7 +599,8 @@ public partial class RegistrarCompra
             }
 
             invoiceAnalysis = result.Data;
-            isInvoiceAnalysisModalOpen = true;
+            isWorkflowModalOpen = true;
+            currentStep = 1;
             if (!invoiceAnalysis.Succeeded)
             {
                 await PopupNotificationService.ShowInfoAsync(invoiceAnalysis.Message);
@@ -617,9 +617,9 @@ public partial class RegistrarCompra
         }
     }
 
-    private void CloseInvoiceAnalysisModal()
+    private void ClearInvoiceAnalysis()
     {
-        isInvoiceAnalysisModalOpen = false;
+        invoiceAnalysis = null;
     }
 
     private async Task ApplyInvoiceAnalysisAsync()
@@ -678,7 +678,6 @@ public partial class RegistrarCompra
         }
 
         currentStep = detailRows.Count > 0 ? 3 : 1;
-        isInvoiceAnalysisModalOpen = false;
         successMessage = "Datos de factura aplicados al formulario. Revisa la clasificación y productos antes de guardar.";
         await PopupNotificationService.ShowSuccessAsync(successMessage);
     }

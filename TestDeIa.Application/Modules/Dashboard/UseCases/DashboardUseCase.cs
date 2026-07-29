@@ -32,8 +32,8 @@ public sealed class DashboardUseCase : IDashboardUseCase
         var topServicios = await dashboardAnalyticsRepository.GetTopServiciosVendidosAsync(periodoInicio, periodoFin, 5, cancellationToken);
         var historial = await dashboardAnalyticsRepository.GetConsumoHistoricoAsync(periodoPrediccionInicio, periodoFin, 15, cancellationToken);
         var alertas = await inventarioPredictivoService.PredecirAlertasAsync(historial, cancellationToken);
-        var ventasInteranual = await dashboardAnalyticsRepository.GetTotalVentasAsync(periodoInteranualInicio, periodoInteranualFin, cancellationToken);
-        var productividad = await dashboardAnalyticsRepository.GetProductividadUsuariosAsync(periodoInicio, periodoFin, 8, cancellationToken);
+        var ventasInteranual = await GetTotalVentasSeguroAsync(periodoInteranualInicio, periodoInteranualFin, cancellationToken);
+        var productividad = await GetProductividadUsuariosSeguroAsync(periodoInicio, periodoFin, 8, cancellationToken);
 
         return new DashboardOverviewResponse
         {
@@ -66,6 +66,48 @@ public sealed class DashboardUseCase : IDashboardUseCase
         var periodoFin = periodoInicio.AddDays(1);
 
         return dashboardAnalyticsRepository.GetCajeroOverviewAsync(usuarioId, periodoInicio, periodoFin, cancellationToken);
+    }
+
+    public Task<DashboardBodegueroOverviewResponse> GetBodegueroOverviewAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.Now;
+        var diaInicio = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
+        var diaFin = diaInicio.AddDays(1);
+        var mesInicio = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, now.Offset);
+        var mesFin = mesInicio.AddMonths(1);
+
+        return dashboardAnalyticsRepository.GetBodegueroOverviewAsync(diaInicio, diaFin, mesInicio, mesFin, cancellationToken);
+    }
+
+    private async Task<decimal> GetTotalVentasSeguroAsync(
+        DateTimeOffset periodoInicio,
+        DateTimeOffset periodoFin,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dashboardAnalyticsRepository.GetTotalVentasAsync(periodoInicio, periodoFin, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return 0m;
+        }
+    }
+
+    private async Task<IReadOnlyCollection<DashboardProductividadUsuarioResponse>> GetProductividadUsuariosSeguroAsync(
+        DateTimeOffset periodoInicio,
+        DateTimeOffset periodoFin,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dashboardAnalyticsRepository.GetProductividadUsuariosAsync(periodoInicio, periodoFin, take, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Array.Empty<DashboardProductividadUsuarioResponse>();
+        }
     }
 
     private static DashboardTopProductoResponse MapTopProducto(DashboardTopProducto producto)

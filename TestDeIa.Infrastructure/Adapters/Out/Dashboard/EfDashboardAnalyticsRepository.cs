@@ -324,4 +324,150 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
             UltimasVentas = ventas.Take(10).ToArray()
         };
     }
+
+    public async Task<DashboardBodegueroOverviewResponse> GetBodegueroOverviewAsync(
+        DateTimeOffset diaInicio,
+        DateTimeOffset diaFin,
+        DateTimeOffset mesInicio,
+        DateTimeOffset mesFin,
+        CancellationToken cancellationToken = default)
+    {
+        var bodegas = await dbContext.Bodegas
+            .AsNoTracking()
+            .Where(current => current.IsActive)
+            .OrderByDescending(current => current.EsPrincipal)
+            .ThenBy(current => current.Nombre)
+            .Select(current => new
+            {
+                current.Id,
+                current.Codigo,
+                current.Nombre,
+                current.EsPrincipal
+            })
+            .ToListAsync(cancellationToken);
+
+        if (bodegas.Count == 0)
+        {
+            return new DashboardBodegueroOverviewResponse();
+        }
+
+        var bodegaIds = bodegas.Select(current => current.Id).ToArray();
+        var stockPorBodega = await dbContext.ProductosBodega
+            .AsNoTracking()
+            .Include(current => current.Producto)
+            .Where(current => bodegaIds.Contains(current.BodegaId) && current.Producto.IsActive && current.Producto.ControlaStock)
+            .GroupBy(current => current.BodegaId)
+            .Select(grouped => new
+            {
+                BodegaId = grouped.Key,
+                ItemsConStock = grouped.Count(current => current.StockActual > 0),
+                ItemsCriticos = grouped.Count(current => current.StockActual <= (current.Producto.StockMinimo ?? 0m)),
+                StockTotal = grouped.Sum(current => current.StockActual),
+                ValorInventario = grouped.Sum(current => current.StockActual * current.Producto.CostoPromedio)
+            })
+            .ToDictionaryAsync(current => current.BodegaId, cancellationToken);
+
+        var movimientosMes = await dbContext.KardexMovimientos
+            .AsNoTracking()
+            .Where(current =>
+                bodegaIds.Contains(current.BodegaId) &&
+                current.FechaMovimiento >= mesInicio &&
+                current.FechaMovimiento < mesFin)
+            .Select(current => new
+            {
+                current.ProductoId,
+                current.BodegaId,
+                current.Producto.Codigo,
+                current.Producto.Nombre,
+                BodegaNombre = current.Bodega.Nombre,
+                current.FechaMovimiento,
+                current.CantidadEntrada,
+                current.CantidadSalida
+            })
+            .ToListAsync(cancellationToken);
+
+        var movimientosPorBodega = movimientosMes
+            .GroupBy(current => current.BodegaId)
+            .ToDictionary(
+                current => current.Key,
+                current => new
+                {
+                    EntradasDia = current.Where(item => item.FechaMovimiento >= diaInicio && item.FechaMovimiento < diaFin).Sum(item => item.CantidadEntrada),
+                    SalidasDia = current.Where(item => item.FechaMovimiento >= diaInicio && item.FechaMovimiento < diaFin).Sum(item => item.CantidadSalida),
+                    EntradasMes = current.Sum(item => item.CantidadEntrada),
+                    SalidasMes = current.Sum(item => item.CantidadSalida)
+                });
+
+        var bodegaEstados = bodegas
+            .Select(bodega =>
+            {
+                stockPorBodega.TryGetValue(bodega.Id, out var stock);
+                movimientosPorBodega.TryGetValue(bodega.Id, out var movimientos);
+
+                return new DashboardBodegaEstadoResponse
+                {
+                    BodegaId = bodega.Id,
+                    Codigo = bodega.Codigo,
+                    Nombre = bodega.Nombre,
+                    EsPrincipal = bodega.EsPrincipal,
+                    ItemsConStock = stock?.ItemsConStock ?? 0,
+                    ItemsCriticos = stock?.ItemsCriticos ?? 0,
+                    StockTotal = Math.Round(stock?.StockTotal ?? 0m, 4, MidpointRounding.AwayFromZero),
+                    ValorInventario = Math.Round(stock?.ValorInventario ?? 0m, 2, MidpointRounding.AwayFromZero),
+                    EntradasDia = Math.Round(movimientos?.EntradasDia ?? 0m, 4, MidpointRounding.AwayFromZero),
+                    SalidasDia = Math.Round(movimientos?.SalidasDia ?? 0m, 4, MidpointRounding.AwayFromZero),
+                    EntradasMes = Math.Round(movimientos?.EntradasMes ?? 0m, 4, MidpointRounding.AwayFromZero),
+                    SalidasMes = Math.Round(movimientos?.SalidasMes ?? 0m, 4, MidpointRounding.AwayFromZero)
+                };
+            })
+            .ToArray();
+
+        var itemsMovilizados = movimientosMes
+            .GroupBy(current => new
+            {
+                current.ProductoId,
+                current.BodegaId,
+                current.Codigo,
+                current.Nombre,
+                current.BodegaNombre
+            })
+            .Select(grouped =>
+            {
+                var entradasDia = grouped.Where(item => item.FechaMovimiento >= diaInicio && item.FechaMovimiento < diaFin).Sum(item => item.CantidadEntrada);
+                var salidasDia = grouped.Where(item => item.FechaMovimiento >= diaInicio && item.FechaMovimiento < diaFin).Sum(item => item.CantidadSalida);
+                var entradasMes = grouped.Sum(item => item.CantidadEntrada);
+                var salidasMes = grouped.Sum(item => item.CantidadSalida);
+
+                return new DashboardBodegaItemMovimientoResponse
+                {
+                    ProductoId = grouped.Key.ProductoId,
+                    BodegaId = grouped.Key.BodegaId,
+                    CodigoProducto = grouped.Key.Codigo,
+                    NombreProducto = grouped.Key.Nombre,
+                    BodegaNombre = grouped.Key.BodegaNombre,
+                    EntradasDia = Math.Round(entradasDia, 4, MidpointRounding.AwayFromZero),
+                    SalidasDia = Math.Round(salidasDia, 4, MidpointRounding.AwayFromZero),
+                    EntradasMes = Math.Round(entradasMes, 4, MidpointRounding.AwayFromZero),
+                    SalidasMes = Math.Round(salidasMes, 4, MidpointRounding.AwayFromZero),
+                    MovimientoTotalMes = Math.Round(entradasMes + salidasMes, 4, MidpointRounding.AwayFromZero)
+                };
+            })
+            .OrderByDescending(current => current.MovimientoTotalMes)
+            .ThenBy(current => current.NombreProducto)
+            .Take(12)
+            .ToArray();
+
+        return new DashboardBodegueroOverviewResponse
+        {
+            EntradasDia = Math.Round(bodegaEstados.Sum(current => current.EntradasDia), 4, MidpointRounding.AwayFromZero),
+            SalidasDia = Math.Round(bodegaEstados.Sum(current => current.SalidasDia), 4, MidpointRounding.AwayFromZero),
+            EntradasMes = Math.Round(bodegaEstados.Sum(current => current.EntradasMes), 4, MidpointRounding.AwayFromZero),
+            SalidasMes = Math.Round(bodegaEstados.Sum(current => current.SalidasMes), 4, MidpointRounding.AwayFromZero),
+            BodegasActivas = bodegaEstados.Length,
+            ItemsCriticos = bodegaEstados.Sum(current => current.ItemsCriticos),
+            ValorInventario = Math.Round(bodegaEstados.Sum(current => current.ValorInventario), 2, MidpointRounding.AwayFromZero),
+            Bodegas = bodegaEstados,
+            ItemsMovilizados = itemsMovilizados
+        };
+    }
 }

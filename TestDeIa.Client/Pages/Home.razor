@@ -13,11 +13,18 @@
                 <DashboardCajero />
             </Authorized>
             <NotAuthorized Context="cashierDeniedContext">
-                <section class="dashboard-page">
-                    <div class="dashboard-section empty-state">
-                        Tu perfil no tiene un dashboard operativo asignado. Solicita al administrador revisar tus roles.
-                    </div>
-                </section>
+                <AuthorizeView Roles="Bodeguero">
+                    <Authorized Context="warehouseContext">
+                        <DashboardBodeguero />
+                    </Authorized>
+                    <NotAuthorized Context="warehouseDeniedContext">
+                        <section class="dashboard-page">
+                            <div class="dashboard-section empty-state">
+                                Tu perfil no tiene un dashboard operativo asignado. Solicita al administrador revisar tus roles.
+                            </div>
+                        </section>
+                    </NotAuthorized>
+                </AuthorizeView>
             </NotAuthorized>
         </AuthorizeView>
     </NotAuthorized>

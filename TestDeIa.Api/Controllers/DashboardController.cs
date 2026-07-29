@@ -37,4 +37,11 @@ public sealed class DashboardController : ControllerBase
 
         return Ok(await dashboardUseCase.GetCajeroOverviewAsync(userId, cancellationToken));
     }
+
+    [HttpGet("bodeguero")]
+    [Authorize(Roles = SecurityRoleNames.Bodeguero)]
+    public async Task<IActionResult> GetBodegueroOverview(CancellationToken cancellationToken)
+    {
+        return Ok(await dashboardUseCase.GetBodegueroOverviewAsync(cancellationToken));
+    }
 }
