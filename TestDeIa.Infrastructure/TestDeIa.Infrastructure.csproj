@@ -25,6 +25,9 @@
     <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriFacturaV110.xsd">
       <LogicalName>TestDeIa.Infrastructure.SriFacturaV110.xsd</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriNotaCreditoV110.xsd">
+      <LogicalName>TestDeIa.Infrastructure.SriNotaCreditoV110.xsd</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <PropertyGroup>

@@ -17,16 +17,22 @@ public sealed class ClaveAccesoService
     {
         var ambienteCode = GetAmbienteCode(ambienteSri);
         var tipoEmisionCode = GetTipoEmisionCode(tipoEmision);
+        var codigoDocumentoNormalizado = NormalizeNumericSegment(codigoDocumento, 2, "tipo de comprobante");
+        var rucNormalizado = NormalizeNumericSegment(ruc, 13, "RUC emisor");
+        var establecimientoNormalizado = NormalizeNumericSegment(establecimiento, 3, "establecimiento");
+        var puntoEmisionNormalizado = NormalizeNumericSegment(puntoEmision, 3, "punto de emision");
+        var secuencialNormalizado = NormalizeNumericSegment(secuencial, 9, "secuencial", allowLeftPadding: true);
+        var codigoNumericoNormalizado = NormalizeNumericSegment(codigoNumerico, 8, "codigo numerico", allowLeftPadding: true);
 
         var claveSinDigito =
             $"{fechaEmision:ddMMyyyy}" +
-            codigoDocumento +
-            ruc +
+            codigoDocumentoNormalizado +
+            rucNormalizado +
             ambienteCode +
-            establecimiento +
-            puntoEmision +
-            secuencial.PadLeft(9, '0') +
-            codigoNumerico +
+            establecimientoNormalizado +
+            puntoEmisionNormalizado +
+            secuencialNormalizado +
+            codigoNumericoNormalizado +
             tipoEmisionCode;
 
         if (claveSinDigito.Length != 48 || !claveSinDigito.All(char.IsDigit))
@@ -83,5 +89,30 @@ public sealed class ClaveAccesoService
             10 => 1,
             _ => modulo
         };
+    }
+
+    private static string NormalizeNumericSegment(
+        string value,
+        int expectedLength,
+        string fieldName,
+        bool allowLeftPadding = false)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"La clave de acceso SRI requiere {fieldName}.");
+        }
+
+        var normalized = value.Trim();
+        if (allowLeftPadding && normalized.Length < expectedLength)
+        {
+            normalized = normalized.PadLeft(expectedLength, '0');
+        }
+
+        if (normalized.Length != expectedLength || !normalized.All(char.IsDigit))
+        {
+            throw new InvalidOperationException($"El campo {fieldName} de la clave de acceso SRI debe contener {expectedLength} digitos numericos.");
+        }
+
+        return normalized;
     }
 }

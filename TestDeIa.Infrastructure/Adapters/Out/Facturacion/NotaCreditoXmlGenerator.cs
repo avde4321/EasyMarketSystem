@@ -12,10 +12,14 @@ public sealed class NotaCreditoXmlGenerator
     private const string MonedaDolar = "DOLAR";
 
     private readonly ClaveAccesoService claveAccesoService;
+    private readonly SriNotaCreditoXmlSchemaValidator schemaValidator;
 
-    public NotaCreditoXmlGenerator(ClaveAccesoService claveAccesoService)
+    public NotaCreditoXmlGenerator(
+        ClaveAccesoService claveAccesoService,
+        SriNotaCreditoXmlSchemaValidator schemaValidator)
     {
         this.claveAccesoService = claveAccesoService;
+        this.schemaValidator = schemaValidator;
     }
 
     public string GenerarClaveAcceso(ComprobanteCabeceraEntity notaCredito)
@@ -34,10 +38,7 @@ public sealed class NotaCreditoXmlGenerator
 
     public string BuildUnsignedXml(ComprobanteCabeceraEntity notaCredito)
     {
-        if (string.IsNullOrWhiteSpace(notaCredito.ClaveAcceso) || notaCredito.ClaveAcceso.Length != 49)
-        {
-            throw new InvalidOperationException("La nota de credito no tiene una clave de acceso valida.");
-        }
+        ValidateNotaCredito(notaCredito);
 
         var ambienteCode = ClaveAccesoService.GetAmbienteCode(notaCredito.AmbienteSri);
         var tipoEmisionCode = ClaveAccesoService.GetTipoEmisionCode(notaCredito.TipoEmision);
@@ -57,12 +58,12 @@ public sealed class NotaCreditoXmlGenerator
             .Select(group =>
             {
                 var porcentaje = group.Key;
-                var codigoPorcentaje = ResolveCodigoPorcentajeIva(porcentaje);
+                var codigoPorcentaje = ResolveCodigoPorcentajeIva(group.First().CodigoIva, porcentaje);
                 return new XElement("totalImpuesto",
                     new XElement("codigo", "2"),
                     new XElement("codigoPorcentaje", codigoPorcentaje),
-                    new XElement("baseImponible", group.Sum(detalle => detalle.Subtotal).ToString("0.00", CultureInfo.InvariantCulture)),
-                    new XElement("valor", group.Sum(detalle => detalle.IvaValor).ToString("0.00", CultureInfo.InvariantCulture)));
+                    new XElement("baseImponible", RoundMoney(group.Sum(detalle => detalle.Subtotal)).ToString("0.00", CultureInfo.InvariantCulture)),
+                    new XElement("valor", RoundMoney(group.Sum(detalle => detalle.IvaValor)).ToString("0.00", CultureInfo.InvariantCulture)));
             })
             .ToArray();
 
@@ -77,7 +78,7 @@ public sealed class NotaCreditoXmlGenerator
                 new XElement("impuestos",
                     new XElement("impuesto",
                         new XElement("codigo", "2"),
-                        new XElement("codigoPorcentaje", ResolveCodigoPorcentajeIva(detalle.PorcentajeIva)),
+                        new XElement("codigoPorcentaje", ResolveCodigoPorcentajeIva(detalle.CodigoIva, detalle.PorcentajeIva)),
                         new XElement("tarifa", detalle.PorcentajeIva.ToString("0.00", CultureInfo.InvariantCulture)),
                         new XElement("baseImponible", detalle.Subtotal.ToString("0.00", CultureInfo.InvariantCulture)),
                         new XElement("valor", detalle.IvaValor.ToString("0.00", CultureInfo.InvariantCulture))))));
@@ -90,7 +91,7 @@ public sealed class NotaCreditoXmlGenerator
                     new XElement("ambiente", ambienteCode),
                     new XElement("tipoEmision", tipoEmisionCode),
                     new XElement("razonSocial", notaCredito.RazonSocialEmisor),
-                    new XElement("nombreComercial", notaCredito.NombreComercialEmisor ?? notaCredito.RazonSocialEmisor),
+                    BuildOptionalElement("nombreComercial", notaCredito.NombreComercialEmisor ?? notaCredito.RazonSocialEmisor),
                     new XElement("ruc", notaCredito.RucEmisor),
                     new XElement("claveAcceso", notaCredito.ClaveAcceso),
                     new XElement("codDoc", CodigoDocumentoNotaCredito),
@@ -100,7 +101,7 @@ public sealed class NotaCreditoXmlGenerator
                     new XElement("dirMatriz", notaCredito.DireccionMatrizEmisor)),
                 new XElement("infoNotaCredito",
                     new XElement("fechaEmision", notaCredito.FechaEmision.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
-                    new XElement("dirEstablecimiento", notaCredito.DireccionEstablecimientoEmisor ?? notaCredito.DireccionMatrizEmisor),
+                    BuildOptionalElement("dirEstablecimiento", notaCredito.DireccionEstablecimientoEmisor ?? notaCredito.DireccionMatrizEmisor),
                     new XElement("tipoIdentificacionComprador", notaCredito.ClienteTipoIdentificacion),
                     new XElement("razonSocialComprador", notaCredito.ClienteNombre),
                     new XElement("identificacionComprador", notaCredito.ClienteIdentificacion),
@@ -113,13 +114,59 @@ public sealed class NotaCreditoXmlGenerator
                     new XElement("moneda", MonedaDolar),
                     new XElement("totalConImpuestos", totalConImpuestos),
                     new XElement("motivo", motivo)),
-                new XElement("detalles", detalles)));
+                new XElement("detalles", detalles),
+                BuildInfoAdicional(notaCredito)));
 
-        return document.ToString(SaveOptions.DisableFormatting);
+        var xml = document.ToString(SaveOptions.DisableFormatting);
+        schemaValidator.Validate(xml);
+        return xml;
     }
 
-    private static string ResolveCodigoPorcentajeIva(decimal porcentaje)
+    private static void ValidateNotaCredito(ComprobanteCabeceraEntity notaCredito)
     {
+        if (!string.Equals(notaCredito.TipoDocumentoId, CodigoDocumentoNotaCredito, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("El generador de nota de credito solo admite comprobantes tipo 04.");
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCredito.ClaveAcceso) || notaCredito.ClaveAcceso.Length != 49)
+        {
+            throw new InvalidOperationException("La nota de credito no tiene una clave de acceso valida.");
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCredito.RucEmisor) || notaCredito.RucEmisor.Length != 13)
+        {
+            throw new InvalidOperationException("La nota de credito no tiene un RUC emisor valido.");
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCredito.Establecimiento) || notaCredito.Establecimiento.Length != 3)
+        {
+            throw new InvalidOperationException("La nota de credito no tiene un establecimiento valido.");
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCredito.PuntoEmision) || notaCredito.PuntoEmision.Length != 3)
+        {
+            throw new InvalidOperationException("La nota de credito no tiene un punto de emision valido.");
+        }
+
+        if (string.IsNullOrWhiteSpace(notaCredito.ClienteTipoIdentificacion) || notaCredito.ClienteTipoIdentificacion.Length != 2)
+        {
+            throw new InvalidOperationException("La nota de credito no tiene tipo de identificacion del comprador valido.");
+        }
+
+        if (notaCredito.Detalles.Count == 0)
+        {
+            throw new InvalidOperationException("La nota de credito debe contener al menos un detalle.");
+        }
+    }
+
+    private static string ResolveCodigoPorcentajeIva(string? codigoIva, decimal porcentaje)
+    {
+        if (!string.IsNullOrWhiteSpace(codigoIva))
+        {
+            return SriTaxCatalog.ResolveCodigoPorcentaje(codigoIva, porcentaje);
+        }
+
         return porcentaje switch
         {
             0m => "0",
@@ -128,5 +175,27 @@ public sealed class NotaCreditoXmlGenerator
             15m => "4",
             _ => throw new InvalidOperationException($"La tarifa IVA {porcentaje:0.##}% no esta soportada para nota de credito.")
         };
+    }
+
+    private static decimal RoundMoney(decimal value)
+    {
+        return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static object? BuildOptionalElement(string name, string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : new XElement(name, value.Trim());
+    }
+
+    private static XElement? BuildInfoAdicional(ComprobanteCabeceraEntity notaCredito)
+    {
+        var campos = new List<XElement>();
+
+        if (!string.IsNullOrWhiteSpace(notaCredito.ClienteDireccion))
+        {
+            campos.Add(new XElement("campoAdicional", new XAttribute("nombre", "Direccion"), notaCredito.ClienteDireccion));
+        }
+
+        return campos.Count == 0 ? null : new XElement("infoAdicional", campos);
     }
 }

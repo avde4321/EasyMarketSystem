@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Shared.Reports.Facturacion;
 
 namespace TestDeIa.Api.Reporting;
 
@@ -281,6 +282,70 @@ public sealed class FacturaDocumentQueryService
             TotalSinSubsidio = comprobante.Total,
             Detalles = detalleRows,
             Totales = totalesRows
+        };
+    }
+
+    public async Task<NotaCreditoRideReportDto?> GetNotaCreditoRideAsync(Guid comprobanteId, CancellationToken cancellationToken)
+    {
+        var comprobante = await dbContext.ComprobanteCabecera
+            .AsNoTracking()
+            .Include(current => current.Detalles)
+            .FirstOrDefaultAsync(current => current.Id == comprobanteId && current.TipoDocumentoId == "04", cancellationToken);
+
+        if (comprobante is null)
+        {
+            return null;
+        }
+
+        var totales = comprobante.Detalles
+            .GroupBy(current => new { current.CodigoIva, current.PorcentajeIva })
+            .Select(group => new NotaCreditoRideTotalImpuestoDto
+            {
+                CodigoIva = group.Key.CodigoIva,
+                PorcentajeIva = group.Key.PorcentajeIva,
+                BaseImponible = group.Sum(current => current.Subtotal),
+                Valor = group.Sum(current => current.IvaValor)
+            })
+            .ToArray();
+
+        return new NotaCreditoRideReportDto
+        {
+            ComprobanteId = comprobante.Id,
+            NumeroComprobante = $"{comprobante.Establecimiento}-{comprobante.PuntoEmision}-{comprobante.Secuencial:000000000}",
+            ClaveAcceso = comprobante.ClaveAcceso,
+            NumeroAutorizacion = comprobante.NumeroAutorizacion ?? string.Empty,
+            FechaEmision = comprobante.FechaEmision,
+            RucEmisor = comprobante.RucEmisor,
+            RazonSocialEmisor = comprobante.RazonSocialEmisor,
+            NombreComercialEmisor = comprobante.NombreComercialEmisor ?? string.Empty,
+            DireccionMatrizEmisor = comprobante.DireccionMatrizEmisor,
+            DireccionEstablecimientoEmisor = comprobante.DireccionEstablecimientoEmisor ?? comprobante.DireccionMatrizEmisor,
+            ClienteIdentificacion = comprobante.ClienteIdentificacion,
+            ClienteNombre = comprobante.ClienteNombre,
+            ClienteDireccion = comprobante.ClienteDireccion ?? "-",
+            CodDocModificado = comprobante.CodDocModificado ?? string.Empty,
+            NumDocModificado = comprobante.NumDocModificado ?? string.Empty,
+            FechaEmisionDocSustento = comprobante.FechaEmisionDocSustento ?? comprobante.FechaEmision,
+            MotivoModificacion = comprobante.MotivoModificacion ?? string.Empty,
+            Subtotal = comprobante.Subtotal,
+            TotalDescuento = comprobante.TotalDescuento,
+            IvaTotal = comprobante.IvaTotal,
+            Total = comprobante.Total,
+            Detalles = comprobante.Detalles
+                .OrderBy(current => current.NombreProducto)
+                .Select(current => new NotaCreditoRideDetalleDto
+                {
+                    CodigoProducto = current.CodigoProducto,
+                    NombreProducto = current.NombreProducto,
+                    Cantidad = current.Cantidad,
+                    PrecioUnitario = current.PrecioUnitario,
+                    Descuento = current.Descuento,
+                    Subtotal = current.Subtotal,
+                    IvaValor = current.IvaValor,
+                    Total = current.Total
+                })
+                .ToArray(),
+            TotalesImpuesto = totales
         };
     }
 

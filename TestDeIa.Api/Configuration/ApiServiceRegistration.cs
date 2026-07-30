@@ -12,6 +12,7 @@ public static class ApiServiceRegistration
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
         services.AddScoped<FacturaDocumentQueryService>();
         services.AddSingleton<FacturaRideRdlcRenderer>();
+        services.AddSingleton<NotaCreditoRideRdlcRenderer>();
         services.AddSingleton<SmtpFacturaEmailSender>();
         services.AddHostedService<FacturacionEmailNotifier>();
 

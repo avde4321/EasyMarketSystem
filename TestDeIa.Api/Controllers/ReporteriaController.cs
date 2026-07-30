@@ -12,13 +12,16 @@ public sealed class ReporteriaController : ControllerBase
 {
     private readonly FacturaDocumentQueryService facturaDocumentQueryService;
     private readonly FacturaRideRdlcRenderer facturaRideRdlcRenderer;
+    private readonly NotaCreditoRideRdlcRenderer notaCreditoRideRdlcRenderer;
 
     public ReporteriaController(
         FacturaDocumentQueryService facturaDocumentQueryService,
-        FacturaRideRdlcRenderer facturaRideRdlcRenderer)
+        FacturaRideRdlcRenderer facturaRideRdlcRenderer,
+        NotaCreditoRideRdlcRenderer notaCreditoRideRdlcRenderer)
     {
         this.facturaDocumentQueryService = facturaDocumentQueryService;
         this.facturaRideRdlcRenderer = facturaRideRdlcRenderer;
+        this.notaCreditoRideRdlcRenderer = notaCreditoRideRdlcRenderer;
     }
 
     [HttpGet("facturas/{facturaId:guid}/ride")]
@@ -40,6 +43,13 @@ public sealed class ReporteriaController : ControllerBase
     [HttpGet("comprobantes/{comprobanteId:guid}/ride")]
     public async Task<IActionResult> GetComprobanteRide(Guid comprobanteId, CancellationToken cancellationToken)
     {
+        var notaCredito = await facturaDocumentQueryService.GetNotaCreditoRideAsync(comprobanteId, cancellationToken);
+        if (notaCredito is not null)
+        {
+            var notaPdfBytes = await notaCreditoRideRdlcRenderer.RenderAsync(notaCredito, cancellationToken);
+            return File(notaPdfBytes, "application/pdf", $"RIDE-NC-{notaCredito.NumeroComprobante}.pdf");
+        }
+
         var comprobante = await facturaDocumentQueryService.GetComprobanteRideAsync(comprobanteId, cancellationToken);
 
         if (comprobante is null)

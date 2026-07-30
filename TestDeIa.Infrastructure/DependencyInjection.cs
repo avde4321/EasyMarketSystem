@@ -88,6 +88,7 @@ public static class DependencyInjection
         services.AddSingleton<NotaCreditoXmlGenerator>();
         services.AddSingleton<SriUrlResolverService>();
         services.AddSingleton<SriFacturaXmlSchemaValidator>();
+        services.AddSingleton<SriNotaCreditoXmlSchemaValidator>();
         services.AddSingleton<SriLiquidacionCompraXmlValidator>();
         services.AddSingleton<SriXadesBesSigner>();
         services.AddHttpClient<SriSoapClient>((serviceProvider, client) =>

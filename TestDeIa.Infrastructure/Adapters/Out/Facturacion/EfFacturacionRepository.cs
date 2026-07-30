@@ -539,8 +539,15 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     {
         var normalizedTerm = term?.Trim();
         var normalizedTipoDocumento = tipoDocumentoId?.Trim();
-        var facturasQuery = dbContext.Set<FacturaEntity>()
+        var incluirFacturas = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "01";
+        var incluirNotasCredito = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "04";
+        var comprobantes = new List<FacturaMonitorResponse>();
+
+        if (incluirFacturas)
+        {
+            var facturas = await dbContext.Set<FacturaEntity>()
             .AsNoTracking()
+            .OrderByDescending(factura => factura.FechaEmision)
             .Select(factura => new FacturaMonitorResponse
             {
                 Id = factura.Id,
@@ -564,11 +571,18 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 TieneXmlFirmado = factura.XmlFirmado != null && factura.XmlFirmado != string.Empty,
                 FechaEmision = factura.FechaEmision,
                 FechaAutorizacion = factura.FechaAutorizacion
-            });
+            })
+            .ToListAsync(cancellationToken);
 
-        var notasCreditoQuery = dbContext.ComprobanteCabecera
+            comprobantes.AddRange(facturas);
+        }
+
+        if (incluirNotasCredito)
+        {
+            var notasCredito = await dbContext.ComprobanteCabecera
             .AsNoTracking()
             .Where(comprobante => comprobante.TipoDocumentoId == "04")
+            .OrderByDescending(comprobante => comprobante.FechaEmision)
             .Select(comprobante => new FacturaMonitorResponse
             {
                 Id = comprobante.Id,
@@ -592,18 +606,16 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 TieneXmlFirmado = comprobante.XmlFirmado != null && comprobante.XmlFirmado != string.Empty,
                 FechaEmision = comprobante.FechaEmision,
                 FechaAutorizacion = comprobante.FechaAutorizacion
-            });
+            })
+            .ToListAsync(cancellationToken);
 
-        var query = facturasQuery.Concat(notasCreditoQuery);
-
-        if (!string.IsNullOrWhiteSpace(normalizedTipoDocumento))
-        {
-            query = query.Where(comprobante => comprobante.TipoDocumentoId == normalizedTipoDocumento);
+            comprobantes.AddRange(notasCredito);
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedTerm))
         {
-            query = query.Where(comprobante =>
+            comprobantes = comprobantes
+                .Where(comprobante =>
                 comprobante.Establecimiento.Contains(normalizedTerm) ||
                 comprobante.PuntoEmision.Contains(normalizedTerm) ||
                 comprobante.ClienteNombre.Contains(normalizedTerm) ||
@@ -614,19 +626,20 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 comprobante.TipoDocumentoId.Contains(normalizedTerm) ||
                 (comprobante.ClaveAcceso != null && comprobante.ClaveAcceso.Contains(normalizedTerm)) ||
                 comprobante.Estado.Contains(normalizedTerm) ||
-                (comprobante.MensajeEstado != null && comprobante.MensajeEstado.Contains(normalizedTerm)));
+                (comprobante.MensajeEstado != null && comprobante.MensajeEstado.Contains(normalizedTerm)))
+                .ToList();
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var comprobantes = await query
+        var totalCount = comprobantes.Count;
+        var pageItems = comprobantes
             .OrderByDescending(comprobante => comprobante.FechaEmision)
             .Skip(skip)
             .Take(take)
-            .ToListAsync(cancellationToken);
+            .ToArray();
 
         return new PagedResultResponse<FacturaMonitorResponse>
         {
-            Items = comprobantes,
+            Items = pageItems,
             TotalCount = totalCount,
             Skip = skip,
             Take = take

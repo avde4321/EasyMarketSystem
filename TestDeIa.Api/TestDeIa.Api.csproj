@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Reporting\Templates\FacturaRide.rdlc" />
+    <EmbeddedResource Include="Reporting\Templates\NotaCreditoRide.rdlc" />
   </ItemGroup>
 
   <ItemGroup>
