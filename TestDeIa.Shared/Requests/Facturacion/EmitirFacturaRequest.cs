@@ -24,6 +24,12 @@ public sealed class EmitirFacturaRequest
     [StringLength(300, ErrorMessage = "La observacion no puede superar 300 caracteres.")]
     public string? Observacion { get; set; }
 
+    [Range(0, 999999999, ErrorMessage = "El efectivo recibido no puede ser negativo.")]
+    public decimal? MontoRecibido { get; set; }
+
+    [Range(0, 999999999, ErrorMessage = "El vuelto entregado no puede ser negativo.")]
+    public decimal? VueltoEntregado { get; set; }
+
     [Required]
     public IReadOnlyCollection<EmitirFacturaDetalleRequest> Items { get; set; } = [];
 }

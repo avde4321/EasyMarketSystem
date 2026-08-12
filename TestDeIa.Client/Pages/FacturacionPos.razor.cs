@@ -11,6 +11,7 @@ using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Facturacion;
 using TestDeIa.Shared.Security;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Client.Pages;
 
@@ -46,6 +47,7 @@ public partial class FacturacionPos : IDisposable
     private PosPuntoEmisionResponse? selectedPuntoEmision;
     private string formaPago = "01";
     private string? observacion;
+    private decimal? efectivoRecibido;
     private bool isSubmitting;
     private bool showOperationalContextModal;
     private bool isCreatingClienteExtension;
@@ -65,6 +67,11 @@ public partial class FacturacionPos : IDisposable
     private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
     private bool HasOperationalContext => selectedPuntoEmision is not null;
     private bool CanOperatePos => HasOperationalContext && hasCajaActiva;
+    private bool IsCashPayment => string.Equals(SriCatalogCodes.NormalizeFormaPagoCode(formaPago), SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal);
+    private decimal VueltoCalculado => Math.Max(0m, Math.Round((efectivoRecibido ?? 0m) - GetCartTotal(), 2, MidpointRounding.AwayFromZero));
+    private decimal MontoPendienteEfectivo => IsCashPayment ? Math.Max(0m, Math.Round(GetCartTotal() - (efectivoRecibido ?? 0m), 2, MidpointRounding.AwayFromZero)) : 0m;
+    private bool IsCashPaymentCovered => !IsCashPayment || GetCartTotal() <= 0 || (efectivoRecibido ?? 0m) >= GetCartTotal();
+    private bool CanCheckout => CanOperatePos && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
 
     protected override async Task OnInitializedAsync()
     {
@@ -283,6 +290,21 @@ public partial class FacturacionPos : IDisposable
         });
     }
 
+    private void AddCashDenomination(decimal amount)
+    {
+        efectivoRecibido = Math.Round((efectivoRecibido ?? 0m) + amount, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private void SetExactCash()
+    {
+        efectivoRecibido = GetCartTotal();
+    }
+
+    private void ClearCash()
+    {
+        efectivoRecibido = null;
+    }
+
     private void IncrementQuantity(CartItemModel item)
     {
         item.Cantidad += 1;
@@ -358,6 +380,13 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
+        if (IsCashPayment && !IsCashPaymentCovered)
+        {
+            errorMessage = $"El efectivo recibido no cubre el total. Faltan {MontoPendienteEfectivo:0.00}.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
+            return;
+        }
+
         isSubmitting = true;
         statusMessage = "Registrando la factura y preparando el RIDE. Por favor espera, no cierres la pantalla.";
         await PopupNotificationService.ShowInfoAsync(statusMessage);
@@ -373,6 +402,8 @@ public partial class FacturacionPos : IDisposable
                 PuntoEmision = selectedPuntoEmision.PuntoEmision,
                 FormaPago = formaPago,
                 Observacion = observacion,
+                MontoRecibido = IsCashPayment ? efectivoRecibido : null,
+                VueltoEntregado = IsCashPayment ? VueltoCalculado : null,
                 Items = cartItems.Select(item => new EmitirFacturaDetalleRequest
                 {
                     ProductoId = item.ProductoId,
@@ -394,6 +425,7 @@ public partial class FacturacionPos : IDisposable
             cartItems.Clear();
             productoResults.Clear();
             observacion = null;
+            efectivoRecibido = null;
             await LoadCajaStateAsync();
         }
         catch (HttpRequestException)

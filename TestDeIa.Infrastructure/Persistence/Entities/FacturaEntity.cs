@@ -77,6 +77,10 @@ public sealed class FacturaEntity
 
     public decimal Total { get; set; }
 
+    public decimal? MontoRecibido { get; set; }
+
+    public decimal? VueltoEntregado { get; set; }
+
     public string? Observacion { get; set; }
 
     public string ClaveAcceso { get; set; } = string.Empty;

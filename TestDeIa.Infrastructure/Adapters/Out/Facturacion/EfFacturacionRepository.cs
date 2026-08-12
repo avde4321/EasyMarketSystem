@@ -344,6 +344,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             ClienteTelefono = NormalizeOptional(cliente.Persona.TelefonoCelular),
             FormaPago = formaPago,
             FormaPagoSriCodigo = formaPagoCodigo,
+            MontoRecibido = formaPagoCodigo == SriCatalogCodes.FormaPagoEfectivo ? NormalizeMoney(request.MontoRecibido) : null,
+            VueltoEntregado = formaPagoCodigo == SriCatalogCodes.FormaPagoEfectivo ? NormalizeMoney(request.VueltoEntregado) : null,
             Estado = FacturaEstado.NO_FIRMADO,
             Observacion = NormalizeOptional(request.Observacion),
             FechaEmision = now,
@@ -433,6 +435,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         }
 
         factura.Total = factura.Subtotal + factura.IvaTotal;
+        ValidateCashSettlement(request, formaPagoCodigo, factura.Total);
         dbContext.Set<FacturaEntity>().Add(factura);
         await dbContext.SaveChangesAsync(cancellationToken);
         dbContext.ChangeTracker.Clear();
@@ -1193,6 +1196,38 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static decimal? NormalizeMoney(decimal? value)
+    {
+        return value.HasValue ? Math.Round(value.Value, 2, MidpointRounding.AwayFromZero) : null;
+    }
+
+    private static void ValidateCashSettlement(EmitirFacturaRequest request, string formaPagoCodigo, decimal totalFactura)
+    {
+        if (!string.Equals(formaPagoCodigo, SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var montoRecibido = NormalizeMoney(request.MontoRecibido) ?? 0m;
+        var vueltoEntregado = NormalizeMoney(request.VueltoEntregado) ?? 0m;
+        var vueltoEsperado = Math.Round(montoRecibido - totalFactura, 2, MidpointRounding.AwayFromZero);
+
+        if (montoRecibido < totalFactura)
+        {
+            throw new InvalidOperationException($"El efectivo recibido ({montoRecibido:0.00}) no cubre el total de la factura ({totalFactura:0.00}).");
+        }
+
+        if (vueltoEsperado < 0)
+        {
+            throw new InvalidOperationException("El vuelto calculado no puede ser negativo.");
+        }
+
+        if (Math.Abs(vueltoEsperado - vueltoEntregado) > 0.01m)
+        {
+            throw new InvalidOperationException($"El vuelto entregado debe ser {vueltoEsperado:0.00} para cuadrar el efectivo recibido.");
+        }
     }
 
     private static void EnsureStableClaveAcceso(FacturaEntity factura, string claveAcceso)

@@ -128,6 +128,8 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.SubtotalIva15).HasPrecision(18, 2);
         builder.Property(factura => factura.IvaTotal).HasPrecision(18, 2);
         builder.Property(factura => factura.Total).HasPrecision(18, 2);
+        builder.Property(factura => factura.MontoRecibido).HasPrecision(18, 2);
+        builder.Property(factura => factura.VueltoEntregado).HasPrecision(18, 2);
 
         builder.Property(factura => factura.ProcessingNode)
             .HasMaxLength(100);

@@ -115,6 +115,22 @@ public sealed class FacturacionUseCase : IFacturacionUseCase
             throw new InvalidOperationException("La factura contiene productos invalidos.");
         }
 
+        if (request.MontoRecibido.HasValue && request.MontoRecibido.Value < 0)
+        {
+            throw new InvalidOperationException("El efectivo recibido no puede ser negativo.");
+        }
+
+        if (request.VueltoEntregado.HasValue && request.VueltoEntregado.Value < 0)
+        {
+            throw new InvalidOperationException("El vuelto entregado no puede ser negativo.");
+        }
+
+        if (!string.Equals(formaPago, SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal) &&
+            (request.MontoRecibido.HasValue || request.VueltoEntregado.HasValue))
+        {
+            throw new InvalidOperationException("El efectivo recibido y el vuelto solo aplican para pagos en efectivo.");
+        }
+
         if (!await cajaSesionRepository.HasActiveSessionAsync(cancellationToken))
         {
             throw new InvalidOperationException("Debes abrir una caja antes de facturar en el POS.");
