@@ -155,7 +155,8 @@ public partial class Empresa
             return;
         }
 
-        if (!file.Name.EndsWith(".p12", StringComparison.OrdinalIgnoreCase))
+        if (!file.Name.EndsWith(".p12", StringComparison.OrdinalIgnoreCase) &&
+            !file.Name.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase))
         {
             errorMessage = "Selecciona un archivo .p12 válido.";
             return;
@@ -467,3 +468,4 @@ public partial class Empresa
         await LoadAsync();
     }
 }
+

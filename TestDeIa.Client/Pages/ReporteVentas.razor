@@ -1,0 +1,256 @@
+@page "/reporteria/ventas"
+@attribute [Authorize(Policy = SecurityPolicyNames.ReporteriaVentas)]
+@inject TestDeIa.Client.Services.Reporteria.ReporteriaVentasApiClient ReporteriaApiClient
+@inject TestDeIa.Client.Services.PopupNotificationService Popup
+
+<PageTitle>Reporte de ventas</PageTitle>
+
+<section class="module-page reporte-ventas-page">
+    <header class="module-header">
+        <div>
+            <h1>Reporte detallado de ventas</h1>
+            <p>Módulo independiente de reportería con análisis histórico y proyecciones gerenciales.</p>
+        </div>
+    </header>
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <label class="form-field compact-filter">
+                <span>Fecha inicio</span>
+                <InputDate class="form-control" @bind-Value="fechaInicio" />
+            </label>
+            <label class="form-field compact-filter">
+                <span>Fecha fin</span>
+                <InputDate class="form-control" @bind-Value="fechaFin" />
+            </label>
+            <button class="primary-action" type="button" disabled="@isLoading" @onclick="LoadAsync">
+                @(isLoading ? "Consultando..." : "Consultar")
+            </button>
+        </div>
+    </section>
+
+    @if (reporte is null)
+    {
+        <section class="table-card empty-card">
+            <p>Selecciona un rango de fechas para consultar el comportamiento de ventas.</p>
+        </section>
+    }
+    else
+    {
+        <section class="summary-grid reporte-kpi-grid">
+            <div class="summary-card accent">
+                <span>Total ventas</span>
+                <strong>@Money(reporte.Resumen.TotalVentas)</strong>
+                <small>@reporte.Resumen.Comprobantes comprobantes emitidos</small>
+            </div>
+            <div class="summary-card">
+                <span>Ticket promedio</span>
+                <strong>@Money(reporte.Resumen.TicketPromedio)</strong>
+                <small>Promedio por comprobante</small>
+            </div>
+            <div class="summary-card">
+                <span>Margen estimado</span>
+                <strong>@Money(reporte.Resumen.MargenEstimado)</strong>
+                <small>Costo estimado: @Money(reporte.Resumen.CostoEstimado)</small>
+            </div>
+            <div class="summary-card">
+                <span>Promedio diario</span>
+                <strong>@Money(reporte.Resumen.PromedioDiario)</strong>
+                <small>Base para proyección</small>
+            </div>
+        </section>
+
+        <section class="report-grid">
+            <article class="table-card">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Proyecciones</h2>
+                        <p>Estimación calculada con el promedio diario del rango consultado.</p>
+                    </div>
+                </header>
+                <div class="projection-grid">
+                    @foreach (var proyeccion in reporte.Proyecciones)
+                    {
+                        <div class="projection-card">
+                            <span>@proyeccion.Horizonte</span>
+                            <strong>@Money(proyeccion.TotalProyectado)</strong>
+                            <small>@proyeccion.DiasEstimados días · margen @Money(proyeccion.MargenProyectado)</small>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="table-card">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Composición</h2>
+                        <p>Subtotal, IVA y descuentos del período.</p>
+                    </div>
+                </header>
+                <div class="donut-shell" style="@DonutStyle">
+                    <div class="donut-center">
+                        <span>IVA</span>
+                        <strong>@Money(reporte.Resumen.Iva)</strong>
+                    </div>
+                </div>
+                <div class="legend-grid">
+                    <span><i class="legend-dot subtotal"></i>Subtotal @Money(reporte.Resumen.Subtotal)</span>
+                    <span><i class="legend-dot iva"></i>IVA @Money(reporte.Resumen.Iva)</span>
+                    <span><i class="legend-dot descuento"></i>Descuento @Money(reporte.Resumen.Descuentos)</span>
+                </div>
+            </article>
+        </section>
+
+        <section class="table-card">
+            <header class="section-header compact-section-header">
+                <div>
+                    <h2>Tendencia mensual</h2>
+                    <p>Ventas agrupadas por mes dentro del rango.</p>
+                </div>
+            </header>
+            <div class="bars-chart">
+                @foreach (var periodo in reporte.VentasMensuales)
+                {
+                    <div class="bar-row">
+                        <span>@periodo.Periodo</span>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width:@GetBarWidth(periodo.TotalVentas)%"></div>
+                        </div>
+                        <strong>@Money(periodo.TotalVentas)</strong>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="report-grid">
+            <article class="table-card">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Top productos</h2>
+                        <p>Productos con mayor venta y margen estimado.</p>
+                    </div>
+                </header>
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Total</th>
+                                <th>Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var producto in reporte.TopProductos)
+                            {
+                                <tr>
+                                    <td>@producto.Codigo</td>
+                                    <td>@producto.Producto</td>
+                                    <td>@producto.Cantidad</td>
+                                    <td>@Money(producto.Total)</td>
+                                    <td>@Money(producto.MargenEstimado)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="table-card">
+                <header class="section-header compact-section-header">
+                    <div>
+                        <h2>Productividad comercial</h2>
+                        <p>Ventas por usuario/cajero del período.</p>
+                    </div>
+                </header>
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Comprobantes</th>
+                                <th>Total</th>
+                                <th>Ticket</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var vendedor in reporte.ProductividadVendedores)
+                            {
+                                <tr>
+                                    <td>@vendedor.Usuario</td>
+                                    <td>@vendedor.Comprobantes</td>
+                                    <td>@Money(vendedor.TotalVentas)</td>
+                                    <td>@Money(vendedor.TicketPromedio)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    }
+</section>
+
+@code {
+    private DateTime fechaInicio = DateTime.Today.AddMonths(-3).AddDays(1);
+    private DateTime fechaFin = DateTime.Today;
+    private TestDeIa.Shared.Responses.Reporteria.ReporteVentasResponse? reporte;
+    private bool isLoading;
+
+    private decimal MaxMonthlySales => Math.Max(1m, reporte?.VentasMensuales.Select(current => current.TotalVentas).DefaultIfEmpty(0m).Max() ?? 1m);
+    private string DonutStyle
+    {
+        get
+        {
+            if (reporte is null || reporte.Resumen.TotalVentas <= 0)
+            {
+                return "background: conic-gradient(#dff4ee 0deg 360deg);";
+            }
+
+            var ivaDegrees = Math.Clamp((double)(reporte.Resumen.Iva / reporte.Resumen.TotalVentas) * 360d, 0d, 360d);
+            var descuentoDegrees = Math.Clamp((double)(reporte.Resumen.Descuentos / reporte.Resumen.TotalVentas) * 360d, 0d, 360d);
+            return $"background: conic-gradient(#7ccfc3 0deg {ivaDegrees:0.##}deg, #ffd88d {ivaDegrees:0.##}deg {ivaDegrees + descuentoDegrees:0.##}deg, #dff4ee {ivaDegrees + descuentoDegrees:0.##}deg 360deg);";
+        }
+    }
+
+    protected override Task OnInitializedAsync()
+    {
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (isLoading)
+        {
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var result = await ReporteriaApiClient.GetVentasAsync(fechaInicio, fechaFin);
+            if (!result.Succeeded)
+            {
+                await Popup.ShowErrorAsync(result.ErrorMessage ?? "No se pudo consultar el reporte.");
+                return;
+            }
+
+            reporte = result.Data;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private decimal GetBarWidth(decimal value)
+    {
+        return Math.Round(Math.Clamp(value / MaxMonthlySales * 100m, 4m, 100m), 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static string Money(decimal value)
+    {
+        return $"$ {value:0.00}";
+    }
+}

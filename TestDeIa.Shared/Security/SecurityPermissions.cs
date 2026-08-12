@@ -22,4 +22,5 @@ public static class SecurityPermissions
     public const string SeguridadUsuarios = "seguridad.usuarios";
     public const string FinancieroIva = "financiero.iva";
     public const string CajaOperar = "caja.operar";
+    public const string ReporteriaVentas = "reporteria.ventas";
 }

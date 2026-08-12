@@ -49,6 +49,7 @@ public sealed class TestDeIaDbContext : DbContext
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
+    public DbSet<CertificadoDigitalEmpresaEntity> CertificadosDigitalesEmpresa => Set<CertificadoDigitalEmpresaEntity>();
 
     public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
     public DbSet<PersonaNaturalEntity> PersonasNaturales => Set<PersonaNaturalEntity>();
@@ -158,6 +159,10 @@ public sealed class TestDeIaDbContext : DbContext
                 tenantContextAccessor.IsSystemContext ||
                 (tenantContextAccessor.UserId.HasValue && entity.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
         modelBuilder.Entity<EmpresaPuntoEmisionEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+        modelBuilder.Entity<CertificadoDigitalEmpresaEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
                 (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));

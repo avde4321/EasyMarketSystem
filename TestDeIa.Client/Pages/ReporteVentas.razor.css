@@ -1,0 +1,140 @@
+.reporte-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.compact-filter {
+    min-width: 12rem;
+}
+
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.projection-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+
+.projection-card {
+    border: 1px solid rgba(31, 150, 145, 0.18);
+    border-radius: 1.2rem;
+    background: linear-gradient(135deg, #eefaf7, #fff9e8);
+    padding: 1rem;
+}
+
+.projection-card span {
+    color: #0fa39a;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.projection-card strong {
+    display: block;
+    margin-top: 0.45rem;
+    color: var(--brand-blue);
+    font-size: 1.45rem;
+}
+
+.projection-card small {
+    color: #66809a;
+}
+
+.donut-shell {
+    width: 190px;
+    height: 190px;
+    border-radius: 50%;
+    margin: 0.5rem auto 1rem;
+    display: grid;
+    place-items: center;
+    box-shadow: inset 0 0 0 1px rgba(18, 74, 117, 0.08);
+}
+
+.donut-center {
+    width: 118px;
+    height: 118px;
+    border-radius: 50%;
+    background: #fff;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    box-shadow: 0 14px 34px rgba(41, 86, 122, 0.12);
+}
+
+.donut-center span {
+    color: #66809a;
+    font-weight: 700;
+}
+
+.donut-center strong {
+    color: var(--brand-blue);
+}
+
+.legend-grid {
+    display: grid;
+    gap: 0.45rem;
+    color: #496986;
+    font-weight: 700;
+}
+
+.legend-dot {
+    display: inline-flex;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    margin-right: 0.45rem;
+}
+
+.legend-dot.subtotal {
+    background: #dff4ee;
+}
+
+.legend-dot.iva {
+    background: #7ccfc3;
+}
+
+.legend-dot.descuento {
+    background: #ffd88d;
+}
+
+.bars-chart {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: 5rem 1fr 8rem;
+    align-items: center;
+    gap: 0.8rem;
+    color: #496986;
+    font-weight: 700;
+}
+
+.bar-track {
+    min-height: 1rem;
+    border-radius: 999px;
+    background: #edf5fb;
+    overflow: hidden;
+}
+
+.bar-fill {
+    min-height: 1rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #7ccfc3, #ffd88d);
+}
+
+@media (max-width: 1100px) {
+    .reporte-kpi-grid,
+    .report-grid,
+    .projection-grid {
+        grid-template-columns: 1fr;
+    }
+}

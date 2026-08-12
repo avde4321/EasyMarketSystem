@@ -32,4 +32,5 @@ public sealed class EmpresaEmisoraEntity
     public DateTimeOffset? UpdatedAt { get; set; }
     public ICollection<SecurityUserEmpresaEntity> UserAssignments { get; set; } = [];
     public ICollection<EmpresaPuntoEmisionEntity> PuntosEmision { get; set; } = [];
+    public ICollection<CertificadoDigitalEmpresaEntity> CertificadosDigitales { get; set; } = [];
 }

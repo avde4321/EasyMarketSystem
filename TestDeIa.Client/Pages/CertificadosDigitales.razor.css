@@ -1,0 +1,54 @@
+.certificados-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.soft-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--brand-blue);
+    font-weight: 700;
+}
+
+.certificados-page .metric-value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--brand-blue);
+}
+
+.certificados-page .table-actions {
+    display: flex;
+    gap: 0.55rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.compact {
+    padding: 0.55rem 0.8rem;
+    min-height: 2.6rem;
+}
+
+.status-pill.warning,
+.status-pill.notice {
+    background: #fff3cd;
+    color: #9a6816;
+}
+
+.status-pill.danger {
+    background: #ffe0df;
+    color: #9f2b2b;
+}
+
+.status-pill.neutral {
+    background: #eef5fb;
+    color: var(--brand-blue);
+}
+
+@media (max-width: 980px) {
+    .certificados-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}

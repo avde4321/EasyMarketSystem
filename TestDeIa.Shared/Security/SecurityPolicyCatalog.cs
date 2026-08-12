@@ -54,5 +54,7 @@ public static class SecurityPolicyCatalog
             [SecurityPolicyNames.FinancieroIva] = [SecurityPermissions.FinancieroIva],
             [SecurityPolicyNames.UsuariosAdministrar] = [SecurityPermissions.SeguridadUsuarios],
             [SecurityPolicyNames.CajaOperar] = [SecurityPermissions.CajaOperar]
+            ,
+            [SecurityPolicyNames.ReporteriaVentas] = [SecurityPermissions.ReporteriaVentas]
         };
 }

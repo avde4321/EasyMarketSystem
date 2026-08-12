@@ -469,6 +469,45 @@
                 </Authorized>
             </AuthorizeView>
 
+            <AuthorizeView Policy="@SecurityPolicyNames.ReporteriaVentas">
+                <Authorized Context="reporteriaAuth">
+                    <section class="nav-group @(IsExpanded("reporteria") ? "is-open" : string.Empty)">
+                        <button type="button"
+                                class="nav-group-trigger"
+                                @onclick='() => ToggleGroup("reporteria")'
+                                title="Reporteria">
+                            <span class="nav-link nav-link-root">
+                                <span class="nav-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" class="icon-svg">
+                                        <path d="M5.5 18.5h13M8 15.5v-5M12 15.5v-8M16 15.5v-3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                        <path d="M6.5 7.5 10 5l3.2 2.8 4.3-4.1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                    </svg>
+                                </span>
+                                <span class="nav-text">Reportería</span>
+                            </span>
+                            <span class="nav-caret" aria-hidden="true">
+                                <svg viewBox="0 0 20 20" class="caret-svg">
+                                    <path d="M6 8.5 10 12.5 14 8.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                </svg>
+                            </span>
+                        </button>
+
+                        <div class="nav-group-panel">
+                            <div class="nav-submenu">
+                                <NavLink class="nav-sublink" href="reporteria/ventas" title="Reporte de ventas">
+                                    <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" class="icon-svg">
+                                            <path d="M6 18.5h12M8 15l2.8-3.8 3 2.2L17 8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                        </svg>
+                                    </span>
+                                    <span class="nav-text">Ventas y proyecciones</span>
+                                </NavLink>
+                            </div>
+                        </div>
+                    </section>
+                </Authorized>
+            </AuthorizeView>
+
             <AuthorizeView Policy="@SecurityPolicyNames.ConfiguracionAccess">
                 <Authorized Context="configAuth">
                     <section class="nav-group @(IsExpanded("configuracion") ? "is-open" : string.Empty)">
@@ -504,6 +543,16 @@
                                                 </svg>
                                             </span>
                                             <span class="nav-text">Empresa</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="empresa/certificados" title="Certificados digitales">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M7 11.5V8a5 5 0 0 1 10 0v3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="M5.5 11.5h13v8h-13z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M12 15v2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Certificados</span>
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
@@ -632,7 +681,8 @@
             "facturacion/pos" or "caja/control" or "inventario" or "inventario/productos" or "inventario/consulta" or "inventario/bodegas" or "inventario/transferencias" or "inventario/activos-fijos" => "operaciones",
             "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "compras/reporte-fisico-financiero" => "compras",
             "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "contabilidad/libro-diario" or "contabilidad/libro-mayor" or "contabilidad/balance-general" or "contabilidad/estado-resultados" or "contabilidad/cierre-periodo" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
-            "empresa" or "usuarios" or "catalogos" or "seguridad/auditoria" => "configuracion",
+            "reporteria/ventas" => "reporteria",
+            "empresa" or "empresa/certificados" or "usuarios" or "catalogos" or "seguridad/auditoria" => "configuracion",
             _ => expandedGroup
         };
     }

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using TestDeIa.Application.Modules.Catalogos.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.In;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
@@ -13,15 +15,18 @@ namespace TestDeIa.Application.Modules.Empresa.UseCases;
 public sealed class EmpresaUseCase : IEmpresaUseCase
 {
     private readonly IEmpresaRepository empresaRepository;
+    private readonly ICertificadoDigitalEmpresaRepository certificadoRepository;
     private readonly ICatalogoRepository catalogoRepository;
     private readonly ICurrentUserAccessor currentUserAccessor;
 
     public EmpresaUseCase(
         IEmpresaRepository empresaRepository,
+        ICertificadoDigitalEmpresaRepository certificadoRepository,
         ICatalogoRepository catalogoRepository,
         ICurrentUserAccessor currentUserAccessor)
     {
         this.empresaRepository = empresaRepository;
+        this.certificadoRepository = certificadoRepository;
         this.catalogoRepository = catalogoRepository;
         this.currentUserAccessor = currentUserAccessor;
     }
@@ -95,13 +100,20 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             NormalizeOptional(request.AgenteRetencionResolucion),
             ResolveCertificadoNombreArchivo(request, current),
             ResolveCertificadoContenido(request, current),
-            NormalizeOptional(request.CertificadoClave),
+            ResolveCertificadoClave(request, current),
             puntosEmision,
             request.IsActive,
             current?.CreatedAt ?? DateTimeOffset.UtcNow,
             current is null ? null : DateTimeOffset.UtcNow);
 
-        return MapResponse(await empresaRepository.SaveAsync(empresa, cancellationToken));
+        var saved = await empresaRepository.SaveAsync(empresa, cancellationToken);
+        if (request.CertificadoContenido is { Length: > 0 })
+        {
+            await SaveCertificateHistoryAsync(request, saved, cancellationToken);
+            saved = await empresaRepository.GetByIdAsync(saved.Id, cancellationToken) ?? saved;
+        }
+
+        return MapResponse(saved);
     }
 
     private static EmpresaResponse MapResponse(EmpresaEmisora empresa)
@@ -240,21 +252,31 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         if (request.CertificadoContenido is { Length: > 0 })
         {
             if (string.IsNullOrWhiteSpace(request.CertificadoNombreArchivo) ||
-                !request.CertificadoNombreArchivo.EndsWith(".p12", StringComparison.OrdinalIgnoreCase))
+                (!request.CertificadoNombreArchivo.EndsWith(".p12", StringComparison.OrdinalIgnoreCase) &&
+                 !request.CertificadoNombreArchivo.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase)))
             {
-                throw new InvalidOperationException("El certificado debe ser un archivo .p12.");
+                throw new InvalidOperationException("El certificado debe ser un archivo .p12 o .pfx.");
             }
 
             if (request.CertificadoContenido.Length > 5 * 1024 * 1024)
             {
-                throw new InvalidOperationException("El certificado .p12 no puede superar 5 MB.");
+                throw new InvalidOperationException("El certificado .p12/.pfx no puede superar 5 MB.");
             }
         }
 
         if (request.CertificadoContenido is { Length: > 0 } &&
             string.IsNullOrWhiteSpace(request.CertificadoClave))
         {
-            throw new InvalidOperationException("La clave del certificado .p12 es obligatoria cuando se carga un certificado.");
+            throw new InvalidOperationException("La clave del certificado .p12/.pfx es obligatoria cuando se carga un certificado.");
+        }
+
+        if (request.CertificadoContenido is { Length: > 0 })
+        {
+            var certificate = LoadCertificate(request.CertificadoContenido, request.CertificadoClave);
+            if (!certificate.HasPrivateKey)
+            {
+                throw new InvalidOperationException("El certificado no contiene una clave privada válida para firmar comprobantes electrónicos.");
+            }
         }
 
         var hasCertificateConfigured = request.CertificadoContenido is { Length: > 0 } ||
@@ -308,5 +330,63 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         }
 
         return current?.CertificadoContenido;
+    }
+
+    private static string? ResolveCertificadoClave(EmpresaRequest request, EmpresaEmisora? current)
+    {
+        return !string.IsNullOrWhiteSpace(request.CertificadoClave)
+            ? request.CertificadoClave.Trim()
+            : current?.CertificadoClave;
+    }
+
+    private async Task SaveCertificateHistoryAsync(EmpresaRequest request, EmpresaEmisora empresa, CancellationToken cancellationToken)
+    {
+        if (request.CertificadoContenido is not { Length: > 0 } ||
+            string.IsNullOrWhiteSpace(request.CertificadoNombreArchivo) ||
+            string.IsNullOrWhiteSpace(request.CertificadoClave))
+        {
+            return;
+        }
+
+        var certificate = LoadCertificate(request.CertificadoContenido, request.CertificadoClave);
+        var now = DateTimeOffset.UtcNow;
+        var model = new CertificadoDigitalEmpresa(
+            Guid.NewGuid(),
+            empresa.Id,
+            empresa.RazonSocial,
+            empresa.Ruc,
+            $"Certificado {certificate.NotAfter:yyyy}",
+            request.CertificadoNombreArchivo.Trim(),
+            request.CertificadoContenido,
+            request.CertificadoClave.Trim(),
+            certificate.Subject,
+            certificate.Issuer,
+            certificate.SerialNumber,
+            certificate.Thumbprint,
+            new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
+            new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
+            true,
+            true,
+            now,
+            currentUserAccessor.GetUserId(),
+            null,
+            null);
+
+        await certificadoRepository.SaveAsync(model, activarComoPrincipal: true, cancellationToken);
+    }
+
+    private static X509Certificate2 LoadCertificate(byte[] contenido, string? clave)
+    {
+        try
+        {
+            return X509CertificateLoader.LoadPkcs12(
+                contenido,
+                clave,
+                X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+        }
+        catch (Exception exception) when (exception is CryptographicException or ArgumentException)
+        {
+            throw new InvalidOperationException("No se pudo leer el certificado. Verifica que el archivo y la clave sean correctos.", exception);
+        }
     }
 }

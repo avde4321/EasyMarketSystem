@@ -1,0 +1,379 @@
+@page "/empresa/certificados"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@inject CertificadosDigitalesApiClient CertificadosApiClient
+@inject EmpresaApiClient EmpresaApiClient
+@inject TestDeIa.Client.Services.PopupNotificationService Popup
+
+<PageTitle>Certificados digitales</PageTitle>
+
+<section class="module-page certificados-page">
+    <header class="module-header">
+        <div>
+            <h1>Certificados digitales</h1>
+            <p>Controla la firma electrónica por empresa, su vigencia y las alertas antes de caducar.</p>
+        </div>
+        <div class="header-actions">
+            <button class="secondary-action" type="button" @onclick="MostrarSoloAlertasAsync">Ver alertas</button>
+            <button class="primary-action" type="button" @onclick="OpenCreateModal">Nuevo certificado</button>
+        </div>
+    </header>
+
+    <section class="summary-grid certificados-summary-grid">
+        <div class="summary-card accent">
+            <span>Principal vigente</span>
+            <strong>@(certificados.FirstOrDefault(current => current.EsPrincipal && current.IsActive)?.Nombre ?? "Pendiente")</strong>
+            <small>Certificado usado para firmar comprobantes SRI.</small>
+        </div>
+        <div class="summary-card">
+            <span>Alertas 30 días</span>
+            <strong>@certificados.Count(current => current.RequiereAlerta && current.IsActive)</strong>
+            <small>Incluye avisos de 30, 20 y 15 días o menos.</small>
+        </div>
+        <div class="summary-card">
+            <span>Caducados</span>
+            <strong>@certificados.Count(current => current.EstaCaducado)</strong>
+            <small>No deben firmar documentos electrónicos.</small>
+        </div>
+    </section>
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por empresa, RUC, archivo o huella..." />
+            <InputSelect class="form-control" @bind-Value="selectedEmpresaId">
+                <option value="">Todas las empresas</option>
+                @foreach (var empresa in empresas)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial - @empresa.Ruc</option>
+                }
+            </InputSelect>
+            <label class="soft-check">
+                <InputCheckbox @bind-Value="soloAlertas" />
+                <span>Solo próximos a vencer</span>
+            </label>
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data-table responsive-table">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Certificado</th>
+                        <th>Vigencia</th>
+                        <th>Días</th>
+                        <th>Estado</th>
+                        <th>Uso</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="7">Cargando certificados...</td>
+                        </tr>
+                    }
+                    else if (certificados.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">No existen certificados registrados.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var certificado in certificados)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@certificado.EmpresaNombre</strong>
+                                    <small>@certificado.EmpresaRuc</small>
+                                </td>
+                                <td>
+                                    <strong>@certificado.Nombre</strong>
+                                    <small>@certificado.NombreArchivo</small>
+                                </td>
+                                <td>
+                                    <span>@certificado.FechaInicioVigencia.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                                    <small>hasta @certificado.FechaFinVigencia.ToLocalTime().ToString("dd/MM/yyyy")</small>
+                                </td>
+                                <td>
+                                    <span class="metric-value">@certificado.DiasParaCaducar</span>
+                                </td>
+                                <td>
+                                    <span class="status-pill @GetBadgeClass(certificado)">@certificado.EstadoVigencia</span>
+                                </td>
+                                <td>
+                                    <span class="status-pill @(certificado.EsPrincipal ? "success" : "neutral")">@(certificado.EsPrincipal ? "Principal" : "Respaldo")</span>
+                                </td>
+                                <td class="table-actions">
+                                    <button class="secondary-action compact" type="button" disabled="@isProcessing" @onclick="() => ActivarAsync(certificado.Id)">Activar</button>
+                                    <button class="danger-action compact" type="button" disabled="@isProcessing" @onclick="() => DesactivarAsync(certificado.Id)">Desactivar</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="table-footer">
+            <span>Mostrando @certificados.Count de @totalCount certificados</span>
+            <div class="pagination-actions">
+                <button class="secondary-action" type="button" disabled="@(!CanGoPrevious)" @onclick="PreviousPageAsync">Anterior</button>
+                <span>Página @PageNumber de @TotalPages</span>
+                <button class="secondary-action" type="button" disabled="@(!CanGoNext)" @onclick="NextPageAsync">Siguiente</button>
+            </div>
+        </footer>
+    </section>
+</section>
+
+@if (showCreateModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card empresa-workflow-modal">
+            <button type="button" class="modal-close" @onclick="CloseCreateModal">x</button>
+            <header class="workflow-header">
+                <span class="eyebrow">Firma electrónica</span>
+                <h2>Registrar certificado digital</h2>
+                <p>Carga el archivo .p12/.pfx, validamos su vigencia y lo dejamos listo para firmar comprobantes.</p>
+            </header>
+
+            <EditForm Model="request" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="form-grid empresa-grid">
+                    <label class="form-field full">
+                        <span>Empresa</span>
+                        <InputSelect class="form-control" @bind-Value="request.EmpresaId">
+                            <option value="@Guid.Empty">Selecciona una empresa</option>
+                            @foreach (var empresa in empresas)
+                            {
+                                <option value="@empresa.Id">@empresa.RazonSocial - @empresa.Ruc</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label class="form-field">
+                        <span>Nombre descriptivo</span>
+                        <InputText class="form-control" @bind-Value="request.Nombre" placeholder="Ej: Firma 2026 - Banco Central" />
+                    </label>
+                    <label class="form-field">
+                        <span>Clave del certificado</span>
+                        <InputText class="form-control" type="password" @bind-Value="request.Clave" placeholder="Clave privada del .p12" />
+                    </label>
+                    <label class="form-field full">
+                        <span>Archivo .p12 / .pfx</span>
+                        <InputFile class="form-control" OnChange="OnCertificateSelectedAsync" accept=".p12,.pfx" />
+                        <small>@(string.IsNullOrWhiteSpace(request.NombreArchivo) ? "Selecciona el certificado entregado por la entidad emisora." : request.NombreArchivo)</small>
+                    </label>
+                    <label class="soft-check full">
+                        <InputCheckbox @bind-Value="request.ActivarComoPrincipal" />
+                        <span>Activar como certificado principal de la empresa</span>
+                    </label>
+                </div>
+
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseCreateModal">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isProcessing">
+                        @(isProcessing ? "Validando..." : "Guardar certificado")
+                    </button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    private const int PageSize = 8;
+    private readonly List<CertificadoDigitalEmpresaResponse> certificados = [];
+    private readonly List<EmpresaOptionResponse> empresas = [];
+    private CertificadoDigitalEmpresaRequest request = new();
+    private string searchTerm = string.Empty;
+    private Guid? selectedEmpresaId;
+    private bool soloAlertas;
+    private bool showCreateModal;
+    private bool isLoading;
+    private bool isProcessing;
+    private int currentSkip;
+    private int totalCount;
+    private bool CanGoPrevious => currentSkip > 0;
+    private bool CanGoNext => currentSkip + PageSize < totalCount;
+    private int PageNumber => (currentSkip / PageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        empresas.AddRange(await EmpresaApiClient.GetMineAsync());
+        await LoadAsync(resetPaging: true);
+    }
+
+    private async Task LoadAsync(bool resetPaging = false)
+    {
+        if (resetPaging)
+        {
+            currentSkip = 0;
+        }
+
+        isLoading = true;
+        try
+        {
+            var page = await CertificadosApiClient.GetPagedAsync(searchTerm, selectedEmpresaId, soloAlertas, currentSkip, PageSize);
+            certificados.Clear();
+            certificados.AddRange(page.Items);
+            totalCount = page.TotalCount;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Task SearchAsync() => LoadAsync(resetPaging: true);
+
+    private async Task MostrarSoloAlertasAsync()
+    {
+        soloAlertas = true;
+        await LoadAsync(resetPaging: true);
+    }
+
+    private void OpenCreateModal()
+    {
+        request = new CertificadoDigitalEmpresaRequest
+        {
+            EmpresaId = selectedEmpresaId ?? empresas.FirstOrDefault(current => current.IsDefault)?.Id ?? empresas.FirstOrDefault()?.Id ?? Guid.Empty,
+            ActivarComoPrincipal = true
+        };
+        showCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        if (!isProcessing)
+        {
+            showCreateModal = false;
+        }
+    }
+
+    private async Task OnCertificateSelectedAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        request.NombreArchivo = file.Name;
+        await using var stream = file.OpenReadStream(5 * 1024 * 1024);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        request.Contenido = memory.ToArray();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (isProcessing)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        await Popup.ShowInfoAsync("Validando certificado digital, espera un momento...");
+        try
+        {
+            var result = await CertificadosApiClient.CreateAsync(request);
+            if (!result.Succeeded)
+            {
+                await Popup.ShowErrorAsync(result.ErrorMessage ?? "No se pudo guardar el certificado.");
+                return;
+            }
+
+            await Popup.ShowSuccessAsync("Certificado digital guardado correctamente.");
+            showCreateModal = false;
+            await LoadAsync(resetPaging: true);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ActivarAsync(Guid id)
+    {
+        if (isProcessing)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        try
+        {
+            var result = await CertificadosApiClient.ActivarAsync(id);
+            if (!result.Succeeded)
+            {
+                await Popup.ShowErrorAsync(result.ErrorMessage ?? "No se pudo activar el certificado.");
+                return;
+            }
+
+            await Popup.ShowSuccessAsync("Certificado activado como principal.");
+            await LoadAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task DesactivarAsync(Guid id)
+    {
+        if (isProcessing)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        try
+        {
+            var result = await CertificadosApiClient.DesactivarAsync(id);
+            if (!result.Succeeded)
+            {
+                await Popup.ShowErrorAsync(result.ErrorMessage ?? "No se pudo desactivar el certificado.");
+                return;
+            }
+
+            await Popup.ShowSuccessAsync("Certificado desactivado.");
+            await LoadAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        currentSkip = Math.Max(0, currentSkip - PageSize);
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        currentSkip += PageSize;
+        await LoadAsync();
+    }
+
+    private static string GetBadgeClass(CertificadoDigitalEmpresaResponse certificado)
+    {
+        return certificado.NivelAlerta switch
+        {
+            "caducado" => "danger",
+            "critico" or "alto" => "warning",
+            "medio" => "notice",
+            _ => "success"
+        };
+    }
+}

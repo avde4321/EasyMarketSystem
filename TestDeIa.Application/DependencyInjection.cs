@@ -26,6 +26,8 @@ using TestDeIa.Application.Modules.Inventario.Ports.In;
 using TestDeIa.Application.Modules.Inventario.UseCases;
 using TestDeIa.Application.Modules.Personas.Ports.In;
 using TestDeIa.Application.Modules.Personas.UseCases;
+using TestDeIa.Application.Modules.Reporteria.Ports.In;
+using TestDeIa.Application.Modules.Reporteria.UseCases;
 using TestDeIa.Application.Modules.Security.Ports.In;
 using TestDeIa.Application.Modules.Security.UseCases;
 
@@ -56,9 +58,11 @@ public static class DependencyInjection
         services.AddScoped<IDashboardUseCase, DashboardUseCase>();
         services.AddScoped<IEmpleadoUseCase, EmpleadoUseCase>();
         services.AddScoped<IEmpresaUseCase, EmpresaUseCase>();
+        services.AddScoped<ICertificadoDigitalEmpresaUseCase, CertificadoDigitalEmpresaUseCase>();
         services.AddScoped<IAnalizadorFiscalIAService, AnalizadorFiscalIAService>();
         services.AddScoped<IFinancieroReportesUseCase, FinancieroReportesUseCase>();
         services.AddScoped<IPersonaUseCase, PersonaUseCase>();
+        services.AddScoped<IReporteVentasUseCase, ReporteVentasUseCase>();
         services.AddScoped<IInventarioUseCase, InventarioUseCase>();
         services.AddScoped<IFacturacionUseCase, FacturacionUseCase>();
         services.AddScoped<IComisionesUseCase, ComisionesUseCase>();

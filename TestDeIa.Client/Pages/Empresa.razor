@@ -7,7 +7,7 @@
     <header class="module-header">
         <div>
             <h1>Mis Empresas</h1>
-            <p>Administra múltiples RUCs, firmas .p12 y parámetros tributarios por empresa.</p>
+            <p>Administra múltiples RUCs, firmas .p12/.pfx y parámetros tributarios por empresa.</p>
         </div>
         <div class="header-actions empresa-header-actions">
             <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">@(selectedEmpresaId.HasValue ? "Continuar edición" : "Iniciar configuración")</button>
@@ -48,7 +48,7 @@
             <div class="summary-card">
                 <span>Certificado</span>
                 <strong>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Pendiente" : "Configurado")</strong>
-                <small>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Sube el .p12 en el paso 2" : certificadoNombreArchivoActual)</small>
+                <small>@(string.IsNullOrWhiteSpace(certificadoNombreArchivoActual) ? "Sube el .p12/.pfx en el paso 2" : certificadoNombreArchivoActual)</small>
             </div>
             <div class="summary-card">
                 <span>Puntos de emisión</span>
@@ -252,7 +252,7 @@
                             <header class="section-header compact-section-header">
                                 <div>
                                     <h3>Certificado y emisión</h3>
-                                    <p>Sube el certificado .p12 y define la clave para procesos de emisión electrónica.</p>
+                                    <p>Sube el certificado .p12/.pfx y define la clave para procesos de emisión electrónica.</p>
                                 </div>
                             </header>
 
@@ -265,15 +265,15 @@
 
                             <div class="form-grid empresa-grid">
                                 <div class="form-field full">
-                                    <label>Certificado .p12</label>
-                                    <InputFile class="form-control" OnChange="OnCertificadoSelectedAsync" accept=".p12" />
+                                    <label>Certificado .p12/.pfx</label>
+                                    <InputFile class="form-control" OnChange="OnCertificadoSelectedAsync" accept=".p12,.pfx" />
                                     @if (!string.IsNullOrWhiteSpace(certificadoNombreArchivoActual))
                                     {
                                         <small class="file-hint">Archivo actual: @certificadoNombreArchivoActual</small>
                                     }
                                 </div>
                                 <div class="form-field full">
-                                    <label>Clave certificado .p12</label>
+                                    <label>Clave certificado .p12/.pfx</label>
                                     <InputText class="form-control" type="password" @bind-Value="empresaRequest.CertificadoClave" />
                                     <small class="file-hint">En Producción no debería quedar vacía si la empresa va a emitir.</small>
                                 </div>

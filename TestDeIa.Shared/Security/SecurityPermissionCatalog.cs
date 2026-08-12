@@ -23,7 +23,8 @@ public static class SecurityPermissionCatalog
         new(SecurityPermissions.CatalogosAdministrar, "Administracion de catalogos internos.", "Configuracion"),
         new(SecurityPermissions.SeguridadUsuarios, "Administracion de usuarios, roles y reseteo de claves.", "Seguridad"),
         new(SecurityPermissions.FinancieroIva, "Consulta del reporte mensual de IVA.", "Financiero"),
-        new(SecurityPermissions.CajaOperar, "Apertura, cierre y control de caja.", "Caja")
+        new(SecurityPermissions.CajaOperar, "Apertura, cierre y control de caja.", "Caja"),
+        new(SecurityPermissions.ReporteriaVentas, "Consulta de reportes detallados y proyecciones de ventas.", "Reporteria")
     ];
 
     public static readonly IReadOnlyDictionary<string, IReadOnlyCollection<string>> RoleMappings =
@@ -64,6 +65,7 @@ public static class SecurityPermissionCatalog
                 SecurityPermissions.FacturacionMonitor,
                 SecurityPermissions.EmpresaConfigurar,
                 SecurityPermissions.FinancieroIva
+                ,SecurityPermissions.ReporteriaVentas
             ]
         };
 }

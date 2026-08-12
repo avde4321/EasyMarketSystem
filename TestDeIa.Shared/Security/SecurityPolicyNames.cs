@@ -23,4 +23,5 @@ public static class SecurityPolicyNames
     public const string FinancieroIva = "financiero.iva";
     public const string UsuariosAdministrar = "usuarios.administrar";
     public const string CajaOperar = "caja.operar";
+    public const string ReporteriaVentas = "reporteria.ventas";
 }
