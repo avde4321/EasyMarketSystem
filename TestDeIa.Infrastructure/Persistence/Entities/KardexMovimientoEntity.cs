@@ -27,9 +27,23 @@ public sealed class KardexMovimientoEntity
 
     public decimal CostoUnitario { get; set; }
 
+    public decimal CostoTotal { get; set; }
+
     public decimal CostoPromedio { get; set; }
 
+    public decimal StockAnterior { get; set; }
+
+    public decimal StockNuevo { get; set; }
+
     public decimal SaldoValor { get; set; }
+
+    public Guid? FacturaId { get; set; }
+
+    public Guid? CompraId { get; set; }
+
+    public Guid? TransferenciaInventarioId { get; set; }
+
+    public Guid? CreadoPorUsuarioId { get; set; }
 
     public DateTimeOffset FechaMovimiento { get; set; }
 }

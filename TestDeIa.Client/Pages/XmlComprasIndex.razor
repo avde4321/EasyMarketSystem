@@ -1,0 +1,209 @@
+@page "/compras/xml-sri"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Inventario
+@using TestDeIa.Client.Services.XmlSri
+@using TestDeIa.Shared.Responses.Common
+@using TestDeIa.Shared.Responses.Inventario
+@using TestDeIa.Shared.Responses.XmlSri
+@inject XmlComprasApiClient XmlComprasApiClient
+@inject InventarioApiClient InventarioApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject IJSRuntime JsRuntime
+
+<section class="module-page xml-compras-page">
+    <header class="module-header">
+        <div>
+            <span class="eyebrow">XML SRI</span>
+            <h1>Carga masiva de facturas de compra</h1>
+            <p>Importa XML o ZIP del SRI, revisa pendientes y conviertelos en compras con ingreso a inventario.</p>
+        </div>
+        <div class="pos-summary pastel-summary">
+            <span>Total acumulado</span>
+            <strong>@TotalAcumulado.ToString("C2")</strong>
+        </div>
+    </header>
+
+    <section class="upload-dropzone">
+        <div>
+            <span class="eyebrow">Arrastra y suelta</span>
+            <h2>Selecciona XML o ZIP</h2>
+            <p>Se validan duplicados por clave de acceso y se guardan como pendientes.</p>
+        </div>
+        <label class="primary-action">
+            Seleccionar archivos
+            <InputFile multiple class="hidden-file-input" OnChange="OnFilesSelectedAsync" accept=".xml,.zip" />
+        </label>
+    </section>
+
+    <section class="filter-card">
+        <input class="input-control" placeholder="Filtrar por RUC, razon social, clave o estado..." @bind="filter" @bind:event="oninput" />
+        <button class="ghost-button" type="button" @onclick="LoadAsync">Actualizar</button>
+    </section>
+
+    <section class="table-card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Emisor</th>
+                    <th>Clave acceso</th>
+                    <th>Documento</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in FilteredItems)
+                {
+                    <tr>
+                        <td>@item.FechaEmision.ToString("dd/MM/yyyy")</td>
+                        <td><strong>@item.RazonSocialEmisor</strong><br /><small>@item.RucEmisor</small></td>
+                        <td class="access-key">@item.ClaveAcceso</td>
+                        <td>@item.EstabPuntoEmiSecuencial</td>
+                        <td>@item.ImporteTotal.ToString("C2")</td>
+                        <td><span class="status-badge @GetStatusClass(item.EstadoProcesamiento)">@item.EstadoProcesamientoNombre</span></td>
+                        <td class="row-actions">
+                            <button class="primary-action compact" type="button" @onclick="() => OpenMapeoAsync(item)" disabled="@(item.EstadoProcesamiento != 0)">Procesar como compra</button>
+                            <button class="ghost-button compact" type="button" @onclick="() => DownloadPlaceholderXmlAsync(item)">XML original</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <div class="pager">
+            <button class="ghost-button" type="button" @onclick="PreviousAsync" disabled="@(skip == 0)">Anterior</button>
+            <span>Mostrando @logs.Items.Count de @logs.TotalCount</span>
+            <button class="ghost-button" type="button" @onclick="NextAsync" disabled="@(skip + take >= logs.TotalCount)">Siguiente</button>
+        </div>
+    </section>
+</section>
+
+@if (selectedLog is not null)
+{
+    <XmlMapeoModal Log="selectedLog"
+                   ParsedXml="selectedParsedXml"
+                   Bodegas="bodegas"
+                   OnCancel="CloseMapeo"
+                   OnConfirm="ConvertirCompraAsync" />
+}
+
+@code {
+    private const int take = 10;
+    private PagedResultResponse<FacturaCompraXmlLogResponse> logs = new() { Take = take };
+    private IReadOnlyCollection<BodegaResponse> bodegas = Array.Empty<BodegaResponse>();
+    private FacturaCompraXmlLogResponse? selectedLog;
+    private XmlSriParserResultDto? selectedParsedXml;
+    private string? filter;
+    private int skip;
+    private decimal TotalAcumulado => logs.Items.Sum(current => current.ImporteTotal);
+    private IEnumerable<FacturaCompraXmlLogResponse> FilteredItems => string.IsNullOrWhiteSpace(filter)
+        ? logs.Items
+        : logs.Items.Where(current =>
+            current.RucEmisor.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            current.RazonSocialEmisor.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            current.ClaveAcceso.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            current.EstadoProcesamientoNombre.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        bodegas = await InventarioApiClient.GetBodegasAsync();
+        await LoadAsync();
+    }
+
+    private async Task OnFilesSelectedAsync(InputFileChangeEventArgs args)
+    {
+        var payloads = new List<BrowserFilePayload>();
+        foreach (var file in args.GetMultipleFiles(100))
+        {
+            await using var stream = file.OpenReadStream(30_000_000);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            payloads.Add(new BrowserFilePayload(file.Name, memory.ToArray()));
+        }
+
+        var result = await XmlComprasApiClient.CargarMasivoAsync(payloads);
+        await PopupNotificationService.ShowSuccessAsync($"XML recibidos: {result.Recibidos}. Insertados: {result.Insertados}. Duplicados: {result.Duplicados}.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        logs = await XmlComprasApiClient.GetPendientesAsync(skip, take);
+    }
+
+    private async Task OpenMapeoAsync(FacturaCompraXmlLogResponse log)
+    {
+        selectedLog = log;
+        selectedParsedXml = await XmlComprasApiClient.GetParseadoAsync(log.Id);
+        if (!bodegas.Any())
+        {
+            bodegas = await InventarioApiClient.GetBodegasAsync();
+        }
+    }
+
+    private void CloseMapeo()
+    {
+        selectedLog = null;
+        selectedParsedXml = null;
+    }
+
+    private async Task ConvertirCompraAsync(TestDeIa.Shared.Requests.XmlSri.ConvertirXmlACompraRequest request)
+    {
+        if (selectedLog is null)
+        {
+            return;
+        }
+
+        var result = await XmlComprasApiClient.ConvertirCompraAsync(selectedLog.Id, request);
+        if (!result.Succeeded)
+        {
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo convertir el XML.");
+            return;
+        }
+
+        await PopupNotificationService.ShowSuccessAsync("XML convertido a compra correctamente.");
+        selectedLog = null;
+        selectedParsedXml = null;
+        await LoadAsync();
+    }
+
+    private async Task DownloadPlaceholderXmlAsync(FacturaCompraXmlLogResponse log)
+    {
+        var result = await XmlComprasApiClient.GetXmlOriginalAsync(log.Id);
+        if (!result.Succeeded || result.FileBytes is null)
+        {
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo descargar el XML original.");
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync(
+            "easyMarketDownload.saveFileFromBytes",
+            $"XML-{log.ClaveAcceso}.xml",
+            "application/xml",
+            Convert.ToBase64String(result.FileBytes));
+    }
+
+    private async Task PreviousAsync()
+    {
+        skip = Math.Max(0, skip - take);
+        await LoadAsync();
+    }
+
+    private async Task NextAsync()
+    {
+        skip += take;
+        await LoadAsync();
+    }
+
+    private static string GetStatusClass(int estado) => estado switch
+    {
+        0 => "pending",
+        1 => "success",
+        2 => "neutral",
+        3 => "danger",
+        _ => "neutral"
+    };
+}

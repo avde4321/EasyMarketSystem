@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
+using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
@@ -310,6 +311,7 @@ public sealed class NotaCreditoService : INotaCreditoService
             dbContext.ProductosBodega.Add(existencia);
         }
 
+        var stockAnterior = existencia.StockActual;
         existencia.StockActual += cantidad;
         producto.UpdatedAt = now;
 
@@ -319,15 +321,19 @@ public sealed class NotaCreditoService : INotaCreditoService
             EmpresaId = factura.EmpresaId,
             ProductoId = producto.Id,
             BodegaId = factura.BodegaId,
-            TipoMovimiento = "DevolucionVenta",
-            Concepto = "DEVOLUCION_VENTA",
+            TipoMovimiento = TipoMovimientoInventario.DevolucionVenta,
+            Concepto = TipoMovimientoInventario.DevolucionVenta,
             Referencia = referencia,
             CantidadEntrada = cantidad,
             CantidadSalida = 0m,
             SaldoCantidad = existencia.StockActual,
             CostoUnitario = producto.CostoPromedio,
+            CostoTotal = Math.Round(cantidad * producto.CostoPromedio, 4, MidpointRounding.AwayFromZero),
             CostoPromedio = producto.CostoPromedio,
+            StockAnterior = stockAnterior,
+            StockNuevo = existencia.StockActual,
             SaldoValor = existencia.StockActual * producto.CostoPromedio,
+            FacturaId = factura.Id,
             FechaMovimiento = now
         });
     }

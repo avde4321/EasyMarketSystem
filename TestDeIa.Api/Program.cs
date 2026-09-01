@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TestDeIa.Api.Configuration;
 using TestDeIa.Api.Middleware;
+using TestDeIa.Api.Reporting;
 using TestDeIa.Api.Security;
 using TestDeIa.Application;
 using TestDeIa.Infrastructure;
@@ -15,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers();
+builder.Services.AddSingleton<SimpleRidePdfRenderer>();
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
 {

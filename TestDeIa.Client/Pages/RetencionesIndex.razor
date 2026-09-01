@@ -1,0 +1,221 @@
+@page "/retenciones"
+@using Microsoft.JSInterop
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Retenciones
+@using TestDeIa.Shared.Responses.Common
+@using TestDeIa.Shared.Responses.Retenciones
+@inject RetencionesApiClient RetencionesApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject IJSRuntime JsRuntime
+
+<section class="module-page retenciones-page">
+    <div class="module-header">
+        <div>
+            <span class="eyebrow">SRI Ecuador</span>
+            <h1>Retenciones electronicas</h1>
+            <p>Consulta, reintenta autorizaciones y descarga XML/RIDE de comprobantes de retencion.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+    </div>
+
+    <div class="filter-card">
+        <input class="input-control" placeholder="Buscar por proveedor, secuencial, clave o estado..." @bind="searchTerm" @bind:event="oninput" />
+        <button class="ghost-button" type="button" @onclick="LoadAsync" disabled="@isLoading">Buscar</button>
+    </div>
+
+    <div class="table-card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Documento</th>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Estado SRI</th>
+                    <th>Clave de acceso</th>
+                    <th>Total retenido</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="7">Cargando retenciones...</td></tr>
+                }
+                else if (!retenciones.Items.Any())
+                {
+                    <tr><td colspan="7">No hay retenciones registradas para la busqueda actual.</td></tr>
+                }
+                else
+                {
+                    @foreach (var retencion in retenciones.Items)
+                    {
+                        <tr>
+                            <td><strong>@retencion.Establecimiento-@retencion.PuntoEmision-@retencion.Secuencial</strong></td>
+                            <td>@retencion.FechaEmision.ToString("dd/MM/yyyy")</td>
+                            <td>@Display(retencion.ProveedorNombre, retencion.ProveedorId.ToString("N")[..8])</td>
+                            <td><span class="status-badge @GetStatusClass(retencion.EstadoSRI)">@retencion.EstadoSRINombre</span></td>
+                            <td class="access-key">@Display(retencion.ClaveAcceso, "Pendiente")</td>
+                            <td>@Money(retencion.TotalRetenido)</td>
+                            <td class="row-actions">
+                                <button type="button" class="ghost-button compact" @onclick="() => OpenDetail(retencion)">Ver</button>
+                                <button type="button" class="ghost-button compact" @onclick="() => DownloadRideAsync(retencion)">RIDE PDF</button>
+                                <button type="button" class="ghost-button compact" @onclick="() => DownloadXmlAsync(retencion)">XML</button>
+                                <button type="button" class="primary-action compact" @onclick="() => RetryAsync(retencion)" disabled="@isProcessing">Reintentar SRI</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <div class="pager">
+            <button type="button" class="ghost-button" @onclick="PreviousPage" disabled="@(skip == 0 || isLoading)">Anterior</button>
+            <span>Mostrando @retenciones.Items.Count de @retenciones.TotalCount</span>
+            <button type="button" class="ghost-button" @onclick="NextPage" disabled="@(skip + take >= retenciones.TotalCount || isLoading)">Siguiente</button>
+        </div>
+    </div>
+</section>
+
+@if (selectedRetencion is not null)
+{
+    <div class="easy-modal-backdrop">
+        <div class="easy-modal-card">
+            <button type="button" class="easy-modal-close" @onclick="CloseDetail">x</button>
+            <span class="eyebrow">Detalle retencion</span>
+            <h2>@selectedRetencion.Establecimiento-@selectedRetencion.PuntoEmision-@selectedRetencion.Secuencial</h2>
+            <p>@selectedRetencion.MensajeErrorSRI</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Impuesto</th>
+                        <th>Codigo SRI</th>
+                        <th>Base</th>
+                        <th>%</th>
+                        <th>Retenido</th>
+                        <th>Sustento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var detalle in selectedRetencion.Detalles)
+                    {
+                        <tr>
+                            <td>@detalle.CodigoImpuesto</td>
+                            <td>@detalle.CodigoRetencionSRI</td>
+                            <td>@Money(detalle.BaseImponible)</td>
+                            <td>@detalle.PorcentajeRetencion.ToString("0.##")%</td>
+                            <td>@Money(detalle.ValorRetenido)</td>
+                            <td>@detalle.CodDocSustento - @detalle.NumDocSustento</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private const int take = 5;
+    private PagedResultResponse<ComprobanteRetencionResponse> retenciones = new() { Take = take };
+    private string? searchTerm;
+    private int skip;
+    private bool isLoading;
+    private bool isProcessing;
+    private ComprobanteRetencionResponse? selectedRetencion;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            retenciones = await RetencionesApiClient.GetPagedAsync(searchTerm, skip, take);
+        }
+        catch (Exception exception)
+        {
+            await PopupNotificationService.ShowErrorAsync(exception.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenDetail(ComprobanteRetencionResponse retencion) => selectedRetencion = retencion;
+
+    private void CloseDetail() => selectedRetencion = null;
+
+    private async Task RetryAsync(ComprobanteRetencionResponse retencion)
+    {
+        isProcessing = true;
+        await PopupNotificationService.ShowInfoAsync("Procesando retencion contra SRI...");
+        try
+        {
+            var result = await RetencionesApiClient.ReintentarAutorizacionAsync(retencion.Id);
+            if (!result.Succeeded)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo procesar la retencion.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Retencion actualizada correctamente.");
+            await LoadAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task DownloadRideAsync(ComprobanteRetencionResponse retencion)
+    {
+        await PopupNotificationService.ShowInfoAsync("Generando RIDE de retencion...");
+        var result = await RetencionesApiClient.GetRidePdfAsync(retencion.Id);
+        await DownloadAsync(result, $"RETENCION-{retencion.Secuencial}.pdf", "application/pdf");
+    }
+
+    private async Task DownloadXmlAsync(ComprobanteRetencionResponse retencion)
+    {
+        await PopupNotificationService.ShowInfoAsync("Generando XML de retencion...");
+        var result = await RetencionesApiClient.GetXmlGeneradoAsync(retencion.Id);
+        await DownloadAsync(result, $"RETENCION-{retencion.Secuencial}.xml", "application/xml");
+    }
+
+    private async Task DownloadAsync((bool Succeeded, string? ErrorMessage, byte[]? FileBytes) result, string fileName, string contentType)
+    {
+        if (!result.Succeeded || result.FileBytes is null)
+        {
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo descargar el documento.");
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync("easyMarketDownload.saveFileFromBytes", fileName, contentType, Convert.ToBase64String(result.FileBytes));
+    }
+
+    private async Task PreviousPage()
+    {
+        skip = Math.Max(0, skip - take);
+        await LoadAsync();
+    }
+
+    private async Task NextPage()
+    {
+        skip += take;
+        await LoadAsync();
+    }
+
+    private static string Money(decimal value) => value.ToString("C2");
+
+    private static string Display(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string GetStatusClass(int estado) => estado switch
+    {
+        1 => "draft",
+        2 => "pending",
+        3 => "pending",
+        4 => "success",
+        5 => "danger",
+        _ => "neutral"
+    };
+}

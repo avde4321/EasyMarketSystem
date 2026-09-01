@@ -16,8 +16,13 @@ using TestDeIa.Client.Services.Facturacion;
 using TestDeIa.Client.Services.Financiero;
 using TestDeIa.Client.Services.Geografia;
 using TestDeIa.Client.Services.Inventario;
+using TestDeIa.Client.Services.Integraciones;
+using TestDeIa.Client.Services.OfflinePos;
 using TestDeIa.Client.Services.Personas;
+using TestDeIa.Client.Services.Proformas;
 using TestDeIa.Client.Services.Reporteria;
+using TestDeIa.Client.Services.Retenciones;
+using TestDeIa.Client.Services.XmlSri;
 
 namespace TestDeIa.Client.Configuration;
 
@@ -60,8 +65,15 @@ public static class ClientServiceRegistration
         services.AddScoped<FinancieroApiClient>();
         services.AddScoped<GeografiaApiClient>();
         services.AddScoped<PersonasApiClient>();
+        services.AddScoped<ProformasApiClient>();
         services.AddScoped<ReporteriaVentasApiClient>();
+        services.AddScoped<RetencionesApiClient>();
         services.AddScoped<InventarioApiClient>();
+        services.AddScoped<WhatsAppApiClient>();
+        services.AddScoped<PagosDigitalesApiClient>();
+        services.AddScoped<OfflinePosStorageService>();
+        services.AddScoped<PosOfflineApiClient>();
+        services.AddScoped<XmlComprasApiClient>();
 
         return services;
     }

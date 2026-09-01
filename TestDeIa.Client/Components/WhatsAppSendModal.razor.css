@@ -1,0 +1,32 @@
+.whatsapp-modal-card {
+    max-width: min(980px, 92vw);
+}
+
+.whatsapp-preview-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.whatsapp-message-box {
+    min-height: 120px;
+}
+
+.document-links-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: .65rem 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(122, 197, 190, .35);
+    border-radius: 22px;
+    background: rgba(245, 251, 255, .85);
+    color: #17486f;
+}
+
+.document-links-grid strong {
+    overflow-wrap: anywhere;
+    font-weight: 700;
+}
+
+.whatsapp-action {
+    background: linear-gradient(135deg, #22c55e, #14b8a6);
+}

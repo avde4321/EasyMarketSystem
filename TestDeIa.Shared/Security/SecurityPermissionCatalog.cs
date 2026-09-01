@@ -64,8 +64,8 @@ public static class SecurityPermissionCatalog
                 SecurityPermissions.ComprasCuentasPorPagar,
                 SecurityPermissions.FacturacionMonitor,
                 SecurityPermissions.EmpresaConfigurar,
-                SecurityPermissions.FinancieroIva
-                ,SecurityPermissions.ReporteriaVentas
+                SecurityPermissions.FinancieroIva,
+                SecurityPermissions.ReporteriaVentas
             ]
         };
 }

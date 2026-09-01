@@ -1,0 +1,168 @@
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Integraciones
+@using TestDeIa.Shared.Requests.Integraciones
+@using TestDeIa.Shared.Responses.Integraciones
+@inject PagosDigitalesApiClient PagosDigitalesApiClient
+@inject PopupNotificationService PopupNotificationService
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card pago-qr-modal-card" role="dialog" aria-modal="true">
+            <header class="modal-header">
+                <div>
+                    <span class="page-kicker">COBRO DIGITAL</span>
+                    <h2>QR de cobro</h2>
+                    <p>Genera el QR, espera la confirmacion de pago y cierra la venta al aprobarse.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseAsync" disabled="@isBusy">x</button>
+            </header>
+
+            <div class="qr-payment-shell">
+                <section class="qr-card">
+                    @if (payment is null)
+                    {
+                        <div class="qr-placeholder">QR</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(payment.QrCodeBase64))
+                    {
+                        <img src="@payment.QrCodeBase64" alt="QR de pago" />
+                    }
+                    <strong>$ @Monto.ToString("0.00")</strong>
+                    <span>@Concepto</span>
+                </section>
+
+                <section class="qr-status-card client-lookup-panel carousel-pane active-pane">
+                    <div class="countdown-pill">@TiempoRestante</div>
+                    <h3>@EstadoVisual</h3>
+                    <p>@MensajeVisual</p>
+                    @if (!string.IsNullOrWhiteSpace(payment?.LinkPagoUrl))
+                    {
+                        <a class="inline-link" href="@payment.LinkPagoUrl" target="_blank" rel="noopener noreferrer">Abrir enlace de pago</a>
+                    }
+                </section>
+            </div>
+
+            <footer class="modal-actions">
+                <button class="ghost-button" type="button" @onclick="CloseAsync" disabled="@isBusy">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="GenerarAsync" disabled="@isBusy">
+                    @(isBusy ? "Esperando pago..." : payment is null ? "Generar QR" : "Regenerar QR")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public Guid? FacturaId { get; set; }
+    [Parameter] public decimal Monto { get; set; }
+    [Parameter] public string Concepto { get; set; } = "Pago EasyMarket";
+    [Parameter] public string? EmailCliente { get; set; }
+    [Parameter] public string? TelefonoCliente { get; set; }
+    [Parameter] public EventCallback<string> OnPagoAprobado { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private RespuestaPagoDigitalDto? payment;
+    private CancellationTokenSource? pollingCancellationTokenSource;
+    private DateTimeOffset? expiresAt;
+    private bool isBusy;
+
+    private string TiempoRestante
+    {
+        get
+        {
+            var remaining = expiresAt.GetValueOrDefault() - DateTimeOffset.Now;
+            return remaining <= TimeSpan.Zero ? "Expirado" : $"{remaining.Minutes:00}:{remaining.Seconds:00}";
+        }
+    }
+
+    private string EstadoVisual => payment?.Estado.Equals("Aprobado", StringComparison.OrdinalIgnoreCase) == true
+        ? "¡Pago recibido con exito!"
+        : payment is null ? "Listo para generar" : "Esperando confirmacion";
+
+    private string MensajeVisual => payment?.Estado.Equals("Aprobado", StringComparison.OrdinalIgnoreCase) == true
+        ? "El pago digital fue confirmado por la pasarela."
+        : payment is null ? "Genera el QR para iniciar el cobro digital." : "Mantén esta ventana abierta mientras el cliente realiza el pago.";
+
+    private async Task GenerarAsync()
+    {
+        if (Monto <= 0)
+        {
+            await PopupNotificationService.ShowInfoAsync("El monto del QR debe ser mayor a cero.");
+            return;
+        }
+
+        pollingCancellationTokenSource?.Cancel();
+        pollingCancellationTokenSource?.Dispose();
+        pollingCancellationTokenSource = new CancellationTokenSource();
+        isBusy = true;
+        await PopupNotificationService.ShowInfoAsync("Generando QR de cobro digital...");
+
+        try
+        {
+            var result = await PagosDigitalesApiClient.GenerarLinkAsync(new GenerarLinkPagoDto
+            {
+                FacturaId = FacturaId,
+                Monto = Monto,
+                Concepto = Concepto,
+                EmailCliente = EmailCliente,
+                TelefonoCliente = TelefonoCliente
+            });
+
+            if (!result.Succeeded || result.Data is null)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo generar el QR.");
+                return;
+            }
+
+            payment = result.Data;
+            expiresAt = DateTimeOffset.Now.AddMinutes(5);
+            await PopupNotificationService.ShowSuccessAsync("QR generado. Esperando confirmacion de pago.");
+            _ = PollPaymentAsync(payment.TransactionId, pollingCancellationTokenSource.Token);
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task PollPaymentAsync(string transactionId, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested &&
+                   expiresAt.HasValue &&
+                   DateTimeOffset.Now < expiresAt.Value &&
+                   await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                var result = await PagosDigitalesApiClient.ConsultarEstadoAsync(transactionId);
+                if (result.Succeeded && result.Data is not null)
+                {
+                    payment = result.Data;
+                    await InvokeAsync(StateHasChanged);
+
+                    if (payment.Estado.Equals("Aprobado", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await PopupNotificationService.ShowSuccessAsync("Pago digital confirmado.");
+                        await OnPagoAprobado.InvokeAsync(transactionId);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        pollingCancellationTokenSource?.Cancel();
+        pollingCancellationTokenSource?.Dispose();
+        pollingCancellationTokenSource = null;
+        await OnClose.InvokeAsync();
+    }
+}

@@ -16,7 +16,19 @@ public sealed class ProductoBodegaEntityConfiguration : IEntityTypeConfiguration
             .IsRequired();
 
         builder.Property(entity => entity.StockActual)
-            .HasPrecision(18, 4);
+            .HasPrecision(18, 4)
+            .HasDefaultValue(0m);
+
+        builder.Property(entity => entity.StockMinimo)
+            .HasPrecision(18, 4)
+            .HasDefaultValue(0m);
+
+        builder.Property(entity => entity.StockMaximo)
+            .HasPrecision(18, 4)
+            .HasDefaultValue(0m);
+
+        builder.Property(entity => entity.EsActivo)
+            .HasDefaultValue(true);
 
         builder.Property(entity => entity.RowVersion)
             .IsRowVersion();
@@ -32,5 +44,6 @@ public sealed class ProductoBodegaEntityConfiguration : IEntityTypeConfiguration
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(entity => new { entity.EmpresaId, entity.BodegaId });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.BodegaId, entity.ProductoId });
     }
 }

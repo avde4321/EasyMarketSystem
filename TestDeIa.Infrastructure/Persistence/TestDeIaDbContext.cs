@@ -38,6 +38,7 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<ActivoFijoEntity> ActivosFijos => Set<ActivoFijoEntity>();
     public DbSet<CompraEntity> Compras => Set<CompraEntity>();
     public DbSet<CompraDetalleEntity> CompraDetalles => Set<CompraDetalleEntity>();
+    public DbSet<FacturaCompraXmlLogEntity> FacturaCompraXmlLogs => Set<FacturaCompraXmlLogEntity>();
     public DbSet<EstudioMercadoCompraEntity> EstudiosMercadoCompra => Set<EstudioMercadoCompraEntity>();
     public DbSet<CuentaPorPagarEntity> CuentasPorPagar => Set<CuentaPorPagarEntity>();
     public DbSet<PagoCxPEntity> PagosCxP => Set<PagoCxPEntity>();
@@ -50,6 +51,9 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
     public DbSet<CertificadoDigitalEmpresaEntity> CertificadosDigitalesEmpresa => Set<CertificadoDigitalEmpresaEntity>();
+    public DbSet<EmpresaConfiguracionServiciosEntity> EmpresaConfiguracionServicios => Set<EmpresaConfiguracionServiciosEntity>();
+    public DbSet<TransaccionPagoDigitalEntity> TransaccionesPagosDigitales => Set<TransaccionPagoDigitalEntity>();
+    public DbSet<WhatsAppNotificacionLogEntity> WhatsAppNotificacionesLog => Set<WhatsAppNotificacionLogEntity>();
 
     public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
     public DbSet<PersonaNaturalEntity> PersonasNaturales => Set<PersonaNaturalEntity>();
@@ -73,6 +77,11 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<ComprobanteCabeceraEntity> ComprobanteCabecera => Set<ComprobanteCabeceraEntity>();
     public DbSet<ComprobanteDetalleEntity> ComprobanteDetalle => Set<ComprobanteDetalleEntity>();
     public DbSet<ColaProcesamientoSriEntity> ColaProcesamientoSRI => Set<ColaProcesamientoSriEntity>();
+    public DbSet<DocumentoAdjuntoEntity> DocumentosAdjuntos => Set<DocumentoAdjuntoEntity>();
+    public DbSet<ProformaEntity> Proformas => Set<ProformaEntity>();
+    public DbSet<ProformaDetalleEntity> ProformaDetalles => Set<ProformaDetalleEntity>();
+    public DbSet<ComprobanteRetencionEntity> ComprobantesRetencion => Set<ComprobanteRetencionEntity>();
+    public DbSet<ComprobanteRetencionDetalleEntity> ComprobanteRetencionDetalles => Set<ComprobanteRetencionDetalleEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,6 +105,8 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<CompraDetalleEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Compra.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaCompraXmlLogEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<EstudioMercadoCompraEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<CuentaPorPagarEntity>()
@@ -140,6 +151,16 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.ComprobanteCabecera.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ColaProcesamientoSriEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<DocumentoAdjuntoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ProformaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ProformaDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Proforma.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ComprobanteRetencionEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ComprobanteRetencionDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.ComprobanteRetencion.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<SecurityUserEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
@@ -166,6 +187,14 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
                 (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+        modelBuilder.Entity<EmpresaConfiguracionServiciosEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+        modelBuilder.Entity<TransaccionPagoDigitalEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<WhatsAppNotificacionLogEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
     }
 }
 

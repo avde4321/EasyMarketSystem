@@ -8,6 +8,46 @@
     align-items: center;
 }
 
+.import-xml-action {
+    white-space: nowrap;
+}
+
+.purchase-entry-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1.1rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(73, 194, 211, 0.2);
+    border-radius: 18px;
+    background:
+        linear-gradient(135deg, rgba(238, 250, 247, 0.95), rgba(255, 248, 229, 0.72)),
+        #ffffff;
+}
+
+.purchase-entry-options.single-option {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.purchase-entry-options div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.purchase-entry-options span {
+    color: #1f9691;
+    font-size: 0.76rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.purchase-entry-options strong {
+    color: var(--brand-blue);
+    font-size: 0.92rem;
+}
+
 .file-upload-action {
     position: relative;
     cursor: pointer;
@@ -228,6 +268,7 @@
 
 @media (max-width: 1080px) {
     .compra-summary-grid,
+    .purchase-entry-options,
     .workflow-stepper {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -236,6 +277,7 @@
 @media (max-width: 860px) {
     .compras-toolbar,
     .compra-summary-grid,
+    .purchase-entry-options,
     .workflow-stepper {
         grid-template-columns: 1fr;
     }

@@ -7,9 +7,9 @@ public sealed class CrearAsientoDetalleRequest
     [Required]
     public Guid CuentaContableId { get; set; }
 
-    [Range(typeof(decimal), "0", "999999999999")]
+    [Range(typeof(decimal), "0", "999999999999", ParseLimitsInInvariantCulture = true)]
     public decimal Debe { get; set; }
 
-    [Range(typeof(decimal), "0", "999999999999")]
+    [Range(typeof(decimal), "0", "999999999999", ParseLimitsInInvariantCulture = true)]
     public decimal Haber { get; set; }
 }

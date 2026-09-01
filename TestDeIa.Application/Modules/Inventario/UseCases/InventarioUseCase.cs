@@ -1,5 +1,6 @@
 using TestDeIa.Application.Modules.Inventario.Ports.In;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Shared.Requests.Inventario;
 using TestDeIa.Shared.Responses.Common;
@@ -512,9 +513,11 @@ public sealed class InventarioUseCase : IInventarioUseCase
     private static void ValidateTipoMovimiento(string tipoMovimiento)
     {
         if (!string.Equals(tipoMovimiento, "Entrada", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(tipoMovimiento, "Salida", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(tipoMovimiento, "Salida", StringComparison.OrdinalIgnoreCase) &&
+            !TipoMovimientoInventario.EsEntrada(tipoMovimiento) &&
+            !TipoMovimientoInventario.EsSalida(tipoMovimiento))
         {
-            throw new InvalidOperationException("El tipo de movimiento debe ser Entrada o Salida.");
+            throw new InvalidOperationException("El tipo de movimiento debe representar una entrada o salida de inventario.");
         }
     }
 

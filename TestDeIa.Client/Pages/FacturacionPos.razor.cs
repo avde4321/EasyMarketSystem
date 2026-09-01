@@ -1,15 +1,19 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 using TestDeIa.Client.Services.Caja;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Facturacion;
+using TestDeIa.Client.Services.OfflinePos;
 using TestDeIa.Client.Services;
 using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Requests.OfflinePos;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Responses.OfflinePos;
 using TestDeIa.Shared.Security;
 using TestDeIa.Shared.Sri;
 
@@ -31,6 +35,12 @@ public partial class FacturacionPos : IDisposable
 
     [Inject]
     private PopupNotificationService PopupNotificationService { get; set; } = default!;
+
+    [Inject]
+    private PosOfflineApiClient PosOfflineApiClient { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JsRuntime { get; set; } = default!;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
@@ -56,6 +66,14 @@ public partial class FacturacionPos : IDisposable
     private bool isCajaLoading;
     private bool hasCajaActiva;
     private bool canEditServicePrice;
+    private bool isOnline = true;
+    private bool isSyncingOfflineQueue;
+    private bool showWhatsAppModal;
+    private bool showPagoQrModal;
+    private FacturaEmissionResponse? lastFactura;
+    private decimal lastFacturaTotal;
+    private DotNetObjectReference<FacturacionPos>? dotNetReference;
+    private IJSObjectReference? networkHandlerReference;
     private const int SearchPageSize = 8;
     private int clienteSkip;
     private int productoSkip;
@@ -67,11 +85,14 @@ public partial class FacturacionPos : IDisposable
     private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
     private bool HasOperationalContext => selectedPuntoEmision is not null;
     private bool CanOperatePos => HasOperationalContext && hasCajaActiva;
+    private bool CanOperateSearch => HasOperationalContext && (hasCajaActiva || !isOnline);
     private bool IsCashPayment => string.Equals(SriCatalogCodes.NormalizeFormaPagoCode(formaPago), SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal);
     private decimal VueltoCalculado => Math.Max(0m, Math.Round((efectivoRecibido ?? 0m) - GetCartTotal(), 2, MidpointRounding.AwayFromZero));
     private decimal MontoPendienteEfectivo => IsCashPayment ? Math.Max(0m, Math.Round(GetCartTotal() - (efectivoRecibido ?? 0m), 2, MidpointRounding.AwayFromZero)) : 0m;
     private bool IsCashPaymentCovered => !IsCashPayment || GetCartTotal() <= 0 || (efectivoRecibido ?? 0m) >= GetCartTotal();
-    private bool CanCheckout => CanOperatePos && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
+    private bool CanCheckout => HasOperationalContext && (hasCajaActiva || !isOnline) && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
+    private string LastFacturaRideLink => lastFactura is null ? string.Empty : $"api/reporteria/facturas/{lastFactura.FacturaId}/ride";
+    private string LastFacturaXmlLink => lastFactura is null ? string.Empty : $"api/reporteria/facturas/{lastFactura.FacturaId}/xml-generado";
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,6 +101,7 @@ public partial class FacturacionPos : IDisposable
         await LoadPuntosEmisionAsync();
         await LoadOperadoresAsync();
         await LoadCajaStateAsync();
+        await InitializeOfflineModeAsync();
     }
 
     private async Task ResolveCurrentUserCapabilitiesAsync()
@@ -163,7 +185,7 @@ public partial class FacturacionPos : IDisposable
         statusMessage = null;
         clienteResults.Clear();
 
-        if (!EnsureOperationalContext())
+        if (!EnsureOperationalContextForSearch())
         {
             return;
         }
@@ -190,13 +212,40 @@ public partial class FacturacionPos : IDisposable
         statusMessage = null;
         productoResults.Clear();
 
-        if (!EnsureOperationalContext())
+        if (!EnsureOperationalContextForSearch())
         {
             return;
         }
 
         if (string.IsNullOrWhiteSpace(productoSearchTerm) || productoSearchTerm.Trim().Length < 2)
         {
+            return;
+        }
+
+        if (!isOnline)
+        {
+            var cachedProducts = await JsRuntime.InvokeAsync<List<StockLocalCacheDto>>("easyMarketPosOffline.getCatalogo");
+            var normalizedTerm = productoSearchTerm.Trim();
+            var filtered = cachedProducts
+                .Where(current =>
+                    current.BodegaId == selectedPuntoEmision?.BodegaId &&
+                    (current.CodigoBarra.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase) ||
+                     current.Nombre.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase)))
+                .Skip(productoSkip)
+                .Take(SearchPageSize)
+                .Select(current => new PosProductoResponse
+                {
+                    ProductoId = current.ProductoId,
+                    Codigo = current.CodigoBarra,
+                    Nombre = current.Nombre,
+                    PrecioVenta = current.Precio,
+                    PorcentajeIva = current.TarifaIVA,
+                    StockActual = current.StockDisponible,
+                    ControlaStock = current.ControlaStock
+                })
+                .ToArray();
+            productoResults.AddRange(filtered);
+            productoTotalCount = cachedProducts.Count;
             return;
         }
 
@@ -394,6 +443,12 @@ public partial class FacturacionPos : IDisposable
 
         try
         {
+            if (!isOnline)
+            {
+                await SaveOfflineSaleAsync();
+                return;
+            }
+
             var result = await FacturacionApiClient.EmitirFacturaAsync(new EmitirFacturaRequest
             {
                 ClienteId = selectedCliente.ClienteId.Value,
@@ -420,7 +475,9 @@ public partial class FacturacionPos : IDisposable
                 return;
             }
 
+            lastFacturaTotal = GetCartTotal();
             statusMessage = $"{result.Data?.NumeroComprobante} registrada en estado pendiente. La validacion SRI sigue en segundo plano.";
+            lastFactura = result.Data;
             await PopupNotificationService.ShowSuccessAsync(statusMessage);
             cartItems.Clear();
             productoResults.Clear();
@@ -430,8 +487,7 @@ public partial class FacturacionPos : IDisposable
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo registrar la factura.";
-            await PopupNotificationService.ShowErrorAsync(errorMessage);
+            await SaveOfflineSaleAsync();
         }
         finally
         {
@@ -510,8 +566,41 @@ public partial class FacturacionPos : IDisposable
 
     private decimal GetCartTotal() => cartItems.Sum(item => item.Total);
 
+    private void OpenLastFacturaWhatsApp()
+    {
+        if (lastFactura is null)
+        {
+            return;
+        }
+
+        showWhatsAppModal = true;
+    }
+
+    private void CloseWhatsAppModal()
+    {
+        showWhatsAppModal = false;
+    }
+
+    private void OpenPagoQrModal()
+    {
+        showPagoQrModal = true;
+    }
+
+    private void ClosePagoQrModal()
+    {
+        showPagoQrModal = false;
+    }
+
+    private async Task OnPagoDigitalAprobadoAsync(string transactionId)
+    {
+        formaPago = "19";
+        showPagoQrModal = false;
+        await PopupNotificationService.ShowSuccessAsync($"Pago digital confirmado: {transactionId}.");
+    }
+
     public void Dispose()
     {
+        dotNetReference?.Dispose();
     }
 
     private void OpenOperationalContextModal()
@@ -552,6 +641,143 @@ public partial class FacturacionPos : IDisposable
                 : "Debes seleccionar un establecimiento y punto de emision antes de operar el POS.";
         showOperationalContextModal = puntosEmision.Count > 0;
         return false;
+    }
+
+    private bool EnsureOperationalContextForSearch()
+    {
+        if (HasOperationalContext && (hasCajaActiva || !isOnline))
+        {
+            return true;
+        }
+
+        return EnsureOperationalContext();
+    }
+
+    private async Task InitializeOfflineModeAsync()
+    {
+        try
+        {
+            isOnline = await JsRuntime.InvokeAsync<bool>("easyMarketPosOffline.isOnline");
+            dotNetReference = DotNetObjectReference.Create(this);
+            networkHandlerReference = await JsRuntime.InvokeAsync<IJSObjectReference>("easyMarketPosOffline.registerNetworkHandlers", dotNetReference);
+            if (isOnline && selectedPuntoEmision is not null)
+            {
+                await RefreshOfflineCatalogAsync();
+                await SyncOfflineQueueAsync();
+            }
+        }
+        catch (JSException)
+        {
+            isOnline = true;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnBrowserOnline()
+    {
+        isOnline = true;
+        await PopupNotificationService.ShowSuccessAsync("Conexion recuperada. Sincronizando ventas offline...");
+        await RefreshOfflineCatalogAsync();
+        await SyncOfflineQueueAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnBrowserOffline()
+    {
+        isOnline = false;
+        await PopupNotificationService.ShowInfoAsync("Modo contingencia offline activo. Las ventas se guardaran localmente.");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshOfflineCatalogAsync()
+    {
+        if (selectedPuntoEmision is null)
+        {
+            return;
+        }
+
+        var catalog = await PosOfflineApiClient.GetCatalogoCacheAsync(selectedPuntoEmision.BodegaId);
+        await JsRuntime.InvokeVoidAsync("easyMarketPosOffline.saveCatalogo", catalog);
+    }
+
+    private async Task SaveOfflineSaleAsync()
+    {
+        if (selectedCliente?.ClienteId.HasValue != true || selectedPuntoEmision is null)
+        {
+            errorMessage = "No se pudo guardar en contingencia: cliente o punto de emision incompleto.";
+            await PopupNotificationService.ShowErrorAsync(errorMessage);
+            return;
+        }
+
+        var clienteId = selectedCliente.ClienteId.GetValueOrDefault();
+
+        var offlineSale = new VentaOfflineQueueDto
+        {
+            EmpresaId = Guid.Empty,
+            ClienteId = clienteId,
+            BodegaId = selectedPuntoEmision.BodegaId,
+            Establecimiento = selectedPuntoEmision.Establecimiento,
+            PuntoEmision = selectedPuntoEmision.PuntoEmision,
+            FormaPago = formaPago,
+            MontoRecibido = IsCashPayment ? efectivoRecibido : null,
+            VueltoEntregado = IsCashPayment ? VueltoCalculado : null,
+            Observacion = observacion,
+            FechaHoraLocal = DateTimeOffset.Now,
+            FirmaPreliminarLocal = $"CONT-{DateTimeOffset.Now:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..30],
+            Items = cartItems.Select(item => new VentaOfflineDetalleDto
+            {
+                ProductoId = item.ProductoId,
+                Codigo = item.Codigo,
+                Nombre = item.Nombre,
+                Cantidad = item.Cantidad,
+                PrecioUnitario = item.PrecioVenta,
+                TarifaIVA = item.PorcentajeIva,
+                UsuarioIdOperador = item.UsuarioIdOperador
+            }).ToArray()
+        };
+
+        await JsRuntime.InvokeVoidAsync("easyMarketPosOffline.enqueueVenta", offlineSale);
+        statusMessage = "Venta guardada localmente. Se sincronizara al recuperar internet.";
+        await PopupNotificationService.ShowSuccessAsync(statusMessage);
+        cartItems.Clear();
+        productoResults.Clear();
+        observacion = null;
+        efectivoRecibido = null;
+    }
+
+    private async Task SyncOfflineQueueAsync()
+    {
+        if (isSyncingOfflineQueue)
+        {
+            return;
+        }
+
+        isSyncingOfflineQueue = true;
+        try
+        {
+            var ventas = await JsRuntime.InvokeAsync<List<VentaOfflineQueueDto>>("easyMarketPosOffline.getVentasPendientes");
+            if (ventas.Count == 0)
+            {
+                return;
+            }
+
+            var result = await PosOfflineApiClient.SincronizarAsync(ventas);
+            foreach (var item in result.Resultados.Where(current => current.Succeeded))
+            {
+                await JsRuntime.InvokeVoidAsync("easyMarketPosOffline.removeVenta", item.LocalQueueId);
+            }
+
+            await PopupNotificationService.ShowInfoAsync($"Sincronizacion offline: {result.Procesadas} procesadas, {result.ConflictosStock} conflictos.");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JSException)
+        {
+            await PopupNotificationService.ShowInfoAsync("La cola offline queda pendiente para el proximo intento.");
+        }
+        finally
+        {
+            isSyncingOfflineQueue = false;
+        }
     }
 
     private sealed class CartItemModel

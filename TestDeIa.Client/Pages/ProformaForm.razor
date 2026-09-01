@@ -1,0 +1,352 @@
+@page "/proformas/nueva"
+@page "/proformas/{ProformaId:guid}"
+@using Microsoft.AspNetCore.Components.Web
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Facturacion
+@using TestDeIa.Client.Services.Inventario
+@using TestDeIa.Client.Services.Proformas
+@using TestDeIa.Shared.Requests.Proformas
+@using TestDeIa.Shared.Responses.Facturacion
+@using TestDeIa.Shared.Responses.Inventario
+@inject ProformasApiClient ProformasApiClient
+@inject FacturacionApiClient FacturacionApiClient
+@inject InventarioApiClient InventarioApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject NavigationManager NavigationManager
+
+<section class="module-page proforma-form-page" @onkeydown="HandleKeyDown" tabindex="0">
+    <div class="module-header">
+        <div>
+            <span class="eyebrow">Proforma</span>
+            <h1>@(ProformaId.HasValue ? "Editar proforma" : "Nueva proforma")</h1>
+            <p>Arma la cotizacion como una venta asistida: cliente, bodega, productos y totales en vivo.</p>
+        </div>
+        <button class="ghost-button" type="button" @onclick="Back">Volver</button>
+    </div>
+
+    <div class="form-card">
+        <div class="form-grid">
+            <label>
+                Cliente
+                <div class="inline-search">
+                    <input class="input-control" placeholder="Buscar cliente..." @bind="clienteTerm" @bind:event="oninput" />
+                    <button class="ghost-button" type="button" @onclick="SearchClientesAsync">Buscar</button>
+                </div>
+            </label>
+            <label>
+                Bodega
+                <select class="input-control" @bind="request.BodegaId">
+                    <option value="@Guid.Empty">Seleccionar bodega...</option>
+                    @foreach (var bodega in bodegas)
+                    {
+                        <option value="@bodega.Id">@bodega.Codigo - @bodega.Nombre</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Vencimiento
+                <input class="input-control" type="date" value="@fechaVencimientoText" @onchange="OnFechaVencimientoChanged" />
+            </label>
+        </div>
+
+        @if (clientes.Any())
+        {
+            <div class="lookup-results">
+                @foreach (var cliente in clientes)
+                {
+                    <button type="button" class="lookup-pill" @onclick="() => SelectCliente(cliente)">
+                        <strong>@cliente.NombreCompleto</strong>
+                        <span>@cliente.Identificacion</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="form-card">
+        <div class="section-title">
+            <div>
+                <span class="eyebrow">Productos</span>
+                <h2>Detalle de la cotizacion</h2>
+            </div>
+            <div class="inline-search product-search">
+                <input class="input-control" placeholder="F2 buscar producto..." @bind="productoTerm" @bind:event="oninput" />
+                <button class="primary-action" type="button" @onclick="SearchProductosAsync">Buscar</button>
+            </div>
+        </div>
+
+        @if (productos.Any())
+        {
+            <div class="lookup-results">
+                @foreach (var producto in productos)
+                {
+                    <button type="button" class="product-card" @onclick="() => AddProducto(producto)">
+                        <strong>@producto.Nombre</strong>
+                        <span>@producto.Codigo</span>
+                        <span>Stock: @producto.StockActual</span>
+                        <b>@Money(producto.PrecioVenta)</b>
+                    </button>
+                }
+            </div>
+        }
+
+        <table class="data-table detail-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio</th>
+                    <th>Descuento</th>
+                    <th>IVA %</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!lineas.Any())
+                {
+                    <tr><td colspan="7">Agrega productos para construir la proforma.</td></tr>
+                }
+                else
+                {
+                    @foreach (var linea in lineas)
+                    {
+                        <tr>
+                            <td><strong>@linea.ProductoNombre</strong><br /><span>@linea.ProductoCodigo</span></td>
+                            <td><input class="input-control small" type="number" min="0.01" step="0.01" @bind="linea.Cantidad" @bind:after="CalculateTotals" /></td>
+                            <td><input class="input-control small" type="number" min="0" step="0.01" @bind="linea.PrecioUnitario" @bind:after="CalculateTotals" /></td>
+                            <td><input class="input-control small" type="number" min="0" step="0.01" @bind="linea.Descuento" @bind:after="CalculateTotals" /></td>
+                            <td><input class="input-control small" type="number" min="0" step="0.01" @bind="linea.TarifaIVA" @bind:after="CalculateTotals" /></td>
+                            <td>@Money(linea.Subtotal + linea.ValorIVA)</td>
+                            <td><button class="danger-button compact" type="button" @onclick="() => RemoveLinea(linea)">Quitar</button></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="totals-card">
+        <label>
+            Observacion
+            <textarea class="input-control" rows="3" @bind="request.Observacion" placeholder="Comentario o condiciones de la cotizacion"></textarea>
+        </label>
+        <div class="totals-box">
+            <span>Subtotal sin impuestos <strong>@Money(request.SubtotalSinImpuestos)</strong></span>
+            <span>Descuento <strong>@Money(request.DescuentoTotal)</strong></span>
+            <span>IVA <strong>@Money(request.SubtotalIVA)</strong></span>
+            <span class="grand-total">Total <strong>@Money(request.Total)</strong></span>
+            <button class="primary-action" type="button" @onclick="SaveAsync" disabled="@isSaving">@(isSaving ? "Guardando..." : "Guardar proforma (F9)")</button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter] public Guid? ProformaId { get; set; }
+
+    private ProformaRequest request = new() { Estado = 1 };
+    private List<ProformaLineModel> lineas = [];
+    private IReadOnlyCollection<BodegaResponse> bodegas = Array.Empty<BodegaResponse>();
+    private IReadOnlyCollection<PosClienteResponse> clientes = Array.Empty<PosClienteResponse>();
+    private IReadOnlyCollection<PosProductoResponse> productos = Array.Empty<PosProductoResponse>();
+    private string? clienteTerm;
+    private string? productoTerm;
+    private string? fechaVencimientoText;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        bodegas = await InventarioApiClient.GetBodegasAsync();
+        if (bodegas.Count == 1)
+        {
+            request.BodegaId = bodegas.First().Id;
+        }
+
+        if (ProformaId.HasValue)
+        {
+            var proforma = await ProformasApiClient.GetByIdAsync(ProformaId.Value);
+            if (proforma is not null)
+            {
+                request = new ProformaRequest
+                {
+                    ClienteId = proforma.ClienteId,
+                    UsuarioId = proforma.UsuarioId,
+                    BodegaId = proforma.BodegaId,
+                    Secuencial = proforma.Secuencial,
+                    FechaEmision = proforma.FechaEmision,
+                    FechaVencimiento = proforma.FechaVencimiento,
+                    Estado = proforma.Estado,
+                    Observacion = proforma.Observacion
+                };
+                fechaVencimientoText = proforma.FechaVencimiento?.ToString("yyyy-MM-dd");
+                lineas = proforma.Detalles.Select(current => new ProformaLineModel
+                {
+                    ProductoId = current.ProductoId,
+                    ProductoCodigo = current.ProductoCodigo,
+                    ProductoNombre = current.ProductoNombre,
+                    Cantidad = current.Cantidad,
+                    PrecioUnitario = current.PrecioUnitario,
+                    Descuento = current.Descuento,
+                    TarifaIVA = current.TarifaIVA
+                }).ToList();
+                CalculateTotals();
+            }
+        }
+    }
+
+    private async Task SearchClientesAsync()
+    {
+        var result = await FacturacionApiClient.SearchClientesAsync(clienteTerm ?? string.Empty, 0, 5);
+        clientes = result.Items;
+    }
+
+    private async Task SearchProductosAsync()
+    {
+        if (request.BodegaId == Guid.Empty)
+        {
+            await PopupNotificationService.ShowInfoAsync("Selecciona una bodega para consultar stock.");
+            return;
+        }
+
+        var result = await FacturacionApiClient.SearchProductosAsync(productoTerm ?? string.Empty, 0, 8, request.BodegaId);
+        productos = result.Items;
+    }
+
+    private void SelectCliente(PosClienteResponse cliente)
+    {
+        if (!cliente.ClienteId.HasValue)
+        {
+            _ = PopupNotificationService.ShowInfoAsync("La persona seleccionada aun no tiene perfil de cliente.");
+            return;
+        }
+
+        request.ClienteId = cliente.ClienteId.Value;
+        clienteTerm = $"{cliente.NombreCompleto} - {cliente.Identificacion}";
+        clientes = Array.Empty<PosClienteResponse>();
+    }
+
+    private void AddProducto(PosProductoResponse producto)
+    {
+        var existing = lineas.FirstOrDefault(current => current.ProductoId == producto.ProductoId);
+        if (existing is not null)
+        {
+            existing.Cantidad++;
+        }
+        else
+        {
+            lineas.Add(new ProformaLineModel
+            {
+                ProductoId = producto.ProductoId,
+                ProductoCodigo = producto.Codigo,
+                ProductoNombre = producto.Nombre,
+                Cantidad = 1,
+                PrecioUnitario = producto.PrecioVenta,
+                TarifaIVA = producto.PorcentajeIva
+            });
+        }
+
+        CalculateTotals();
+    }
+
+    private void RemoveLinea(ProformaLineModel linea)
+    {
+        lineas.Remove(linea);
+        CalculateTotals();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (request.ClienteId == Guid.Empty || request.BodegaId == Guid.Empty || !lineas.Any())
+        {
+            await PopupNotificationService.ShowInfoAsync("Completa cliente, bodega y al menos un producto.");
+            return;
+        }
+
+        if (DateTime.TryParse(fechaVencimientoText, out var vencimiento))
+        {
+            request.FechaVencimiento = vencimiento;
+        }
+
+        CalculateTotals();
+        request.Detalles = lineas.Select(current => new ProformaDetalleRequest
+        {
+            ProductoId = current.ProductoId,
+            Cantidad = current.Cantidad,
+            PrecioUnitario = current.PrecioUnitario,
+            Descuento = current.Descuento,
+            TarifaIVA = current.TarifaIVA,
+            ValorIVA = current.ValorIVA,
+            Subtotal = current.Subtotal
+        }).ToArray();
+
+        isSaving = true;
+        try
+        {
+            var result = ProformaId.HasValue
+                ? await ProformasApiClient.UpdateAsync(ProformaId.Value, request)
+                : await ProformasApiClient.CreateAsync(request);
+
+            if (!result.Succeeded)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo guardar la proforma.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Proforma guardada correctamente.");
+            NavigationManager.NavigateTo("/proformas");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "F2")
+        {
+            await SearchProductosAsync();
+        }
+        else if (args.Key == "F9")
+        {
+            await SaveAsync();
+        }
+    }
+
+    private void CalculateTotals()
+    {
+        foreach (var linea in lineas)
+        {
+            var baseLine = Math.Max(0, (linea.Cantidad * linea.PrecioUnitario) - linea.Descuento);
+            linea.Subtotal = Math.Round(baseLine, 4, MidpointRounding.AwayFromZero);
+            linea.ValorIVA = Math.Round(baseLine * (linea.TarifaIVA / 100m), 4, MidpointRounding.AwayFromZero);
+        }
+
+        request.SubtotalSinImpuestos = lineas.Sum(current => current.Subtotal);
+        request.SubtotalIVA = lineas.Sum(current => current.ValorIVA);
+        request.DescuentoTotal = lineas.Sum(current => current.Descuento);
+        request.Total = request.SubtotalSinImpuestos + request.SubtotalIVA;
+    }
+
+    private void Back() => NavigationManager.NavigateTo("/proformas");
+
+    private static string Money(decimal value) => value.ToString("C2");
+
+    private void OnFechaVencimientoChanged(ChangeEventArgs args)
+    {
+        fechaVencimientoText = args.Value?.ToString();
+    }
+
+    private sealed class ProformaLineModel
+    {
+        public Guid ProductoId { get; set; }
+        public string ProductoCodigo { get; set; } = string.Empty;
+        public string ProductoNombre { get; set; } = string.Empty;
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Descuento { get; set; }
+        public decimal TarifaIVA { get; set; }
+        public decimal ValorIVA { get; set; }
+        public decimal Subtotal { get; set; }
+    }
+}

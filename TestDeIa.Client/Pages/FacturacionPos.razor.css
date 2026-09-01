@@ -23,6 +23,26 @@
     color: #124a75;
 }
 
+.network-status-badge {
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    padding: .75rem 1rem;
+}
+
+.network-status-badge.is-online {
+    background: #ddf8ec;
+    border: 1px solid #b6ead3;
+    color: #087554;
+}
+
+.network-status-badge.is-offline {
+    background: #fff0cc;
+    border: 1px solid #ffd68a;
+    color: #9a5d00;
+}
+
 .pos-topbar-card {
     display: flex;
     align-items: center;

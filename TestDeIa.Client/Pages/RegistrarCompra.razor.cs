@@ -52,7 +52,7 @@ public partial class RegistrarCompra
     private bool isSaving;
     private bool isAnalyzingInvoice;
     private bool isLiquidacionRoute;
-    private bool isWorkflowModalOpen = true;
+    private bool isWorkflowModalOpen;
     private int currentStep = 1;
     private string? errorMessage;
     private string? successMessage;
@@ -112,7 +112,12 @@ public partial class RegistrarCompra
 
         await LoadLookupsAsync();
         await LoadProductsAsync();
-        isWorkflowModalOpen = true;
+        isWorkflowModalOpen = IsLiquidacion;
+    }
+
+    private void NavigateToXmlImport()
+    {
+        NavigationManager.NavigateTo("/compras/xml-sri");
     }
 
     private async Task LoadLookupsAsync()

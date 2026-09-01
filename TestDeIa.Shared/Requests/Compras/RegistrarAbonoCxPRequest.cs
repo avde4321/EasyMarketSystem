@@ -7,7 +7,7 @@ public sealed class RegistrarAbonoCxPRequest
     [Required]
     public Guid CuentaPorPagarId { get; set; }
 
-    [Range(typeof(decimal), "0.01", "999999999.99", ErrorMessage = "El monto abonado debe ser mayor a cero.")]
+    [Range(typeof(decimal), "0.01", "999999999.99", ErrorMessage = "El monto abonado debe ser mayor a cero.", ParseLimitsInInvariantCulture = true)]
     public decimal MontoPagado { get; set; }
 
     [Required]

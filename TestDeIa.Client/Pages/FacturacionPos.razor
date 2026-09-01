@@ -11,6 +11,9 @@
             <h1>Factura interactiva POS</h1>
             <p>Arma el documento por lineas, valida bodega, calcula vuelto y registra el cobro para arqueo.</p>
         </div>
+        <div class="network-status-badge @(isOnline ? "is-online" : "is-offline")">
+            @(isOnline ? "EN LINEA" : "MODO CONTINGENCIA OFFLINE")
+        </div>
         <div class="pos-summary pastel-summary">
             <span>Items: @cartItems.Count</span>
             <strong>$ @GetCartTotal().ToString("0.00")</strong>
@@ -74,7 +77,7 @@
                     <span class="eyebrow-label">Cliente</span>
                     <div class="search-row compact-search-row">
                         <InputText class="form-control rounded-control" @bind-Value="clienteSearchTerm" placeholder="Cedula, RUC o nombre" />
-                        <button class="secondary-action rounded-xl-button" @onclick="SearchClientesAsync" disabled="@(!CanOperatePos)">Buscar</button>
+                        <button class="secondary-action rounded-xl-button" @onclick="SearchClientesAsync" disabled="@(!CanOperateSearch)">Buscar</button>
                     </div>
 
                     @if (selectedCliente is not null)
@@ -116,7 +119,7 @@
                     <span class="eyebrow-label">Producto / escaner</span>
                     <div class="search-row compact-search-row">
                         <InputText class="form-control rounded-control" @bind-Value="productoSearchTerm" placeholder="Codigo de barra, SKU, servicio o nombre" />
-                        <button class="primary-action rounded-xl-button" @onclick="SearchProductosAsync" disabled="@(!CanOperatePos)">Buscar</button>
+                        <button class="primary-action rounded-xl-button" @onclick="SearchProductosAsync" disabled="@(!CanOperateSearch)">Buscar</button>
                     </div>
 
                     @if (productoResults.Count > 0)
@@ -124,7 +127,7 @@
                         <div class="quick-products-grid">
                             @foreach (var producto in productoResults)
                             {
-                                <button class="quick-product-card" type="button" @onclick="() => AddProducto(producto)" disabled="@(!CanOperatePos)">
+                                <button class="quick-product-card" type="button" @onclick="() => AddProducto(producto)" disabled="@(!CanOperateSearch)">
                                     <div class="quick-product-main">
                                         <strong>@producto.Nombre</strong>
                                         <span>@producto.Codigo</span>
@@ -284,11 +287,43 @@
             </section>
 
             <button class="checkout-button" type="button" @onclick="CobrarAsync" disabled="@(!CanCheckout)">
-                @(isSubmitting ? "Generando factura..." : "Emitir factura")
+                @(isSubmitting ? "Generando factura..." : isOnline ? "Emitir factura" : "Guardar venta offline")
             </button>
+
+            @if (lastFactura is not null)
+            {
+                <section class="checkout-block post-sale-actions">
+                    <span class="eyebrow-label">Acciones de la ultima venta</span>
+                    <strong>@lastFactura.NumeroComprobante</strong>
+                    <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenLastFacturaWhatsApp">
+                        Enviar WhatsApp
+                    </button>
+                    <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenPagoQrModal">
+                        Generar QR de cobro
+                    </button>
+                </section>
+            }
         </aside>
     </section>
 </section>
+
+<WhatsAppSendModal IsOpen="@showWhatsAppModal"
+                   DocumentoId="@lastFactura?.FacturaId"
+                   TipoDocumento="Factura"
+                   ClienteNombre="@(selectedCliente?.NombreCompleto ?? "Cliente")"
+                   NumeroTelefono="@selectedCliente?.Telefono"
+                   LinkPdfRide="@LastFacturaRideLink"
+                   LinkXml="@LastFacturaXmlLink"
+                   OnClose="CloseWhatsAppModal" />
+
+<PagoQrModal IsOpen="@showPagoQrModal"
+             FacturaId="@lastFactura?.FacturaId"
+             Monto="@lastFacturaTotal"
+             Concepto="@($"Factura {lastFactura?.NumeroComprobante ?? "POS"}")"
+             TelefonoCliente="@selectedCliente?.Telefono"
+             EmailCliente="@selectedCliente?.Email"
+             OnPagoAprobado="OnPagoDigitalAprobadoAsync"
+             OnClose="ClosePagoQrModal" />
 
 @if (showOperationalContextModal)
 {

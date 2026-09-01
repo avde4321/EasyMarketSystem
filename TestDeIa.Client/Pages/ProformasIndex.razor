@@ -1,0 +1,285 @@
+@page "/proformas"
+@using Microsoft.JSInterop
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Facturacion
+@using TestDeIa.Client.Services.Proformas
+@using TestDeIa.Shared.Requests.Proformas
+@using TestDeIa.Shared.Responses.Common
+@using TestDeIa.Shared.Responses.Facturacion
+@using TestDeIa.Shared.Responses.Proformas
+@inject ProformasApiClient ProformasApiClient
+@inject FacturacionApiClient FacturacionApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
+
+<section class="module-page proformas-page">
+    <div class="module-header">
+        <div>
+            <span class="eyebrow">Cotizaciones</span>
+            <h1>Proformas</h1>
+            <p>Gestiona cotizaciones, revisa su estado y conviertelas a factura cuando el cliente confirme.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="CreateNew">Nueva proforma</button>
+    </div>
+
+    <div class="filter-card">
+        <input class="input-control" placeholder="Buscar por cliente, secuencial o estado..." @bind="searchTerm" @bind:event="oninput" />
+        <button class="ghost-button" type="button" @onclick="LoadAsync" disabled="@isLoading">Buscar</button>
+    </div>
+
+    <div class="table-card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Secuencial</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Bodega</th>
+                    <th>Estado</th>
+                    <th>Total</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="7">Cargando proformas...</td></tr>
+                }
+                else if (!proformas.Items.Any())
+                {
+                    <tr><td colspan="7">No hay proformas para los filtros seleccionados.</td></tr>
+                }
+                else
+                {
+                    @foreach (var proforma in proformas.Items)
+                    {
+                        <tr>
+                            <td><strong>@proforma.Secuencial</strong></td>
+                            <td>@proforma.FechaEmision.ToString("dd/MM/yyyy")</td>
+                            <td>@Display(proforma.ClienteNombre, proforma.ClienteId.ToString("N")[..8])</td>
+                            <td>@Display(proforma.BodegaNombre, "Bodega")</td>
+                            <td><span class="status-badge @GetStatusClass(proforma.Estado)">@proforma.EstadoNombre</span></td>
+                            <td>@Money(proforma.Total)</td>
+                            <td class="row-actions">
+                                <button type="button" class="ghost-button compact" @onclick="() => Edit(proforma.Id)">Ver detalle</button>
+                                <button type="button" class="ghost-button compact" @onclick="() => DownloadRideAsync(proforma)">RIDE PDF</button>
+                                <button type="button" class="ghost-button compact whatsapp-row-action" @onclick="() => OpenWhatsAppModal(proforma)">WhatsApp</button>
+                                <button type="button" class="ghost-button compact" @onclick="() => OpenConvertModalAsync(proforma)" disabled="@(proforma.Estado != 1)">Convertir</button>
+                                <button type="button" class="danger-button compact" @onclick="() => AnularAsync(proforma)" disabled="@(proforma.Estado is 2 or 3)">Anular</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <div class="pager">
+            <button type="button" class="ghost-button" @onclick="PreviousPage" disabled="@(skip == 0 || isLoading)">Anterior</button>
+            <span>Mostrando @proformas.Items.Count de @proformas.TotalCount</span>
+            <button type="button" class="ghost-button" @onclick="NextPage" disabled="@(skip + take >= proformas.TotalCount || isLoading)">Siguiente</button>
+        </div>
+    </div>
+</section>
+
+@if (showConvertModal && selectedProforma is not null)
+{
+    <div class="easy-modal-backdrop">
+        <div class="easy-modal-card easy-modal-md">
+            <button type="button" class="easy-modal-close" @onclick="CloseConvertModal">x</button>
+            <span class="eyebrow">Convertir a factura</span>
+            <h2>Confirmar proforma @selectedProforma.Secuencial</h2>
+            <p>Selecciona el punto de emision y la forma de pago para generar la factura definitiva.</p>
+
+            <div class="form-grid">
+                <label>
+                    Punto de emision
+                    <select class="input-control" @bind="convertRequest.PuntoEmisionId">
+                        <option value="@Guid.Empty">Seleccionar...</option>
+                        @foreach (var punto in puntosEmision)
+                        {
+                            <option value="@punto.BodegaId">@punto.DisplayName - @punto.BodegaNombre</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Forma de pago
+                    <select class="input-control" @bind="convertRequest.FormaPagoId">
+                        <option value="01">Efectivo</option>
+                        <option value="19">Tarjeta de credito</option>
+                        <option value="20">Transferencia</option>
+                        <option value="credito">Credito cliente</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="ghost-button" @onclick="CloseConvertModal">Cancelar</button>
+                <button type="button" class="primary-action" @onclick="ConvertirAsync" disabled="@isProcessing">
+                    @(isProcessing ? "Procesando..." : "Convertir a factura")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<WhatsAppSendModal IsOpen="@showWhatsAppModal"
+                   DocumentoId="@selectedWhatsAppProforma?.Id"
+                   TipoDocumento="Proforma"
+                   ClienteNombre="@(selectedWhatsAppProforma?.ClienteNombre ?? "Cliente")"
+                   NumeroTelefono=""
+                   LinkPdfRide="@SelectedProformaRideLink"
+                   LinkXml=""
+                   OnClose="CloseWhatsAppModal" />
+
+@code {
+    private const int take = 5;
+    private PagedResultResponse<ProformaResponse> proformas = new() { Take = take };
+    private IReadOnlyCollection<PosPuntoEmisionResponse> puntosEmision = Array.Empty<PosPuntoEmisionResponse>();
+    private string? searchTerm;
+    private int skip;
+    private bool isLoading;
+    private bool isProcessing;
+    private bool showConvertModal;
+    private bool showWhatsAppModal;
+    private ProformaResponse? selectedProforma;
+    private ProformaResponse? selectedWhatsAppProforma;
+    private ConvertirProformaAFacturaDto convertRequest = new() { FormaPagoId = "01" };
+    private string SelectedProformaRideLink => selectedWhatsAppProforma is null ? string.Empty : $"api/reporteria/proformas/{selectedWhatsAppProforma.Id}/ride";
+
+    protected override Task OnInitializedAsync()
+    {
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            proformas = await ProformasApiClient.GetPagedAsync(searchTerm, skip, take);
+        }
+        catch (Exception exception)
+        {
+            await PopupNotificationService.ShowErrorAsync(exception.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CreateNew() => NavigationManager.NavigateTo("/proformas/nueva");
+
+    private void Edit(Guid id) => NavigationManager.NavigateTo($"/proformas/{id}");
+
+    private void OpenWhatsAppModal(ProformaResponse proforma)
+    {
+        selectedWhatsAppProforma = proforma;
+        showWhatsAppModal = true;
+    }
+
+    private void CloseWhatsAppModal()
+    {
+        showWhatsAppModal = false;
+        selectedWhatsAppProforma = null;
+    }
+
+    private async Task OpenConvertModalAsync(ProformaResponse proforma)
+    {
+        selectedProforma = proforma;
+        convertRequest = new ConvertirProformaAFacturaDto { ProformaId = proforma.Id, FormaPagoId = "01" };
+        puntosEmision = await FacturacionApiClient.GetPuntosEmisionAsync();
+        showConvertModal = true;
+    }
+
+    private void CloseConvertModal()
+    {
+        showConvertModal = false;
+        selectedProforma = null;
+    }
+
+    private async Task ConvertirAsync()
+    {
+        if (selectedProforma is null || convertRequest.PuntoEmisionId == Guid.Empty)
+        {
+            await PopupNotificationService.ShowInfoAsync("Selecciona el punto de emision antes de convertir.");
+            return;
+        }
+
+        isProcessing = true;
+        await PopupNotificationService.ShowInfoAsync("Generando factura desde proforma...");
+        try
+        {
+            var result = await ProformasApiClient.ConvertirAFacturaAsync(selectedProforma.Id, convertRequest);
+            if (!result.Succeeded)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo convertir la proforma.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Proforma convertida a factura correctamente.");
+            CloseConvertModal();
+            await LoadAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AnularAsync(ProformaResponse proforma)
+    {
+        var result = await ProformasApiClient.AnularAsync(proforma.Id);
+        if (!result.Succeeded)
+        {
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo anular la proforma.");
+            return;
+        }
+
+        await PopupNotificationService.ShowSuccessAsync("Proforma anulada correctamente.");
+        await LoadAsync();
+    }
+
+    private async Task DownloadRideAsync(ProformaResponse proforma)
+    {
+        await PopupNotificationService.ShowInfoAsync("Generando RIDE de proforma...");
+        var result = await ProformasApiClient.GetRidePdfAsync(proforma.Id);
+        if (!result.Succeeded || result.FileBytes is null)
+        {
+            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo generar el RIDE.");
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync(
+            "easyMarketDownload.saveFileFromBytes",
+            $"PROFORMA-{proforma.Secuencial}.pdf",
+            "application/pdf",
+            Convert.ToBase64String(result.FileBytes));
+    }
+
+    private async Task PreviousPage()
+    {
+        skip = Math.Max(0, skip - take);
+        await LoadAsync();
+    }
+
+    private async Task NextPage()
+    {
+        skip += take;
+        await LoadAsync();
+    }
+
+    private static string Money(decimal value) => value.ToString("C2");
+
+    private static string Display(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string GetStatusClass(int estado) => estado switch
+    {
+        0 => "draft",
+        1 => "pending",
+        2 => "success",
+        3 => "danger",
+        _ => "neutral"
+    };
+}

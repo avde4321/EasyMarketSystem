@@ -5,6 +5,8 @@
 *.suo
 TestDeIa.Api/appsettings.Development.json
 *.p12
+~$*.docx
 ride-template-*.png
 .tmpbuild/
 tmp/
+.verify-build/

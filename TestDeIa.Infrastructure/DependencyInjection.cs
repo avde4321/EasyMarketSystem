@@ -17,8 +17,14 @@ using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Financiero.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Application.Modules.Integraciones.Ports.In;
+using TestDeIa.Application.Modules.OfflinePos.Ports.In;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
+using TestDeIa.Application.Modules.Proformas.Ports.In;
 using TestDeIa.Application.Modules.Reporteria.Ports.Out;
+using TestDeIa.Application.Modules.Retenciones.Ports.In;
+using TestDeIa.Application.Modules.Sri.Ports.Out;
+using TestDeIa.Application.Modules.XmlSri.Ports.In;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Infrastructure.Adapters.Out.Clientes;
 using TestDeIa.Infrastructure.Adapters.Out.Contabilidad;
@@ -32,9 +38,15 @@ using TestDeIa.Infrastructure.Adapters.Out.Empresa;
 using TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 using TestDeIa.Infrastructure.Adapters.Out.Financiero;
 using TestDeIa.Infrastructure.Adapters.Out.Inventario;
+using TestDeIa.Infrastructure.Adapters.Out.Integraciones;
+using TestDeIa.Infrastructure.Adapters.Out.OfflinePos;
 using TestDeIa.Infrastructure.Adapters.Out.Personas;
+using TestDeIa.Infrastructure.Adapters.Out.Proformas;
 using TestDeIa.Infrastructure.Adapters.Out.Reporteria;
+using TestDeIa.Infrastructure.Adapters.Out.Retenciones;
 using TestDeIa.Infrastructure.Adapters.Out.Security;
+using TestDeIa.Infrastructure.Adapters.Out.Sri;
+using TestDeIa.Infrastructure.Adapters.Out.XmlSri;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Tenancy;
 using TestDeIa.Infrastructure.Security;
@@ -52,6 +64,9 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
         services.Configure<SriSoapOptions>(configuration.GetSection(SriSoapOptions.SectionName));
+        services.Configure<IntegracionesOptions>(configuration.GetSection(IntegracionesOptions.SectionName));
+        services.Configure<DocumentoStorageOptions>(configuration.GetSection(DocumentoStorageOptions.SectionName));
+        services.Configure<SriOutboxOptions>(configuration.GetSection(SriOutboxOptions.SectionName));
         services.AddDbContext<TestDeIaDbContext>(options =>
             options.UseSqlServer(connectionString));
 
@@ -87,6 +102,17 @@ public static class DependencyInjection
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
         services.AddScoped<IComisionesRepository, EfComisionesRepository>();
+        services.AddScoped<IProformaService, ProformaService>();
+        services.AddScoped<IRetencionService, RetencionService>();
+        services.AddScoped<IRetencionSriTestService, RetencionSriTestService>();
+        services.AddScoped<IXmlSriParserService, XmlSriParserService>();
+        services.AddScoped<IXmlComprasTestService, XmlComprasTestService>();
+        services.AddScoped<IOfflineSyncService, OfflineSyncService>();
+        services.AddScoped<IPosOfflineTestService, PosOfflineTestService>();
+        services.AddHttpClient<IWhatsAppService, WhatsAppService>();
+        services.AddHttpClient<IPasarelaPagoService, PayPhonePagoService>();
+        services.AddScoped<IDocumentoStorageService, LocalDocumentoStorageService>();
+        services.AddScoped<ISriComprobanteProcessor, SriComprobanteProcessor>();
         services.AddSingleton<SriResponseParser>();
         services.AddSingleton<ClaveAccesoService>();
         services.AddSingleton<NotaCreditoXmlGenerator>();
@@ -106,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<INotaCreditoService, NotaCreditoService>();
         services.AddHostedService<FacturacionBackgroundWorker>();
         services.AddHostedService<CompraBackgroundWorker>();
+        services.AddHostedService<SriOutboxProcessorWorker>();
 
         return services;
     }

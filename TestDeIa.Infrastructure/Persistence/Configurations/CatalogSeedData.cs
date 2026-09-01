@@ -11,6 +11,8 @@ internal static class CatalogSeedData
     internal static readonly Guid AmbienteSriCatalogoId = Guid.Parse("70000000-0000-0000-0000-000000000005");
     internal static readonly Guid TipoEmisionCatalogoId = Guid.Parse("70000000-0000-0000-0000-000000000006");
     internal static readonly Guid FormaPagoSriCatalogoId = Guid.Parse("70000000-0000-0000-0000-000000000007");
+    internal static readonly Guid RetencionIvaCatalogoId = Guid.Parse("70000000-0000-0000-0000-000000000008");
+    internal static readonly Guid RetencionRentaCatalogoId = Guid.Parse("70000000-0000-0000-0000-000000000009");
 
     internal static CatalogoEntity[] GetCatalogos()
     {
@@ -22,7 +24,9 @@ internal static class CatalogSeedData
             new() { Id = EstadoDocumentoElectronicoCatalogoId, Codigo = "ESTADO_DOCUMENTO_ELECTRONICO", Nombre = "Estado documento electronico", Descripcion = "Estados de comprobantes electronicos.", IsActive = true },
             new() { Id = AmbienteSriCatalogoId, Codigo = "AMBIENTE_SRI", Nombre = "Ambiente SRI", Descripcion = "Ambiente de emision para comprobantes electronicos.", IsActive = true },
             new() { Id = TipoEmisionCatalogoId, Codigo = "TIPO_EMISION", Nombre = "Tipo de emision", Descripcion = "Tipo de emision de documentos electronicos.", IsActive = true },
-            new() { Id = FormaPagoSriCatalogoId, Codigo = "FORMA_PAGO_SRI", Nombre = "Forma de pago SRI", Descripcion = "Formas de pago segun catalogo del SRI.", IsActive = true }
+            new() { Id = FormaPagoSriCatalogoId, Codigo = "FORMA_PAGO_SRI", Nombre = "Forma de pago SRI", Descripcion = "Formas de pago segun catalogo del SRI.", IsActive = true },
+            new() { Id = RetencionIvaCatalogoId, Codigo = "RETENCION_IVA_SRI", Nombre = "Retenciones IVA SRI", Descripcion = "Codigos base de retencion de IVA para documentos de proveedor.", IsActive = true },
+            new() { Id = RetencionRentaCatalogoId, Codigo = "RETENCION_RENTA_SRI", Nombre = "Retenciones Renta SRI", Descripcion = "Codigos base de retencion en la fuente para documentos de proveedor.", IsActive = true }
         ];
     }
 
@@ -65,7 +69,24 @@ internal static class CatalogSeedData
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000065"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "18", Nombre = "Tarjeta prepago", Descripcion = "Codigo SRI 18", Orden = 5, IsActive = true },
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000066"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "19", Nombre = "Tarjeta de credito", Descripcion = "Codigo SRI 19", Orden = 6, IsActive = true },
             new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000067"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "20", Nombre = "Transferencia", Descripcion = "Codigo SRI 20", Orden = 7, IsActive = true },
-            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000068"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "21", Nombre = "Endoso de titulos", Descripcion = "Codigo SRI 21", Orden = 8, IsActive = true }
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000068"), CatalogoId = FormaPagoSriCatalogoId, Codigo = "21", Nombre = "Endoso de titulos", Descripcion = "Codigo SRI 21", Orden = 8, IsActive = true },
+
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000081"), CatalogoId = RetencionIvaCatalogoId, Codigo = "0", Nombre = "Sin retencion IVA", Descripcion = "0%", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000082"), CatalogoId = RetencionIvaCatalogoId, Codigo = "10", Nombre = "Retencion IVA 10%", Descripcion = "10%", Orden = 2, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000083"), CatalogoId = RetencionIvaCatalogoId, Codigo = "20", Nombre = "Retencion IVA 20%", Descripcion = "20%", Orden = 3, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000084"), CatalogoId = RetencionIvaCatalogoId, Codigo = "30", Nombre = "Retencion IVA 30%", Descripcion = "30%", Orden = 4, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000085"), CatalogoId = RetencionIvaCatalogoId, Codigo = "50", Nombre = "Retencion IVA 50%", Descripcion = "50%", Orden = 5, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000086"), CatalogoId = RetencionIvaCatalogoId, Codigo = "70", Nombre = "Retencion IVA 70%", Descripcion = "70%", Orden = 6, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000087"), CatalogoId = RetencionIvaCatalogoId, Codigo = "100", Nombre = "Retencion IVA 100%", Descripcion = "100%", Orden = 7, IsActive = true },
+
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000091"), CatalogoId = RetencionRentaCatalogoId, Codigo = "0", Nombre = "Sin retencion renta", Descripcion = "0%", Orden = 1, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000092"), CatalogoId = RetencionRentaCatalogoId, Codigo = "312", Nombre = "Retencion renta codigo 312", Descripcion = "1.75%", Orden = 2, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000093"), CatalogoId = RetencionRentaCatalogoId, Codigo = "320", Nombre = "Retencion renta codigo 320", Descripcion = "1.75%", Orden = 3, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000094"), CatalogoId = RetencionRentaCatalogoId, Codigo = "322", Nombre = "Retencion renta codigo 322", Descripcion = "1.75%", Orden = 4, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000095"), CatalogoId = RetencionRentaCatalogoId, Codigo = "332", Nombre = "Bienes codigo 332", Descripcion = "1.75%", Orden = 5, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000096"), CatalogoId = RetencionRentaCatalogoId, Codigo = "343", Nombre = "Servicios codigo 343", Descripcion = "2.75%", Orden = 6, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000097"), CatalogoId = RetencionRentaCatalogoId, Codigo = "344", Nombre = "Servicios codigo 344", Descripcion = "2.75%", Orden = 7, IsActive = true },
+            new() { Id = Guid.Parse("71000000-0000-0000-0000-000000000098"), CatalogoId = RetencionRentaCatalogoId, Codigo = "3440", Nombre = "Retencion IVA codigo 3440", Descripcion = "70%", Orden = 8, IsActive = true }
         ];
     }
 }

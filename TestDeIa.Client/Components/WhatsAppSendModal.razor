@@ -1,0 +1,135 @@
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Integraciones
+@using TestDeIa.Shared.Requests.Integraciones
+@inject WhatsAppApiClient WhatsAppApiClient
+@inject PopupNotificationService PopupNotificationService
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card whatsapp-modal-card" role="dialog" aria-modal="true">
+            <header class="modal-header">
+                <div>
+                    <span class="page-kicker">COMUNICACION</span>
+                    <h2>Enviar por WhatsApp</h2>
+                    <p>Confirma el numero y revisa el mensaje antes de enviarlo al cliente.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseAsync" disabled="@isSending">x</button>
+            </header>
+
+            <div class="client-lookup-panel carousel-pane active-pane whatsapp-preview-panel">
+                <label class="form-field">
+                    <span>Telefono destino</span>
+                    <InputText class="form-control" @bind-Value="telefonoDestino" placeholder="+593999999999" disabled="@isSending" />
+                </label>
+
+                <label class="form-field">
+                    <span>Mensaje a enviar</span>
+                    <InputTextArea class="form-control whatsapp-message-box" @bind-Value="mensaje" disabled="@isSending" />
+                </label>
+
+                <div class="document-links-grid">
+                    <span>RIDE PDF</span>
+                    <strong>@(string.IsNullOrWhiteSpace(LinkPdfRide) ? "No disponible" : LinkPdfRide)</strong>
+                    <span>XML</span>
+                    <strong>@(string.IsNullOrWhiteSpace(LinkXml) ? "No disponible" : LinkXml)</strong>
+                </div>
+            </div>
+
+            <footer class="modal-actions">
+                <button class="ghost-button" type="button" @onclick="CloseAsync" disabled="@isSending">Cancelar</button>
+                <button class="primary-action whatsapp-action" type="button" @onclick="EnviarAsync" disabled="@(!CanSend)">
+                    @(isSending ? "Enviando..." : "Enviar por WhatsApp")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public Guid? DocumentoId { get; set; }
+    [Parameter] public string TipoDocumento { get; set; } = "Factura";
+    [Parameter] public string ClienteNombre { get; set; } = string.Empty;
+    [Parameter] public string? NumeroTelefono { get; set; }
+    [Parameter] public string? LinkPdfRide { get; set; }
+    [Parameter] public string? LinkXml { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string telefonoDestino = "+593";
+    private string mensaje = string.Empty;
+    private bool isSending;
+
+    private bool CanSend => !isSending && !string.IsNullOrWhiteSpace(telefonoDestino) && telefonoDestino.Trim().Length >= 8;
+
+    protected override void OnParametersSet()
+    {
+        if (!IsOpen || isSending)
+        {
+            return;
+        }
+
+        telefonoDestino = NormalizePhone(NumeroTelefono);
+        mensaje = $"Hola {ClienteNombre}, compartimos tu {TipoDocumento}. Puedes revisar el RIDE y XML en los enlaces adjuntos. Gracias por preferir EasyMarket Systems.";
+    }
+
+    private async Task EnviarAsync()
+    {
+        if (!CanSend)
+        {
+            await PopupNotificationService.ShowInfoAsync("Confirma el numero de WhatsApp antes de enviar.");
+            return;
+        }
+
+        isSending = true;
+        await PopupNotificationService.ShowInfoAsync("Enviando comprobante por WhatsApp...");
+
+        try
+        {
+            var result = await WhatsAppApiClient.EnviarComprobanteAsync(new EnviarWhatsAppDto
+            {
+                DocumentoId = DocumentoId,
+                NumeroTelefono = telefonoDestino.Trim(),
+                NombreCliente = string.IsNullOrWhiteSpace(ClienteNombre) ? "Cliente" : ClienteNombre,
+                TipoDoc = TipoDocumento,
+                LinkPdfRide = LinkPdfRide,
+                LinkXml = LinkXml,
+                MensajePersonalizado = mensaje
+            });
+
+            if (!result.Succeeded || result.Data?.Succeeded != true)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? result.Data?.Mensaje ?? "No se pudo enviar el WhatsApp.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Comprobante enviado por WhatsApp correctamente.");
+            await CloseAsync();
+        }
+        finally
+        {
+            isSending = false;
+        }
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    private static string NormalizePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return "+593";
+        }
+
+        var trimmed = phone.Trim();
+        if (trimmed.StartsWith("+", StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        return digits.StartsWith("0", StringComparison.Ordinal)
+            ? $"+593{digits[1..]}"
+            : $"+593{digits}";
+    }
+}

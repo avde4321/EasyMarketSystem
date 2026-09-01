@@ -14,5 +14,11 @@ public sealed class ProductoBodegaEntity
 
     public decimal StockActual { get; set; }
 
+    public decimal StockMinimo { get; set; }
+
+    public decimal StockMaximo { get; set; }
+
+    public bool EsActivo { get; set; } = true;
+
     public byte[] RowVersion { get; set; } = null!;
 }

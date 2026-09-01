@@ -27,9 +27,11 @@ public sealed class DbInitializer(
     {
         logger.LogInformation("Inicializando base de datos EasyMarket...");
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await EnsureXmlSriInfrastructureAsync(cancellationToken);
 
         await EnsureDefaultCompanyAsync(cancellationToken);
         await geoEcuadorSeed.EnsureSeededAsync(cancellationToken);
+        await EnsureSecurityPermissionsAsync(cancellationToken);
         await EnsureSecurityRolesAsync(cancellationToken);
         await EnsureSecurityRolePermissionsAsync(cancellationToken);
         await EnsureDefaultAdminUserAsync(cancellationToken);
@@ -40,6 +42,82 @@ public sealed class DbInitializer(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Inicializacion de base de datos completada.");
+    }
+
+    private async Task EnsureXmlSriInfrastructureAsync(CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            IF OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [dbo].[FacturaCompraXmlLogs](
+                    [Id] uniqueidentifier NOT NULL,
+                    [EmpresaId] uniqueidentifier NOT NULL,
+                    [ClaveAcceso] nvarchar(49) NOT NULL,
+                    [RucEmisor] nvarchar(13) NOT NULL,
+                    [RazonSocialEmisor] nvarchar(300) NOT NULL,
+                    [RucComprador] nvarchar(13) NOT NULL,
+                    [FechaEmision] datetimeoffset NOT NULL,
+                    [CodDoc] nvarchar(2) NOT NULL,
+                    [EstabPuntoEmiSecuencial] nvarchar(17) NOT NULL,
+                    [TotalSinImpuestos] decimal(18,4) NOT NULL,
+                    [TotalDescuento] decimal(18,4) NOT NULL,
+                    [ImporteTotal] decimal(18,4) NOT NULL,
+                    [XmlContenido] nvarchar(max) NOT NULL,
+                    [EstadoProcesamiento] tinyint NOT NULL,
+                    [CompraId] uniqueidentifier NULL,
+                    [CreatedAt] datetimeoffset NOT NULL,
+                    [UpdatedAt] datetimeoffset NULL,
+                    CONSTRAINT [PK_FacturaCompraXmlLogs] PRIMARY KEY ([Id])
+                );
+            END
+            """,
+            cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            IF OBJECT_ID(N'[dbo].[Compras]', N'U') IS NOT NULL
+               AND OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]', N'U') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_FacturaCompraXmlLogs_Compras_CompraId')
+            BEGIN
+                ALTER TABLE [dbo].[FacturaCompraXmlLogs]
+                ADD CONSTRAINT [FK_FacturaCompraXmlLogs_Compras_CompraId]
+                FOREIGN KEY ([CompraId]) REFERENCES [dbo].[Compras]([Id]) ON DELETE SET NULL;
+            END
+            """,
+            cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            IF OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]', N'U') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_FacturaCompraXmlLogs_CompraId' AND [object_id] = OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]'))
+            BEGIN
+                CREATE INDEX [IX_FacturaCompraXmlLogs_CompraId] ON [dbo].[FacturaCompraXmlLogs]([CompraId]);
+            END
+            """,
+            cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            IF OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]', N'U') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_FacturaCompraXmlLogs_EmpresaId_ClaveAcceso' AND [object_id] = OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]'))
+            BEGIN
+                CREATE UNIQUE INDEX [IX_FacturaCompraXmlLogs_EmpresaId_ClaveAcceso]
+                ON [dbo].[FacturaCompraXmlLogs]([EmpresaId], [ClaveAcceso]);
+            END
+            """,
+            cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            IF OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]', N'U') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_FacturaCompraXmlLogs_EmpresaId_EstadoProcesamiento_FechaEmision' AND [object_id] = OBJECT_ID(N'[dbo].[FacturaCompraXmlLogs]'))
+            BEGIN
+                CREATE INDEX [IX_FacturaCompraXmlLogs_EmpresaId_EstadoProcesamiento_FechaEmision]
+                ON [dbo].[FacturaCompraXmlLogs]([EmpresaId], [EstadoProcesamiento], [FechaEmision]);
+            END
+            """,
+            cancellationToken);
     }
 
     private async Task EnsureDefaultCompanyAsync(CancellationToken cancellationToken)
@@ -115,6 +193,33 @@ public sealed class DbInitializer(
             entity.Name = role.Name;
             entity.NormalizedName = normalizedName;
             entity.IsActive = true;
+        }
+    }
+
+    private async Task EnsureSecurityPermissionsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var permission in SecurityPermissionCatalog.Definitions)
+        {
+            var entity = await dbContext.SecurityPermisos
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(current => current.Id == permission.Id, cancellationToken);
+
+            if (entity is null)
+            {
+                dbContext.SecurityPermisos.Add(new SecurityPermisoEntity
+                {
+                    Id = permission.Id,
+                    NombrePermiso = permission.Id,
+                    Descripcion = permission.Description,
+                    Modulo = permission.Module
+                });
+
+                continue;
+            }
+
+            entity.NombrePermiso = permission.Id;
+            entity.Descripcion = permission.Description;
+            entity.Modulo = permission.Module;
         }
     }
 
@@ -380,17 +485,22 @@ public sealed class DbInitializer(
             "Codigos base de retencion en la fuente para documentos de proveedor.",
             cancellationToken);
 
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "0", "Sin retencion IVA", 1, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "10", "Retencion IVA 10%", 2, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "20", "Retencion IVA 20%", 3, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "30", "Retencion IVA 30%", 4, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "70", "Retencion IVA 70%", 5, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "100", "Retencion IVA 100%", 6, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "0", "Sin retencion IVA", "0%", 1, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "10", "Retencion IVA 10%", "10%", 2, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "20", "Retencion IVA 20%", "20%", 3, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "30", "Retencion IVA 30%", "30%", 4, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "50", "Retencion IVA 50%", "50%", 5, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "70", "Retencion IVA 70%", "70%", 6, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionIvaCatalogoId, "100", "Retencion IVA 100%", "100%", 7, cancellationToken);
 
-        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "0", "Sin retencion renta", 1, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "332", "Bienes 1.75%", 2, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "344", "Servicios 2.75%", 3, cancellationToken);
-        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "312", "Honorarios profesionales 10%", 4, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "0", "Sin retencion renta", "0%", 1, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "312", "Retencion renta codigo 312", "1.75%", 2, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "320", "Retencion renta codigo 320", "1.75%", 3, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "322", "Retencion renta codigo 322", "1.75%", 4, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "332", "Bienes codigo 332", "1.75%", 5, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "343", "Servicios codigo 343", "2.75%", 6, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "344", "Servicios codigo 344", "2.75%", 7, cancellationToken);
+        await EnsureCatalogItemAsync(RetencionRentaCatalogoId, "3440", "Retencion IVA codigo 3440", "70%", 8, cancellationToken);
     }
 
     private async Task EnsureCatalogAsync(Guid id, string codigo, string nombre, string descripcion, CancellationToken cancellationToken)
@@ -411,12 +521,12 @@ public sealed class DbInitializer(
         }
     }
 
-    private async Task EnsureCatalogItemAsync(Guid catalogoId, string codigo, string nombre, int orden, CancellationToken cancellationToken)
+    private async Task EnsureCatalogItemAsync(Guid catalogoId, string codigo, string nombre, string descripcion, int orden, CancellationToken cancellationToken)
     {
-        var exists = await dbContext.CatalogoItems
-            .AnyAsync(current => current.CatalogoId == catalogoId && current.Codigo == codigo, cancellationToken);
+        var item = await dbContext.CatalogoItems
+            .FirstOrDefaultAsync(current => current.CatalogoId == catalogoId && current.Codigo == codigo, cancellationToken);
 
-        if (!exists)
+        if (item is null)
         {
             dbContext.CatalogoItems.Add(new CatalogoItemEntity
             {
@@ -424,9 +534,17 @@ public sealed class DbInitializer(
                 CatalogoId = catalogoId,
                 Codigo = codigo,
                 Nombre = nombre,
+                Descripcion = descripcion,
                 Orden = orden,
                 IsActive = true
             });
+
+            return;
         }
+
+        item.Nombre = nombre;
+        item.Descripcion = descripcion;
+        item.Orden = orden;
+        item.IsActive = true;
     }
 }

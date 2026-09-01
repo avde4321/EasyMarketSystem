@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Dashboard.Ports.Out;
 using TestDeIa.Domain.Modules.Dashboard.Entities;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
+using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Shared.Responses.Dashboard;
 using TestDeIa.Shared.Security;
@@ -176,7 +177,7 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
                 productIds.Contains(current.ProductoId) &&
                 current.FechaMovimiento >= periodoInicio &&
                 current.FechaMovimiento < periodoFin &&
-                current.TipoMovimiento == "Salida" &&
+                (current.TipoMovimiento == TipoMovimientoInventario.SalidaVenta || current.TipoMovimiento == "Salida") &&
                 current.Concepto.Contains("Factura"))
             .ToListAsync(cancellationToken);
 

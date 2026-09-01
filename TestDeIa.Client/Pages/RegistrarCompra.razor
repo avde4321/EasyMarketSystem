@@ -13,7 +13,7 @@
         </div>
         <div class="header-actions compras-header-actions">
             <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">
-                @(detailRows.Count > 0 ? "Continuar flujo" : "Iniciar flujo")
+                @(detailRows.Count > 0 ? "Continuar compra manual" : "Registrar compra manual")
             </button>
         </div>
     </header>
@@ -31,11 +31,36 @@
     <section class="table-card compra-summary-card">
         <header class="section-header compact-section-header">
             <div>
-                <h2>Resumen operativo</h2>
+                <h2>Consulta principal de compras</h2>
                 <p>@SummaryDescription</p>
             </div>
-            <button class="ghost-button" type="button" @onclick="OpenWorkflowModal">Abrir asistente</button>
         </header>
+
+        @if (!IsLiquidacion)
+        {
+            <div class="purchase-entry-options">
+                <div>
+                    <span>Entrada manual</span>
+                    <strong>Registra una compra digitando los datos del proveedor y productos.</strong>
+                </div>
+                <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">Registrar manual</button>
+                <div>
+                    <span>Entrada inteligente</span>
+                    <strong>Carga XML SRI, revisa el mapeo y conviértelo en compra.</strong>
+                </div>
+                <button class="ghost-button" type="button" @onclick="NavigateToXmlImport">Importar XML SRI</button>
+            </div>
+        }
+        else
+        {
+            <div class="purchase-entry-options single-option">
+                <div>
+                    <span>Liquidación</span>
+                    <strong>Emite una liquidación con el asistente operativo.</strong>
+                </div>
+                <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">Abrir asistente</button>
+            </div>
+        }
 
         <div class="summary-grid compra-summary-grid">
             <div class="summary-card accent">

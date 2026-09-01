@@ -83,6 +83,19 @@
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
+                                <AuthorizeView Policy="@SecurityPolicyNames.PosFacturar">
+                                    <Authorized>
+                                        <NavLink class="nav-sublink" href="proformas" title="Proformas">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M6 4.5h12v15H6z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Proformas</span>
+                                        </NavLink>
+                                    </Authorized>
+                                </AuthorizeView>
                                 <AuthorizeView Policy="@SecurityPolicyNames.EmpleadosView">
                                     <Authorized>
                                         <NavLink class="nav-sublink" href="empleados" title="Empleados">
@@ -279,6 +292,20 @@
                                                 </svg>
                                             </span>
                                             <span class="nav-text">Liquidaciones</span>
+                                        </NavLink>
+                                    </Authorized>
+                                </AuthorizeView>
+                                <AuthorizeView Policy="@SecurityPolicyNames.ComprasRegistrar">
+                                    <Authorized>
+                                        <NavLink class="nav-sublink" href="retenciones" title="Retenciones SRI">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M6 4.5h12v15H6z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M9 8.5h6M9 12h6M9 15.5h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="m14.5 15.5 1.2 1.2 2.3-2.6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Retenciones SRI</span>
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>

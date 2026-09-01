@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Domain.Modules.Inventario.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
@@ -213,7 +214,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     entity,
                     existenciaPrincipal,
                     principalBodega,
-                    "Entrada",
+                    TipoMovimientoInventario.EntradaCompra,
                     "Stock inicial",
                     "INICIAL",
                     stockInicial,
@@ -430,8 +431,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     producto,
                     existencia,
                     bodega,
-                    "Entrada",
-                    "INGRESO_COMPRA",
+                    TipoMovimientoInventario.EntradaCompra,
+                    TipoMovimientoInventario.EntradaCompra,
                     referencia,
                     cantidad,
                     costoUnitarioCompra,
@@ -476,8 +477,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     producto,
                     existencia,
                     bodega,
-                    "Salida",
-                    "EGRESO_MERMA",
+                    TipoMovimientoInventario.MermaInventario,
+                    TipoMovimientoInventario.MermaInventario,
                     string.IsNullOrWhiteSpace(referencia) ? motivo : $"{motivo} | {referencia}",
                     cantidad,
                     producto.CostoPromedio,
@@ -528,8 +529,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     producto,
                     existenciaOrigen,
                     bodegaOrigen,
-                    "Salida",
-                    "TRANSFERENCIA_SALIDA",
+                    TipoMovimientoInventario.TransferenciaSalida,
+                    TipoMovimientoInventario.TransferenciaSalida,
                     referenciaTransferencia,
                     cantidad,
                     producto.CostoPromedio,
@@ -540,8 +541,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     producto,
                     existenciaDestino,
                     bodegaDestino,
-                    "Entrada",
-                    "TRANSFERENCIA_ENTRADA",
+                    TipoMovimientoInventario.TransferenciaEntrada,
+                    TipoMovimientoInventario.TransferenciaEntrada,
                     referenciaTransferencia,
                     cantidad,
                     producto.CostoPromedio,
@@ -686,13 +687,14 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         producto,
                         existenciaOrigen,
                         transferencia.BodegaOrigen,
-                        "Salida",
-                        "TRANSFERENCIA_DESPACHO",
+                        TipoMovimientoInventario.TransferenciaSalida,
+                        TipoMovimientoInventario.TransferenciaSalida,
                         BuildTransferenciaReferencia(transferencia),
                         detalle.CantidadEnviada,
                         producto.CostoPromedio,
                         recalcularCostoPromedioEnEntrada: false,
-                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {transferencia.BodegaOrigen.Nombre} para despachar la transferencia.");
+                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {transferencia.BodegaOrigen.Nombre} para despachar la transferencia.",
+                        transferenciaInventarioId: transferencia.Id);
                 }
 
                 transferencia.Estado = "EnTransito";
@@ -749,12 +751,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         detalle.Producto,
                         existenciaDestino,
                         transferencia.BodegaDestino,
-                        "Entrada",
-                        "TRANSFERENCIA_RECEPCION",
+                        TipoMovimientoInventario.TransferenciaEntrada,
+                        TipoMovimientoInventario.TransferenciaEntrada,
                         BuildTransferenciaReferencia(transferencia),
                         cantidadRecibida,
                         detalle.CostoUnitario,
-                        recalcularCostoPromedioEnEntrada: false);
+                        recalcularCostoPromedioEnEntrada: false,
+                        transferenciaInventarioId: transferencia.Id);
                 }
 
                 transferencia.Estado = "Completado";
@@ -815,8 +818,8 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         producto,
                         existencia,
                         bodega,
-                        isIngreso ? "Entrada" : "Salida",
-                        isIngreso ? "INGRESO_AJUSTE" : "EGRESO_AJUSTE",
+                        isIngreso ? TipoMovimientoInventario.AjusteIngreso : TipoMovimientoInventario.AjusteEgreso,
+                        isIngreso ? TipoMovimientoInventario.AjusteIngreso : TipoMovimientoInventario.AjusteEgreso,
                         concepto,
                         Math.Abs(diferencia),
                         producto.CostoPromedio,
@@ -880,13 +883,14 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         producto,
                         existenciaPrincipal,
                         operationalBodega,
-                        "Salida",
+                        TipoMovimientoInventario.SalidaVenta,
                         concepto,
                         referenciaFactura,
                         item.Cantidad,
                         producto.CostoPromedio,
                         recalcularCostoPromedioEnEntrada: false,
-                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {operationalBodega.Nombre} para facturar.");
+                        stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {operationalBodega.Nombre} para facturar.",
+                        facturaId: facturaId);
                 }
 
                 logger.LogInformation(
@@ -910,14 +914,19 @@ public sealed class EfInventarioRepository : IInventarioRepository
         decimal cantidad,
         decimal costoUnitario,
         bool recalcularCostoPromedioEnEntrada,
-        string? stockInsuficienteMensaje = null)
+        string? stockInsuficienteMensaje = null,
+        Guid? facturaId = null,
+        Guid? compraId = null,
+        Guid? transferenciaInventarioId = null,
+        Guid? creadoPorUsuarioId = null)
     {
-        var isEntrada = string.Equals(tipoMovimiento, "Entrada", StringComparison.OrdinalIgnoreCase);
-        var isSalida = string.Equals(tipoMovimiento, "Salida", StringComparison.OrdinalIgnoreCase);
+        var normalizedTipoMovimiento = TipoMovimientoInventario.Normalize(tipoMovimiento);
+        var isEntrada = TipoMovimientoInventario.EsEntrada(normalizedTipoMovimiento);
+        var isSalida = TipoMovimientoInventario.EsSalida(normalizedTipoMovimiento);
 
         if (!isEntrada && !isSalida)
         {
-            throw new InvalidOperationException("El tipo de movimiento debe ser Entrada o Salida.");
+            throw new InvalidOperationException("El tipo de movimiento de inventario no esta soportado.");
         }
 
         if (cantidad <= 0)
@@ -957,15 +966,22 @@ public sealed class EfInventarioRepository : IInventarioRepository
             EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para el movimiento de inventario."),
             ProductoId = producto.Id,
             BodegaId = bodega.Id,
-            TipoMovimiento = isEntrada ? "Entrada" : "Salida",
+            TipoMovimiento = normalizedTipoMovimiento,
             Concepto = concepto,
             Referencia = referencia,
             CantidadEntrada = isEntrada ? cantidad : 0,
             CantidadSalida = isSalida ? cantidad : 0,
             SaldoCantidad = productoBodega.StockActual,
             CostoUnitario = costoUnitario,
+            CostoTotal = Math.Round(cantidad * costoUnitario, 4, MidpointRounding.AwayFromZero),
             CostoPromedio = producto.CostoPromedio,
+            StockAnterior = stockAnteriorBodega,
+            StockNuevo = productoBodega.StockActual,
             SaldoValor = productoBodega.StockActual * producto.CostoPromedio,
+            FacturaId = facturaId,
+            CompraId = compraId,
+            TransferenciaInventarioId = transferenciaInventarioId,
+            CreadoPorUsuarioId = creadoPorUsuarioId ?? tenantContextAccessor.UserId,
             FechaMovimiento = DateTimeOffset.UtcNow
         });
     }

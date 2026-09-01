@@ -30,11 +30,13 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private string? downloadStatusMessage;
     private string tipoDocumentoFiltro = string.Empty;
     private bool showNotaCreditoModal;
+    private bool showWhatsAppModal;
     private bool isLoadingNotaCreditoOrigen;
     private bool isGeneratingNotaCredito;
     private NotaCreditoOrigenResponseDto? notaCreditoOrigen;
     private string notaCreditoMotivo = string.Empty;
     private readonly Dictionary<Guid, decimal> notaCreditoCantidades = [];
+    private FacturaMonitorResponse? selectedWhatsAppFactura;
     private const int PageSize = 10;
     private int totalCount;
     private int currentSkip;
@@ -43,6 +45,8 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+    private string SelectedComprobanteRideLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/ride";
+    private string SelectedComprobanteXmlLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/xml-generado";
 
     protected override async Task OnInitializedAsync()
     {
@@ -109,6 +113,18 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             () => FacturacionApiClient.GetComprobanteRidePdfAsync(factura.Id),
             $"RIDE-{factura.TipoDocumentoId}-{factura.NumeroComprobante}.pdf",
             "application/pdf");
+    }
+
+    private void OpenWhatsAppModal(FacturaMonitorResponse factura)
+    {
+        selectedWhatsAppFactura = factura;
+        showWhatsAppModal = true;
+    }
+
+    private void CloseWhatsAppModal()
+    {
+        showWhatsAppModal = false;
+        selectedWhatsAppFactura = null;
     }
 
     private async Task OpenNotaCreditoAsync(FacturaMonitorResponse factura)

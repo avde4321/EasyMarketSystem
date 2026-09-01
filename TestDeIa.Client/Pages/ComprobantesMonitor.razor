@@ -100,6 +100,11 @@
                                                 disabled="@IsBusyFor(factura.Id)">
                                             @GetRideLabel(factura.Id)
                                         </button>
+                                        <button class="table-action whatsapp-row-action"
+                                                @onclick="() => OpenWhatsAppModal(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            WhatsApp
+                                        </button>
                                         <button class="table-action note-action"
                                                 @onclick="() => OpenNotaCreditoAsync(factura)"
                                                 disabled="@(!CanCreateNotaCredito(factura) || IsBusyFor(factura.Id))">
@@ -215,4 +220,13 @@
             </section>
         </div>
     }
+
+    <WhatsAppSendModal IsOpen="@showWhatsAppModal"
+                       DocumentoId="@selectedWhatsAppFactura?.Id"
+                       TipoDocumento="@(selectedWhatsAppFactura?.TipoDocumentoNombre ?? "Comprobante")"
+                       ClienteNombre="@(selectedWhatsAppFactura?.ClienteNombre ?? "Cliente")"
+                       NumeroTelefono=""
+                       LinkPdfRide="@SelectedComprobanteRideLink"
+                       LinkXml="@SelectedComprobanteXmlLink"
+                       OnClose="CloseWhatsAppModal" />
 </section>
