@@ -31,9 +31,12 @@ public sealed class FacturaDetalleEntityConfiguration : IEntityTypeConfiguration
         builder.Property(detalle => detalle.Subtotal).HasPrecision(18, 2);
         builder.Property(detalle => detalle.IvaValor).HasPrecision(18, 2);
         builder.Property(detalle => detalle.Total).HasPrecision(18, 2);
+        builder.Property(detalle => detalle.CostoHistoricoUnitario).HasPrecision(18, 6).HasDefaultValue(0m);
+        builder.Property(detalle => detalle.CostoHistoricoTotal).HasPrecision(18, 4).HasDefaultValue(0m);
         builder.Property(detalle => detalle.MontoComisionCalculado).HasPrecision(18, 2);
 
         builder.HasIndex(detalle => detalle.UsuarioIdOperador);
+        builder.HasIndex(detalle => new { detalle.ProductoId, detalle.FacturaId });
 
         builder.HasOne(detalle => detalle.Factura)
             .WithMany(factura => factura.Detalles)

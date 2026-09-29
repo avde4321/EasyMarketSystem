@@ -13,7 +13,7 @@ public sealed class TransferenciaInventarioRequest
     [Required]
     public Guid BodegaDestinoId { get; set; }
 
-    [Range(0.01, 999999999, ErrorMessage = "La cantidad debe ser mayor a cero.")]
+    [Range(typeof(decimal), "0.01", "999999999", ErrorMessage = "La cantidad debe ser mayor a cero.")]
     public decimal Cantidad { get; set; }
 
     [StringLength(80, ErrorMessage = "La referencia no puede superar 80 caracteres.")]

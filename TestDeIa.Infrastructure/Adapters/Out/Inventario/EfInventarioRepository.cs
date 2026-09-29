@@ -853,7 +853,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
         Guid? bodegaId,
         string referenciaFactura,
         string concepto,
-        IReadOnlyCollection<(Guid ProductoId, decimal Cantidad)> items,
+        IReadOnlyCollection<(Guid ProductoId, decimal Cantidad, decimal? CostoHistoricoUnitario)> items,
         CancellationToken cancellationToken = default)
     {
         await ExecuteWithConcurrencyRetryAsync(
@@ -887,7 +887,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
                         concepto,
                         referenciaFactura,
                         item.Cantidad,
-                        producto.CostoPromedio,
+                        item.CostoHistoricoUnitario.GetValueOrDefault(producto.CostoPromedio),
                         recalcularCostoPromedioEnEntrada: false,
                         stockInsuficienteMensaje: $"No existe stock suficiente en la bodega {operationalBodega.Nombre} para facturar.",
                         facturaId: facturaId);

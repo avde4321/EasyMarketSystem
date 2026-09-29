@@ -29,6 +29,16 @@ public sealed class CajaApiClient(HttpClient httpClient)
         return await SendAsync("api/caja/cerrar", request);
     }
 
+    public async Task<(bool Succeeded, string? ErrorMessage, CajaSesionResponse? Data)> RegistrarMovimientoAsync(RegistrarMovimientoCajaRequest request)
+    {
+        return await SendAsync("api/caja/movimientos", request);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, CajaSesionResponse? Data)> IniciarArqueoCiegoAsync(IniciarArqueoCiegoRequest request)
+    {
+        return await SendAsync("api/caja/iniciar-arqueo-ciego", request);
+    }
+
     private async Task<(bool Succeeded, string? ErrorMessage, CajaSesionResponse? Data)> SendAsync<TRequest>(string url, TRequest request)
     {
         var response = await httpClient.PostAsJsonAsync(url, request);

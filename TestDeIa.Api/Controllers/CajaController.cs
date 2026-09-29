@@ -46,4 +46,32 @@ public sealed class CajaController(ICajaSesionUseCase cajaSesionUseCase) : Contr
             return Conflict(new { message = exception.Message });
         }
     }
+
+    [HttpPost("movimientos")]
+    [Authorize(Policy = SecurityPolicyNames.CajaOperar)]
+    public async Task<IActionResult> RegistrarMovimiento([FromBody] RegistrarMovimientoCajaRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await cajaSesionUseCase.RegistrarMovimientoCajaAsync(request, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("iniciar-arqueo-ciego")]
+    [Authorize(Policy = SecurityPolicyNames.CajaOperar)]
+    public async Task<IActionResult> IniciarArqueoCiego([FromBody] IniciarArqueoCiegoRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await cajaSesionUseCase.IniciarArqueoCiegoAsync(request, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
 }

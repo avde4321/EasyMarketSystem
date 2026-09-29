@@ -16,10 +16,10 @@ public sealed class ActivoFijoRequest
 
     public DateTime FechaAdquisicion { get; set; } = DateTime.Today;
 
-    [Range(0.01, 999999999)]
+    [Range(typeof(decimal), "0.01", "999999999")]
     public decimal CostoInicial { get; set; }
 
-    [Range(0, 999999999)]
+    [Range(typeof(decimal), "0", "999999999")]
     public decimal ValorResidual { get; set; }
 
     [StringLength(160)]

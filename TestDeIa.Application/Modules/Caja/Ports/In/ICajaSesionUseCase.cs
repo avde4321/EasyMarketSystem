@@ -8,4 +8,6 @@ public interface ICajaSesionUseCase
     Task<CajaSesionResponse?> GetActivaAsync(CancellationToken cancellationToken = default);
     Task<CajaSesionResponse> AbrirAsync(AbrirCajaRequest request, CancellationToken cancellationToken = default);
     Task<CajaSesionResponse> CerrarAsync(CerrarCajaRequest request, CancellationToken cancellationToken = default);
+    Task<CajaSesionResponse> RegistrarMovimientoCajaAsync(RegistrarMovimientoCajaRequest request, CancellationToken cancellationToken = default);
+    Task<CajaSesionResponse> IniciarArqueoCiegoAsync(IniciarArqueoCiegoRequest request, CancellationToken cancellationToken = default);
 }

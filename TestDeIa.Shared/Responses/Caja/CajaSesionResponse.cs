@@ -5,6 +5,8 @@ public sealed class CajaSesionResponse
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }
     public Guid UsuarioId { get; set; }
+    public Guid? PuntoEmisionId { get; set; }
+    public Guid? BodegaId { get; set; }
     public DateTimeOffset FechaApertura { get; set; }
     public DateTimeOffset? FechaCierre { get; set; }
     public decimal MontoApertura { get; set; }
@@ -27,6 +29,18 @@ public sealed class CajaSesionResponse
     public decimal DiferenciaTarjeta { get; set; }
     public decimal DiferenciaTransferencia { get; set; }
     public decimal Diferencia { get; set; }
+    public decimal? MontoDeclaradoEfectivo { get; set; }
+    public decimal? MontoDeclaradoTarjetas { get; set; }
+    public decimal? MontoDeclaradoTransferencias { get; set; }
+    public decimal? MontoDeclaradoOtros { get; set; }
+    public decimal? MontoDeclaradoTotal { get; set; }
+    public decimal MontoCalculadoEfectivo { get; set; }
+    public decimal MontoCalculadoTarjetas { get; set; }
+    public decimal MontoCalculadoTransferencias { get; set; }
+    public decimal MontoCalculadoOtros { get; set; }
+    public decimal MontoCalculadoTotal { get; set; }
+    public decimal DiferenciaMonto { get; set; }
+    public string? ObservacionesCierre { get; set; }
     public Guid? AsientoContableId { get; set; }
     public string EstadoCaja { get; set; } = string.Empty;
 }

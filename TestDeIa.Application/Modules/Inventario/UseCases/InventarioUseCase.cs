@@ -424,7 +424,7 @@ public sealed class InventarioUseCase : IInventarioUseCase
             request.BodegaId,
             request.ReferenciaFactura.Trim(),
             "Factura",
-            request.Items.Select(item => (item.ProductoId, item.Cantidad)).ToArray(),
+            request.Items.Select(item => (item.ProductoId, item.Cantidad, (decimal?)null)).ToArray(),
             cancellationToken);
     }
 

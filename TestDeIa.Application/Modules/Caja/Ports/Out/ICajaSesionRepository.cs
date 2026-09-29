@@ -11,5 +11,20 @@ public interface ICajaSesionRepository
         decimal montoFisicoEfectivoReal,
         decimal montoFisicoTarjetaReal,
         decimal montoFisicoTransferenciaReal,
+        decimal montoFisicoOtrosReal,
+        string? observacionesCierre,
+        CancellationToken cancellationToken = default);
+    Task<CajaSesion> RegistrarMovimientoCajaAsync(
+        string tipoMovimiento,
+        decimal monto,
+        string concepto,
+        string? comprobanteReferencia,
+        CancellationToken cancellationToken = default);
+    Task<CajaSesion> IniciarArqueoCiegoAsync(
+        decimal montoDeclaradoEfectivo,
+        decimal montoDeclaradoTarjetas,
+        decimal montoDeclaradoTransferencias,
+        decimal montoDeclaradoOtros,
+        string? observacionesCierre,
         CancellationToken cancellationToken = default);
 }

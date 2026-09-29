@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
+using TestDeIa.Domain.Modules.Sri;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
@@ -193,6 +194,7 @@ public sealed class NotaCreditoService : INotaCreditoService
                 IncrementarExistenciaYRegistrarKardex(
                     factura,
                     producto,
+                    detalleOrigen,
                     cantidadDevuelta,
                     $"Nota credito {factura.Establecimiento}-{factura.PuntoEmision}-{secuencial:000000000}",
                     now);
@@ -209,7 +211,7 @@ public sealed class NotaCreditoService : INotaCreditoService
             EmpresaId = factura.EmpresaId,
             ComprobanteId = notaCredito.Id,
             TipoDocumentoId = TipoDocumentoNotaCredito,
-            Estado = "Pendiente",
+            Estado = SriOutboxEstados.Pendiente,
             CreatedAt = now,
             Mensaje = "Nota de credito generada y pendiente de procesamiento SRI."
         });
@@ -293,6 +295,7 @@ public sealed class NotaCreditoService : INotaCreditoService
     private void IncrementarExistenciaYRegistrarKardex(
         FacturaEntity factura,
         ProductoEntity producto,
+        FacturaDetalleEntity detalleOrigen,
         decimal cantidad,
         string referencia,
         DateTimeOffset now)
@@ -314,6 +317,10 @@ public sealed class NotaCreditoService : INotaCreditoService
         var stockAnterior = existencia.StockActual;
         existencia.StockActual += cantidad;
         producto.UpdatedAt = now;
+        var costoHistoricoUnitario = detalleOrigen.CostoHistoricoUnitario > 0m
+            ? detalleOrigen.CostoHistoricoUnitario
+            : producto.CostoPromedio;
+        var costoHistoricoTotal = Math.Round(cantidad * costoHistoricoUnitario, 4, MidpointRounding.AwayFromZero);
 
         dbContext.KardexMovimientos.Add(new KardexMovimientoEntity
         {
@@ -327,8 +334,8 @@ public sealed class NotaCreditoService : INotaCreditoService
             CantidadEntrada = cantidad,
             CantidadSalida = 0m,
             SaldoCantidad = existencia.StockActual,
-            CostoUnitario = producto.CostoPromedio,
-            CostoTotal = Math.Round(cantidad * producto.CostoPromedio, 4, MidpointRounding.AwayFromZero),
+            CostoUnitario = costoHistoricoUnitario,
+            CostoTotal = costoHistoricoTotal,
             CostoPromedio = producto.CostoPromedio,
             StockAnterior = stockAnterior,
             StockNuevo = existencia.StockActual,

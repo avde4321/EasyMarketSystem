@@ -21,6 +21,7 @@ using TestDeIa.Application.Modules.Integraciones.Ports.In;
 using TestDeIa.Application.Modules.OfflinePos.Ports.In;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Application.Modules.Proformas.Ports.In;
+using TestDeIa.Application.Modules.Reporteria.Ports.In;
 using TestDeIa.Application.Modules.Reporteria.Ports.Out;
 using TestDeIa.Application.Modules.Retenciones.Ports.In;
 using TestDeIa.Application.Modules.Sri.Ports.Out;
@@ -99,6 +100,9 @@ public static class DependencyInjection
         services.AddScoped<IFinancieroReportesRepository, EfFinancieroReportesRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IReporteVentasRepository, EfReporteVentasRepository>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IConsolidacionContableService, ConsolidacionContableService>();
+        services.AddScoped<IReporteService, ReporteService>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
         services.AddScoped<IComisionesRepository, EfComisionesRepository>();

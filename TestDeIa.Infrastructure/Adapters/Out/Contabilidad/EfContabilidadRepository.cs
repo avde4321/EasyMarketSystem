@@ -4,6 +4,7 @@ using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Domain.Modules.Contabilidad.Entities;
 using TestDeIa.Domain.Modules.Contabilidad.Enums;
+using TestDeIa.Domain.Modules.Inventario;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
 using TestDeIa.Domain.Modules.Compras.Enums;
@@ -521,18 +522,15 @@ public sealed class EfContabilidadRepository(
         }
 
         var cuentas = await EnsureOperationalAccountsAsync(cancellationToken);
-        var productoIds = factura.Detalles.Select(current => current.ProductoId).Distinct().ToArray();
-        var productos = await dbContext.Productos
-            .AsNoTracking()
-            .Where(current => productoIds.Contains(current.Id))
-            .ToDictionaryAsync(current => current.Id, cancellationToken);
-
         var totalCostoVentas = Math.Round(
-            factura.Detalles
-                .Where(detail => productos.TryGetValue(detail.ProductoId, out var producto) && producto.ControlaStock)
-                .Sum(detail => detail.Cantidad * productos[detail.ProductoId].CostoPromedio),
+            factura.Detalles.Sum(detail => detail.CostoHistoricoTotal),
             2,
             MidpointRounding.AwayFromZero);
+
+        if (totalCostoVentas <= 0m)
+        {
+            totalCostoVentas = await GetCostoVentasKardexAsync(factura.Id, cancellationToken);
+        }
 
         var request = new CrearAsientoRequest
         {
@@ -545,6 +543,18 @@ public sealed class EfContabilidadRepository(
         };
 
         return await CrearAsientoAsync(request, cancellationToken);
+    }
+
+    private async Task<decimal> GetCostoVentasKardexAsync(Guid facturaId, CancellationToken cancellationToken)
+    {
+        var costoKardex = await dbContext.KardexMovimientos
+            .AsNoTracking()
+            .Where(current =>
+                current.FacturaId == facturaId &&
+                (current.TipoMovimiento == TipoMovimientoInventario.SalidaVenta || current.TipoMovimiento == "Salida"))
+            .SumAsync(current => (decimal?)current.CostoTotal, cancellationToken) ?? 0m;
+
+        return Math.Round(costoKardex, 2, MidpointRounding.AwayFromZero);
     }
 
     private async Task<string> GenerarAsientoDesdeCompraAsync(Guid compraId, CancellationToken cancellationToken)

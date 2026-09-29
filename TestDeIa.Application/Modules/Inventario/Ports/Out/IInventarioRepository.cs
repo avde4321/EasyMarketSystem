@@ -104,6 +104,6 @@ public interface IInventarioRepository
         Guid? bodegaId,
         string referenciaFactura,
         string concepto,
-        IReadOnlyCollection<(Guid ProductoId, decimal Cantidad)> items,
+        IReadOnlyCollection<(Guid ProductoId, decimal Cantidad, decimal? CostoHistoricoUnitario)> items,
         CancellationToken cancellationToken = default);
 }

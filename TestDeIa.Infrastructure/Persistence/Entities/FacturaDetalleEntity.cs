@@ -30,6 +30,10 @@ public sealed class FacturaDetalleEntity
 
     public decimal Total { get; set; }
 
+    public decimal CostoHistoricoUnitario { get; set; }
+
+    public decimal CostoHistoricoTotal { get; set; }
+
     public Guid? UsuarioIdOperador { get; set; }
 
     public decimal MontoComisionCalculado { get; set; }

@@ -70,6 +70,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<FacturaEntity> Facturas => Set<FacturaEntity>();
     public DbSet<FacturaSecuencialEntity> FacturaSecuenciales => Set<FacturaSecuencialEntity>();
     public DbSet<CajaSesionEntity> CajaSesiones => Set<CajaSesionEntity>();
+    public DbSet<CajaMovimientoEntity> CajaMovimientos => Set<CajaMovimientoEntity>();
+    public DbSet<FacturaPagoEntity> FacturaPagos => Set<FacturaPagoEntity>();
 
     public DbSet<FacturaDetalleEntity> FacturaDetalles => Set<FacturaDetalleEntity>();
 
@@ -138,6 +140,10 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<FacturaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<CajaSesionEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CajaMovimientoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<FacturaPagoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<FacturaDetalleEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.Factura.EmpresaId == tenantContextAccessor.EmpresaId);

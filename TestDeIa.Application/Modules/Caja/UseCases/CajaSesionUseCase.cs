@@ -28,7 +28,8 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
     {
         if (request.MontoFisicoEfectivoReal < 0 ||
             request.MontoFisicoTarjetaReal < 0 ||
-            request.MontoFisicoTransferenciaReal < 0)
+            request.MontoFisicoTransferenciaReal < 0 ||
+            request.MontoFisicoOtrosReal < 0)
         {
             throw new InvalidOperationException("Los montos fisicos no pueden ser negativos.");
         }
@@ -37,6 +38,47 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
             request.MontoFisicoEfectivoReal,
             request.MontoFisicoTarjetaReal,
             request.MontoFisicoTransferenciaReal,
+            request.MontoFisicoOtrosReal,
+            request.ObservacionesCierre,
+            cancellationToken));
+    }
+
+    public async Task<CajaSesionResponse> RegistrarMovimientoCajaAsync(RegistrarMovimientoCajaRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.Monto <= 0)
+        {
+            throw new InvalidOperationException("El monto del movimiento debe ser mayor a cero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Concepto))
+        {
+            throw new InvalidOperationException("El concepto del movimiento es obligatorio.");
+        }
+
+        return Map(await cajaSesionRepository.RegistrarMovimientoCajaAsync(
+            request.TipoMovimiento,
+            request.Monto,
+            request.Concepto,
+            request.ComprobanteReferencia,
+            cancellationToken));
+    }
+
+    public async Task<CajaSesionResponse> IniciarArqueoCiegoAsync(IniciarArqueoCiegoRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.MontoDeclaradoEfectivo < 0 ||
+            request.MontoDeclaradoTarjetas < 0 ||
+            request.MontoDeclaradoTransferencias < 0 ||
+            request.MontoDeclaradoOtros < 0)
+        {
+            throw new InvalidOperationException("Los montos declarados no pueden ser negativos.");
+        }
+
+        return Map(await cajaSesionRepository.IniciarArqueoCiegoAsync(
+            request.MontoDeclaradoEfectivo,
+            request.MontoDeclaradoTarjetas,
+            request.MontoDeclaradoTransferencias,
+            request.MontoDeclaradoOtros,
+            request.ObservacionesCierre,
             cancellationToken));
     }
 
@@ -47,6 +89,8 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
             Id = caja.Id,
             EmpresaId = caja.EmpresaId,
             UsuarioId = caja.UsuarioId,
+            PuntoEmisionId = caja.PuntoEmisionId,
+            BodegaId = caja.BodegaId,
             FechaApertura = caja.FechaApertura,
             FechaCierre = caja.FechaCierre,
             MontoApertura = caja.MontoApertura,
@@ -63,6 +107,18 @@ public sealed class CajaSesionUseCase(ICajaSesionRepository cajaSesionRepository
             DiferenciaTarjeta = caja.DiferenciaTarjeta,
             DiferenciaTransferencia = caja.DiferenciaTransferencia,
             Diferencia = caja.Diferencia,
+            MontoDeclaradoEfectivo = caja.MontoDeclaradoEfectivo,
+            MontoDeclaradoTarjetas = caja.MontoDeclaradoTarjetas,
+            MontoDeclaradoTransferencias = caja.MontoDeclaradoTransferencias,
+            MontoDeclaradoOtros = caja.MontoDeclaradoOtros,
+            MontoDeclaradoTotal = caja.MontoDeclaradoTotal,
+            MontoCalculadoEfectivo = caja.MontoCalculadoEfectivo,
+            MontoCalculadoTarjetas = caja.MontoCalculadoTarjetas,
+            MontoCalculadoTransferencias = caja.MontoCalculadoTransferencias,
+            MontoCalculadoOtros = caja.MontoCalculadoOtros,
+            MontoCalculadoTotal = caja.MontoCalculadoTotal,
+            DiferenciaMonto = caja.DiferenciaMonto,
+            ObservacionesCierre = caja.ObservacionesCierre,
             AsientoContableId = caja.AsientoContableId,
             EstadoCaja = caja.EstadoCaja.ToString()
         };

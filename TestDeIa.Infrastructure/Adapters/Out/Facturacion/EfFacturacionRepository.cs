@@ -258,6 +258,16 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             throw new InvalidOperationException("El POS intento facturar con una bodega distinta a la asignada al punto de emision activo.");
         }
 
+        if (cajaActiva.PuntoEmisionId.HasValue && cajaActiva.PuntoEmisionId.Value != puntoEmision.Id)
+        {
+            throw new InvalidOperationException("La caja activa pertenece a otro punto de emision. Cierra o selecciona la caja correcta antes de facturar.");
+        }
+
+        if (cajaActiva.BodegaId.HasValue && cajaActiva.BodegaId.Value != puntoEmision.BodegaId)
+        {
+            throw new InvalidOperationException("La caja activa pertenece a una bodega distinta al punto de emision seleccionado.");
+        }
+
         var itemsByProduct = request.Items
             .GroupBy(item => new { item.ProductoId, item.UsuarioIdOperador })
             .Select(group => new
@@ -393,6 +403,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             var total = subtotal + ivaValor;
             var usuarioIdOperador = producto.ControlaStock ? null : item.UsuarioIdOperador;
             var montoComision = CalculateServiceCommission(producto, usuarioIdOperador, subtotal, item.Cantidad);
+            var costoHistoricoUnitario = producto.ControlaStock ? Math.Round(producto.CostoPromedio, 6, MidpointRounding.AwayFromZero) : 0m;
+            var costoHistoricoTotal = Math.Round(item.Cantidad * costoHistoricoUnitario, 4, MidpointRounding.AwayFromZero);
 
             factura.Detalles.Add(new FacturaDetalleEntity
             {
@@ -409,6 +421,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 Subtotal = subtotal,
                 IvaValor = ivaValor,
                 Total = total,
+                CostoHistoricoUnitario = costoHistoricoUnitario,
+                CostoHistoricoTotal = costoHistoricoTotal,
                 UsuarioIdOperador = usuarioIdOperador,
                 MontoComisionCalculado = montoComision
             });
@@ -437,6 +451,15 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         factura.Total = factura.Subtotal + factura.IvaTotal;
         ValidateCashSettlement(request, formaPagoCodigo, factura.Total);
         dbContext.Set<FacturaEntity>().Add(factura);
+        dbContext.Set<FacturaPagoEntity>().Add(new FacturaPagoEntity
+        {
+            Id = Guid.NewGuid(),
+            EmpresaId = empresa.Id,
+            FacturaId = factura.Id,
+            CajaSesionId = cajaActiva.Id,
+            FormaPagoCodigo = formaPagoCodigo,
+            Monto = Math.Round(factura.Total, 2)
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
         dbContext.ChangeTracker.Clear();
 
@@ -940,7 +963,9 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             factura.BodegaId,
             $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
             concepto,
-            factura.Detalles.Select(detalle => (detalle.ProductoId, detalle.Cantidad)).ToArray(),
+            factura.Detalles
+                .Select(detalle => (detalle.ProductoId, detalle.Cantidad, CostoHistoricoUnitario: (decimal?)detalle.CostoHistoricoUnitario))
+                .ToArray(),
             cancellationToken);
 
         var inventoryAppliedAt = DateTimeOffset.UtcNow;
@@ -1359,8 +1384,3 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         return await ResolvePrincipalBodegaIdAsync(cancellationToken);
     }
 }
-
-
-
-
-

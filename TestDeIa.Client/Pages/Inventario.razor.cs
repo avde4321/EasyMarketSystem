@@ -293,7 +293,7 @@ public partial class Inventario
         ajusteRequest = new AjusteStockRequest
         {
             BodegaId = selectedBodegaId,
-            TipoMovimiento = "Entrada",
+            TipoMovimiento = "AJUSTE_INGRESO",
             Concepto = "Ajuste manual"
         };
         isAdjustmentModalOpen = true;

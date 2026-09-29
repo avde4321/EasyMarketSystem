@@ -51,9 +51,11 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
             .Where(current => !current.producto.ControlaStock)
             .SumAsync(current => (decimal?)current.detalle.Total, cancellationToken) ?? 0m;
 
-        var costoVentas = await detallesVentasQuery
+        var costoVentasDetalle = await detallesVentasQuery
             .Where(current => current.producto.ControlaStock)
-            .SumAsync(current => (decimal?)(current.detalle.Cantidad * current.producto.CostoPromedio), cancellationToken) ?? 0m;
+            .SumAsync(current => (decimal?)current.detalle.CostoHistoricoTotal, cancellationToken) ?? 0m;
+        var costoVentasKardex = await GetCostoVentasKardexAsync(periodoInicio, periodoFin, cancellationToken);
+        var costoVentas = costoVentasDetalle > 0m ? costoVentasDetalle : costoVentasKardex;
 
         return new DashboardResumenFinanciero
         {
@@ -89,10 +91,10 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
                 Nombre = grouped.Key.NombreProducto,
                 CantidadVendida = Math.Round(grouped.Sum(current => current.detalle.Cantidad), 2, MidpointRounding.AwayFromZero),
                 TotalVendido = Math.Round(grouped.Sum(current => current.detalle.Total), 2, MidpointRounding.AwayFromZero),
-                CostoEstimado = Math.Round(grouped.Sum(current => current.detalle.Cantidad * current.producto.CostoPromedio), 2, MidpointRounding.AwayFromZero),
+                CostoEstimado = Math.Round(grouped.Sum(current => current.detalle.CostoHistoricoTotal), 2, MidpointRounding.AwayFromZero),
                 MargenEstimado = Math.Round(
                     grouped.Sum(current => current.detalle.Total) -
-                    grouped.Sum(current => current.detalle.Cantidad * current.producto.CostoPromedio),
+                    grouped.Sum(current => current.detalle.CostoHistoricoTotal),
                     2,
                     MidpointRounding.AwayFromZero)
             })
@@ -100,6 +102,19 @@ public sealed class EfDashboardAnalyticsRepository : IDashboardAnalyticsReposito
             .ToListAsync(cancellationToken);
 
         return items;
+    }
+
+    private async Task<decimal> GetCostoVentasKardexAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, CancellationToken cancellationToken)
+    {
+        var costoVentas = await dbContext.KardexMovimientos
+            .AsNoTracking()
+            .Where(current =>
+                current.FechaMovimiento >= periodoInicio &&
+                current.FechaMovimiento < periodoFin &&
+                current.TipoMovimiento == TipoMovimientoInventario.SalidaVenta)
+            .SumAsync(current => (decimal?)current.CostoTotal, cancellationToken) ?? 0m;
+
+        return Math.Round(costoVentas, 2, MidpointRounding.AwayFromZero);
     }
 
     public async Task<IReadOnlyCollection<DashboardTopProducto>> GetTopServiciosVendidosAsync(DateTimeOffset periodoInicio, DateTimeOffset periodoFin, int take, CancellationToken cancellationToken = default)
