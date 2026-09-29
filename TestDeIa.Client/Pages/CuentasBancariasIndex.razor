@@ -1,0 +1,134 @@
+@page "/tesoreria/cuentas-bancarias"
+@using TestDeIa.Shared.Security
+@attribute [Authorize(Policy = SecurityPolicyNames.ConfiguracionAccess)]
+
+<PageTitle>Tesorería bancaria</PageTitle>
+
+<section class="module-page treasury-page">
+    <header class="module-header treasury-hero">
+        <div>
+            <span class="eyebrow">TESORERÍA</span>
+            <h1>Cuentas bancarias</h1>
+            <p>Control de saldos contables, saldos conciliados y extractos importados para cruce bancario.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="OpenCreateAccount">Nueva cuenta</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="success-message">@successMessage</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="treasury-card">Cargando cuentas bancarias...</div>
+    }
+    else if (!cuentas.Any())
+    {
+        <div class="empty-state">Todavía no existen cuentas bancarias registradas.</div>
+    }
+    else
+    {
+        <section class="accounts-grid">
+            @foreach (var cuenta in cuentas)
+            {
+                var diferencia = cuenta.SaldoContable - cuenta.SaldoConciliado;
+                <article class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <span class="eyebrow">@cuenta.TipoCuentaNombre</span>
+                            <h2>@cuenta.BancoNombre</h2>
+                            <p>@MaskAccount(cuenta.NumeroCuenta)</p>
+                        </div>
+                        <span class="health-badge @(Math.Abs(diferencia) < 0.01m ? "health-ok" : "health-warning")">
+                            @(Math.Abs(diferencia) < 0.01m ? "Conciliado" : "Diferencia")
+                        </span>
+                    </div>
+
+                    <div class="account-metrics">
+                        <div>
+                            <span>Saldo contable</span>
+                            <strong>@cuenta.SaldoContable.ToString("C2")</strong>
+                        </div>
+                        <div>
+                            <span>Saldo conciliado</span>
+                            <strong>@cuenta.SaldoConciliado.ToString("C2")</strong>
+                        </div>
+                        <div class="metric-diff">
+                            <span>Pendiente</span>
+                            <strong>@diferencia.ToString("C2")</strong>
+                        </div>
+                    </div>
+
+                    <div class="account-actions">
+                        <button type="button" class="secondary-action" @onclick="() => OpenImportModal(cuenta)">Importar Extracto</button>
+                        <button type="button" class="primary-soft-button" @onclick="() => GoToConciliacion(cuenta.Id)">Ir a Conciliación</button>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+</section>
+
+@if (isAccountModalOpen)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card treasury-modal">
+            <header class="modal-header">
+                <div>
+                    <h2>Nueva cuenta bancaria</h2>
+                    <p class="modal-subtitle">Registra la cuenta financiera enlazada al plan de cuentas NIIF.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseAccountModal">x</button>
+            </header>
+
+            <EditForm Model="accountRequest" OnValidSubmit="SaveAccountAsync">
+                <DataAnnotationsValidator />
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Banco</label>
+                        <InputText class="form-control" @bind-Value="accountRequest.BancoNombre" />
+                    </div>
+                    <div class="form-field">
+                        <label>Tipo cuenta</label>
+                        <InputSelect class="form-control" @bind-Value="accountRequest.TipoCuenta">
+                            <option value="1">Corriente</option>
+                            <option value="2">Ahorros</option>
+                            <option value="3">Caja chica</option>
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label>Número cuenta</label>
+                        <InputText class="form-control" @bind-Value="accountRequest.NumeroCuenta" />
+                    </div>
+                    <div class="form-field">
+                        <label>Cuenta contable Id</label>
+                        <InputText class="form-control" @bind-Value="cuentaContableIdText" placeholder="GUID de la cuenta contable monetaria" />
+                    </div>
+                    <div class="form-field">
+                        <label>Saldo contable</label>
+                        <InputNumber class="form-control" @bind-Value="accountRequest.SaldoContable" />
+                    </div>
+                    <div class="form-field">
+                        <label>Saldo conciliado</label>
+                        <InputNumber class="form-control" @bind-Value="accountRequest.SaldoConciliado" />
+                    </div>
+                </div>
+                <footer class="modal-actions">
+                    <button type="button" class="secondary-action" @onclick="CloseAccountModal">Cancelar</button>
+                    <button type="submit" class="primary-action" disabled="@isSaving">Guardar</button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+<ImportarExtractoModal IsOpen="isImportModalOpen"
+                       Cuenta="selectedCuenta"
+                       OnClose="CloseImportModal"
+                       OnImported="HandleImportedAsync" />

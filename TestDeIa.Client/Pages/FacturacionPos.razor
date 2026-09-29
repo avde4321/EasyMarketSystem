@@ -35,7 +35,7 @@
             <div class="context-pill context-pill-soft">
                 <span>Caja y bodega</span>
                 <strong>@(selectedPuntoEmision?.BodegaNombre ?? "Sin bodega")</strong>
-                <small>@(hasCajaActiva ? "Caja abierta" : "Caja cerrada")</small>
+                <small>@(hasCajaVencida ? "Caja pendiente de cierre" : hasCajaActiva ? "Caja abierta" : "Caja cerrada")</small>
             </div>
             <div class="context-pill context-pill-soft">
                 <span>Punto de venta</span>
@@ -56,7 +56,14 @@
     {
         <div class="alert-message">
             Esta caja no esta abierta para tu usuario. Debes abrirla antes de buscar clientes, cargar productos o facturar.
-            <a class="inline-link" href="caja/control">Ir a control de caja</a>
+            <button class="inline-link button-link" type="button" @onclick="GoToControlCaja">Ir a control de caja</button>
+        </div>
+    }
+    else if (hasCajaVencida)
+    {
+        <div class="alert-message">
+            Tienes una caja abierta de un dia anterior. Debes cerrarla antes de operar el POS y abrir una nueva caja con la fecha correcta.
+            <button class="inline-link button-link" type="button" @onclick="GoToControlCaja">Cerrar caja pendiente</button>
         </div>
     }
 
@@ -324,6 +331,64 @@
              EmailCliente="@selectedCliente?.Email"
              OnPagoAprobado="OnPagoDigitalAprobadoAsync"
              OnClose="ClosePagoQrModal" />
+
+@if (showPosInfoModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow pos-context-modal pos-info-modal">
+            <header class="modal-header pos-context-header">
+                <div>
+                    <span class="eyebrow-label danger-eyebrow">Atencion</span>
+                    <h2>@(posInfoModalTitle ?? "Informacion")</h2>
+                    <p>@posInfoModalMessage</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="ClosePosInfoModal" aria-label="Cerrar aviso">x</button>
+            </header>
+
+            <footer class="modal-actions pos-context-actions">
+                <button class="primary-action" type="button" @onclick="ClosePosInfoModal">Cerrar</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (showCajaRequiredModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow pos-context-modal pos-caja-required-modal">
+            <header class="modal-header pos-context-header">
+                <div>
+                    <span class="eyebrow-label danger-eyebrow">Atencion</span>
+                    <h2>@CajaModalTitle</h2>
+                    <p>@CajaModalMessage</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseCajaRequiredModal" aria-label="Ir a control de caja">x</button>
+            </header>
+
+            @if (hasCajaVencida && cajaActiva is not null)
+            {
+                <div class="caja-required-summary">
+                    <span>Fecha de apertura pendiente</span>
+                    <strong>@cajaActiva.FechaApertura.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                    <small>Primero cierra esta caja; luego abre la caja de hoy.</small>
+                </div>
+            }
+            else
+            {
+                <div class="caja-required-summary">
+                    <span>Estado actual</span>
+                    <strong>Caja cerrada</strong>
+                    <small>El POS queda bloqueado hasta abrir la caja.</small>
+                </div>
+            }
+
+            <footer class="modal-actions pos-context-actions">
+                <button class="secondary-action" type="button" @onclick="GoToControlCaja">Cancelar e ir a caja</button>
+                <button class="primary-action" type="button" @onclick="GoToControlCaja">@CajaModalActionText</button>
+            </footer>
+        </section>
+    </div>
+}
 
 @if (showOperationalContextModal)
 {

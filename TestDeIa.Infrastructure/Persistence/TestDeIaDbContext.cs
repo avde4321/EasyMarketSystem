@@ -47,6 +47,10 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<PeriodoContableEntity> PeriodosContables => Set<PeriodoContableEntity>();
     public DbSet<AsientoContableEntity> AsientosContables => Set<AsientoContableEntity>();
     public DbSet<AsientoDetalleEntity> AsientosDetalle => Set<AsientoDetalleEntity>();
+    public DbSet<CuentaBancariaEntity> CuentasBancarias => Set<CuentaBancariaEntity>();
+    public DbSet<ExtractoBancarioHeaderEntity> ExtractoBancarioHeaders => Set<ExtractoBancarioHeaderEntity>();
+    public DbSet<ExtractoBancarioDetalleEntity> ExtractoBancarioDetalles => Set<ExtractoBancarioDetalleEntity>();
+    public DbSet<MovimientoTesoreriaEntity> MovimientosTesoreria => Set<MovimientoTesoreriaEntity>();
 
     public DbSet<EmpresaEmisoraEntity> EmpresasEmisoras => Set<EmpresaEmisoraEntity>();
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
@@ -125,6 +129,14 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<AsientoDetalleEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.AsientoContable.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<CuentaBancariaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ExtractoBancarioHeaderEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.CuentaBancaria.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<ExtractoBancarioDetalleEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.ExtractoHeader.CuentaBancaria.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<MovimientoTesoreriaEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProductoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<BodegaEntity>()

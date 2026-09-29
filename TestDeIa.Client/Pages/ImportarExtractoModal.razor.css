@@ -1,0 +1,30 @@
+.import-modal {
+    max-width: 1080px;
+}
+
+.drop-zone {
+    align-items: center;
+    background: linear-gradient(135deg, #effaf9, #fff8eb);
+    border: 1px dashed #8fd6d1;
+    border-radius: 24px;
+    color: #45647c;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    justify-content: center;
+    margin: 1rem 0;
+    min-height: 120px;
+    padding: 1.2rem;
+    text-align: center;
+}
+
+.preview-table {
+    border: 1px solid #d7edf4;
+    border-radius: 22px;
+    max-height: 280px;
+    overflow: auto;
+}
+
+.file-input {
+    padding: .95rem;
+}

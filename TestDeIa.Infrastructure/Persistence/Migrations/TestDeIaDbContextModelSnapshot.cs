@@ -1834,6 +1834,63 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.ToTable("ComprobantesRetencion", (string)null);
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaBancariaEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("BancoNombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("CuentaContableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Moneda")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)")
+                        .HasDefaultValue("USD");
+
+                    b.Property<string>("NumeroCuenta")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("SaldoConciliado")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("SaldoContable")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte>("TipoCuenta")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CuentaContableId");
+
+                    b.HasIndex("EmpresaId", "Activa");
+
+                    b.HasIndex("EmpresaId", "NumeroCuenta");
+
+                    b.ToTable("CuentasBancarias", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaContableEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2431,6 +2488,99 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EstudiosMercadoCompra", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioDetalleEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConceptoDescripcion")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("Conciliado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("ExtractoHeaderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FechaTransaccion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("MovimientoTesoreriaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NumeroDocumentoRef")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte>("TipoMovimiento")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExtractoHeaderId");
+
+                    b.HasIndex("FechaTransaccion");
+
+                    b.HasIndex("MovimientoTesoreriaId");
+
+                    b.HasIndex("NumeroDocumentoRef");
+
+                    b.HasIndex("ExtractoHeaderId", "Conciliado");
+
+                    b.HasIndex("FechaTransaccion", "NumeroDocumentoRef");
+
+                    b.ToTable("ExtractoBancarioDetalles", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioHeaderEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CuentaBancariaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FechaDesde")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaHasta")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaImportacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NombreArchivoOriginal")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("TotalRegistros")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaImportacion");
+
+                    b.HasIndex("CuentaBancariaId", "FechaDesde", "FechaHasta");
+
+                    b.ToTable("ExtractoBancarioHeaders", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaCompraXmlLogEntity", b =>
@@ -3258,6 +3408,64 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasIndex("EmpresaId", "Anio", "Mes", "CreatedAt");
 
                     b.ToTable("MemoriasAnalisisFiscal", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.MovimientoTesoreriaEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AsientoContableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Beneficiario")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CompraId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CuentaBancariaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("EstadoConciliacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint")
+                        .HasDefaultValue((byte)0);
+
+                    b.Property<Guid?>("FacturaVentaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte>("Tipo")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AsientoContableId");
+
+                    b.HasIndex("CompraId");
+
+                    b.HasIndex("FacturaVentaId");
+
+                    b.HasIndex("CuentaBancariaId", "Fecha");
+
+                    b.HasIndex("EmpresaId", "CuentaBancariaId", "Fecha");
+
+                    b.HasIndex("EmpresaId", "EstadoConciliacion", "Fecha");
+
+                    b.ToTable("MovimientosTesoreria", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PagoCxPEntity", b =>
@@ -5039,6 +5247,25 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaBancariaEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CuentaContableEntity", "CuentaContable")
+                        .WithMany()
+                        .HasForeignKey("CuentaContableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CuentaContable");
+
+                    b.Navigation("Empresa");
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaPorPagarEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CompraEntity", "Compra")
@@ -5107,6 +5334,35 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Bodega");
 
                     b.Navigation("Empresa");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioDetalleEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioHeaderEntity", "ExtractoHeader")
+                        .WithMany("Detalles")
+                        .HasForeignKey("ExtractoHeaderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.MovimientoTesoreriaEntity", "MovimientoTesoreria")
+                        .WithMany("ExtractosConciliados")
+                        .HasForeignKey("MovimientoTesoreriaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ExtractoHeader");
+
+                    b.Navigation("MovimientoTesoreria");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioHeaderEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CuentaBancariaEntity", "CuentaBancaria")
+                        .WithMany("Extractos")
+                        .HasForeignKey("CuentaBancariaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CuentaBancaria");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaCompraXmlLogEntity", b =>
@@ -5239,6 +5495,46 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Bodega");
 
                     b.Navigation("Producto");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.MovimientoTesoreriaEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.AsientoContableEntity", "AsientoContable")
+                        .WithMany()
+                        .HasForeignKey("AsientoContableId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CompraEntity", "Compra")
+                        .WithMany()
+                        .HasForeignKey("CompraId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CuentaBancariaEntity", "CuentaBancaria")
+                        .WithMany("MovimientosTesoreria")
+                        .HasForeignKey("CuentaBancariaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.FacturaEntity", "FacturaVenta")
+                        .WithMany()
+                        .HasForeignKey("FacturaVentaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AsientoContable");
+
+                    b.Navigation("Compra");
+
+                    b.Navigation("CuentaBancaria");
+
+                    b.Navigation("Empresa");
+
+                    b.Navigation("FacturaVenta");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PagoCxPEntity", b =>
@@ -5537,6 +5833,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Detalles");
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaBancariaEntity", b =>
+                {
+                    b.Navigation("Extractos");
+
+                    b.Navigation("MovimientosTesoreria");
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.CuentaPorPagarEntity", b =>
                 {
                     b.Navigation("Pagos");
@@ -5549,6 +5852,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("PuntosEmision");
 
                     b.Navigation("UserAssignments");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioHeaderEntity", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.FacturaEntity", b =>
@@ -5571,6 +5879,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.GeoRegionEntity", b =>
                 {
                     b.Navigation("Provincias");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.MovimientoTesoreriaEntity", b =>
+                {
+                    b.Navigation("ExtractosConciliados");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PersonaEntity", b =>

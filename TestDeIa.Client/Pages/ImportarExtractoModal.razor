@@ -1,0 +1,158 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using TestDeIa.Shared.Responses.Tesoreria
+@inject TestDeIa.Client.Services.Tesoreria.TesoreriaApiClient TesoreriaApiClient
+
+@if (IsOpen && Cuenta is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card import-modal">
+            <header class="modal-header">
+                <div>
+                    <span class="eyebrow">IMPORTACIÓN BANCARIA</span>
+                    <h2>Importar extracto</h2>
+                    <p class="modal-subtitle">@Cuenta.BancoNombre - @Cuenta.NumeroCuenta</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="OnClose">x</button>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert-message">@errorMessage</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>Banco origen</label>
+                    <InputSelect class="form-control" @bind-Value="bancoNombre">
+                        <option>Banco Pichincha</option>
+                        <option>Banco Guayaquil</option>
+                        <option>Banco del Pacífico</option>
+                        <option>Produbanco</option>
+                        <option>Banco Internacional</option>
+                        <option>Otro banco</option>
+                    </InputSelect>
+                </div>
+                <div class="form-field">
+                    <label>Archivo CSV / XLS / XLSX</label>
+                    <InputFile class="form-control file-input" OnChange="HandleFileSelected" accept=".csv,.txt,.xls,.xlsx" />
+                </div>
+            </div>
+
+            <div class="drop-zone">
+                <strong>@(selectedFileName ?? "Arrastra o selecciona el extracto bancario")</strong>
+                <span>Se previsualizan hasta 5 registros en CSV/TXT antes de confirmar.</span>
+            </div>
+
+            @if (previewRows.Any())
+            {
+                <div class="preview-table">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Referencia</th>
+                                <th>Concepto</th>
+                                <th>Débito/Crédito</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in previewRows)
+                            {
+                                <tr>
+                                    <td>@row.Fecha</td>
+                                    <td>@row.Referencia</td>
+                                    <td>@row.Concepto</td>
+                                    <td>@row.Monto</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <footer class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="OnClose">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="ImportAsync" disabled="@(selectedFile is null || isImporting)">
+                    @(isImporting ? "Importando..." : "Confirmar importación")
+                </button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public CuentaBancariaDto? Cuenta { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private IBrowserFile? selectedFile;
+    private string? selectedFileName;
+    private string bancoNombre = "Banco Pichincha";
+    private string? errorMessage;
+    private bool isImporting;
+    private IReadOnlyCollection<PreviewRow> previewRows = Array.Empty<PreviewRow>();
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+        selectedFileName = selectedFile.Name;
+        errorMessage = null;
+        previewRows = Array.Empty<PreviewRow>();
+
+        if (selectedFile.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ||
+            selectedFile.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            await using var stream = selectedFile.OpenReadStream(2_000_000);
+            using var reader = new StreamReader(stream);
+            var text = await reader.ReadToEndAsync();
+            previewRows = BuildPreview(text);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (Cuenta is null || selectedFile is null)
+        {
+            return;
+        }
+
+        isImporting = true;
+        errorMessage = null;
+        await using var stream = selectedFile.OpenReadStream(30_000_000);
+        var result = await TesoreriaApiClient.ImportarExtractoAsync(Cuenta.Id, stream, selectedFile.Name, Path.GetExtension(selectedFile.Name));
+        isImporting = false;
+
+        if (!result.Succeeded)
+        {
+            errorMessage = result.ErrorMessage;
+            return;
+        }
+
+        await OnImported.InvokeAsync();
+    }
+
+    private static IReadOnlyCollection<PreviewRow> BuildPreview(string text)
+    {
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(6).ToArray();
+        if (lines.Length <= 1)
+        {
+            return Array.Empty<PreviewRow>();
+        }
+
+        var delimiter = new[] { ';', ',', '\t', '|' }
+            .OrderByDescending(candidate => lines[0].Count(current => current == candidate))
+            .First();
+
+        return lines.Skip(1).Take(5)
+            .Select(line => line.Split(delimiter))
+            .Select(cols => new PreviewRow(
+                cols.ElementAtOrDefault(0)?.Trim() ?? string.Empty,
+                cols.ElementAtOrDefault(1)?.Trim() ?? string.Empty,
+                cols.ElementAtOrDefault(2)?.Trim() ?? string.Empty,
+                cols.ElementAtOrDefault(3)?.Trim() ?? cols.ElementAtOrDefault(4)?.Trim() ?? string.Empty))
+            .ToArray();
+    }
+
+    private sealed record PreviewRow(string Fecha, string Referencia, string Concepto, string Monto);
+}

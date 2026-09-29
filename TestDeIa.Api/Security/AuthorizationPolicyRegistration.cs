@@ -7,6 +7,10 @@ internal static class AuthorizationPolicyRegistration
 {
     internal static void Register(AuthorizationOptions options)
     {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+
         foreach (var policy in SecurityPolicyCatalog.Policies)
         {
             var requiredPermissions = policy.Value

@@ -23,7 +23,12 @@ public sealed class JwtSecurityTokenGenerator : ISecurityTokenGenerator
         var issuer = configuration["Security:Jwt:Issuer"] ?? "TestDeIa";
         var audience = configuration["Security:Jwt:Audience"] ?? "TestDeIa.Client";
         var secret = configuration["Security:Jwt:Secret"]
-            ?? "TestDeIa_Crm_Development_Secret_Key_Change_In_Production";
+            ?? throw new InvalidOperationException("Security:Jwt:Secret no esta configurado.");
+        if (Encoding.UTF8.GetByteCount(secret) < 32)
+        {
+            throw new InvalidOperationException("Security:Jwt:Secret debe tener al menos 32 bytes.");
+        }
+
         var expirationMinutes = int.TryParse(
             configuration["Security:Jwt:ExpirationMinutes"],
             out var configuredMinutes)

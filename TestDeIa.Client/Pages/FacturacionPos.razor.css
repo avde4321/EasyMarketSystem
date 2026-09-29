@@ -785,6 +785,50 @@
     padding: 0.9rem;
 }
 
+.button-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.danger-eyebrow {
+    color: #b14d4d;
+}
+
+.pos-caja-required-modal {
+    border: 1px solid #f0caca;
+    background: linear-gradient(135deg, #fff7f7 0%, #fffdf6 100%);
+}
+
+.pos-info-modal {
+    border: 1px solid #f0caca;
+    background: linear-gradient(135deg, #fff7f7 0%, #f9fcff 100%);
+}
+
+.caja-required-summary {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 1px solid #f2d5c7;
+    border-radius: 18px;
+    background: #fff9f2;
+    color: #143a5a;
+}
+
+.caja-required-summary span {
+    color: #b14d4d;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.caja-required-summary strong {
+    font-size: 1.15rem;
+}
+
 @media (max-width: 1280px) {
     .invoice-context-grid,
     .quick-products-grid {

@@ -12,6 +12,7 @@ using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Requests.OfflinePos;
 using TestDeIa.Shared.Responses.Catalogos;
+using TestDeIa.Shared.Responses.Caja;
 using TestDeIa.Shared.Responses.Facturacion;
 using TestDeIa.Shared.Responses.OfflinePos;
 using TestDeIa.Shared.Security;
@@ -32,6 +33,9 @@ public partial class FacturacionPos : IDisposable
 
     [Inject]
     private CajaApiClient CajaApiClient { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = default!;
 
     [Inject]
     private PopupNotificationService PopupNotificationService { get; set; } = default!;
@@ -63,8 +67,14 @@ public partial class FacturacionPos : IDisposable
     private bool isCreatingClienteExtension;
     private string? errorMessage;
     private string? statusMessage;
+    private string? posInfoModalTitle;
+    private string? posInfoModalMessage;
+    private bool showPosInfoModal;
     private bool isCajaLoading;
     private bool hasCajaActiva;
+    private bool hasCajaVencida;
+    private CajaSesionResponse? cajaActiva;
+    private bool showCajaRequiredModal;
     private bool canEditServicePrice;
     private bool isOnline = true;
     private bool isSyncingOfflineQueue;
@@ -84,13 +94,18 @@ public partial class FacturacionPos : IDisposable
     private bool CanGoPreviousProductos => productoSkip > 0;
     private bool CanGoNextProductos => productoSkip + SearchPageSize < productoTotalCount;
     private bool HasOperationalContext => selectedPuntoEmision is not null;
-    private bool CanOperatePos => HasOperationalContext && hasCajaActiva;
-    private bool CanOperateSearch => HasOperationalContext && (hasCajaActiva || !isOnline);
+    private bool CanOperatePos => HasOperationalContext && hasCajaActiva && !hasCajaVencida;
+    private bool CanOperateSearch => HasOperationalContext && ((hasCajaActiva && !hasCajaVencida) || !isOnline);
     private bool IsCashPayment => string.Equals(SriCatalogCodes.NormalizeFormaPagoCode(formaPago), SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal);
     private decimal VueltoCalculado => Math.Max(0m, Math.Round((efectivoRecibido ?? 0m) - GetCartTotal(), 2, MidpointRounding.AwayFromZero));
     private decimal MontoPendienteEfectivo => IsCashPayment ? Math.Max(0m, Math.Round(GetCartTotal() - (efectivoRecibido ?? 0m), 2, MidpointRounding.AwayFromZero)) : 0m;
     private bool IsCashPaymentCovered => !IsCashPayment || GetCartTotal() <= 0 || (efectivoRecibido ?? 0m) >= GetCartTotal();
-    private bool CanCheckout => HasOperationalContext && (hasCajaActiva || !isOnline) && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
+    private bool CanCheckout => HasOperationalContext && ((hasCajaActiva && !hasCajaVencida) || !isOnline) && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
+    private string CajaModalTitle => hasCajaVencida ? "Caja pendiente de cierre" : "Caja cerrada";
+    private string CajaModalMessage => hasCajaVencida && cajaActiva is not null
+        ? $"Tienes una caja abierta desde {cajaActiva.FechaApertura.ToLocalTime():dd/MM/yyyy HH:mm}. Debes cerrarla antes de operar el POS y abrir una nueva caja con la fecha correcta de hoy."
+        : "No tienes una caja abierta para operar el POS. Debes abrir la caja antes de buscar clientes, cargar productos o facturar.";
+    private string CajaModalActionText => hasCajaVencida ? "Ir a cerrar caja" : "Ir a abrir caja";
     private string LastFacturaRideLink => lastFactura is null ? string.Empty : $"api/reporteria/facturas/{lastFactura.FacturaId}/ride";
     private string LastFacturaXmlLink => lastFactura is null ? string.Empty : $"api/reporteria/facturas/{lastFactura.FacturaId}/xml-generado";
 
@@ -139,7 +154,7 @@ public partial class FacturacionPos : IDisposable
         }
 
         selectedPuntoEmision ??= puntosEmision.FirstOrDefault(current => current.IsDefault) ?? puntosEmision[0];
-        showOperationalContextModal = true;
+        showOperationalContextModal = !showCajaRequiredModal;
     }
 
     private async Task LoadOperadoresAsync()
@@ -161,11 +176,24 @@ public partial class FacturacionPos : IDisposable
 
         try
         {
-            hasCajaActiva = await CajaApiClient.GetActivaAsync() is not null;
+            cajaActiva = await CajaApiClient.GetActivaAsync();
+            hasCajaActiva = cajaActiva is not null;
+            hasCajaVencida = cajaActiva is not null && cajaActiva.FechaApertura.ToLocalTime().Date < DateTime.Today;
+            showCajaRequiredModal = !hasCajaActiva || hasCajaVencida;
+            if (showCajaRequiredModal)
+            {
+                showOperationalContextModal = false;
+                errorMessage = hasCajaVencida
+                    ? "Tienes una caja abierta de un dia anterior. Cierra esa caja antes de volver a operar el POS."
+                    : "Debes abrir una caja para este usuario antes de operar el POS.";
+            }
         }
         catch (HttpRequestException)
         {
             hasCajaActiva = false;
+            hasCajaVencida = false;
+            cajaActiva = null;
+            showCajaRequiredModal = true;
         }
         finally
         {
@@ -470,8 +498,9 @@ public partial class FacturacionPos : IDisposable
 
             if (!result.Succeeded)
             {
-                errorMessage = result.ErrorMessage;
-                await PopupNotificationService.ShowErrorAsync(errorMessage ?? "No se pudo registrar la factura.");
+                ShowPosInfoModal(
+                    "No se pudo emitir la factura",
+                    result.ErrorMessage ?? "No se pudo registrar la factura.");
                 return;
             }
 
@@ -605,6 +634,13 @@ public partial class FacturacionPos : IDisposable
 
     private void OpenOperationalContextModal()
     {
+        if (!hasCajaActiva || hasCajaVencida)
+        {
+            showCajaRequiredModal = true;
+            showOperationalContextModal = false;
+            return;
+        }
+
         showOperationalContextModal = true;
         errorMessage = null;
         statusMessage = null;
@@ -629,28 +665,62 @@ public partial class FacturacionPos : IDisposable
 
     private bool EnsureOperationalContext()
     {
-        if (HasOperationalContext && hasCajaActiva)
+        if (HasOperationalContext && hasCajaActiva && !hasCajaVencida)
         {
             return true;
         }
 
         errorMessage = puntosEmision.Count == 0
             ? "La empresa activa no tiene puntos de emision configurados."
-            : !hasCajaActiva
+            : hasCajaVencida
+                ? "Tienes una caja abierta de un dia anterior. Debes cerrarla antes de operar el POS."
+                : !hasCajaActiva
                 ? "Debes abrir una caja para este usuario antes de operar el POS."
                 : "Debes seleccionar un establecimiento y punto de emision antes de operar el POS.";
-        showOperationalContextModal = puntosEmision.Count > 0;
+        showCajaRequiredModal = !hasCajaActiva || hasCajaVencida;
+        showOperationalContextModal = !showCajaRequiredModal && puntosEmision.Count > 0;
         return false;
     }
 
     private bool EnsureOperationalContextForSearch()
     {
-        if (HasOperationalContext && (hasCajaActiva || !isOnline))
+        if (HasOperationalContext && ((hasCajaActiva && !hasCajaVencida) || !isOnline))
         {
             return true;
         }
 
         return EnsureOperationalContext();
+    }
+
+    private void GoToControlCaja()
+    {
+        NavigationManager.NavigateTo("/caja/control");
+    }
+
+    private void CloseCajaRequiredModal()
+    {
+        if (!hasCajaActiva || hasCajaVencida)
+        {
+            GoToControlCaja();
+            return;
+        }
+
+        showCajaRequiredModal = false;
+    }
+
+    private void ShowPosInfoModal(string title, string message)
+    {
+        posInfoModalTitle = title;
+        posInfoModalMessage = message;
+        showPosInfoModal = true;
+        errorMessage = null;
+    }
+
+    private void ClosePosInfoModal()
+    {
+        showPosInfoModal = false;
+        posInfoModalTitle = null;
+        posInfoModalMessage = null;
     }
 
     private async Task InitializeOfflineModeAsync()

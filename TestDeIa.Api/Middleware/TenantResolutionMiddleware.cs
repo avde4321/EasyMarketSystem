@@ -28,7 +28,17 @@ public sealed class TenantResolutionMiddleware
                 tenantContextAccessor.UserId = userId;
             }
 
-            var requestedEmpresaId = ResolveRequestedEmpresaId(context);
+            var tenantResolution = ResolveRequestedEmpresaId(context);
+            if (!tenantResolution.IsValid)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(
+                    new { message = "El identificador de empresa activa no tiene formato Guid valido." },
+                    context.RequestAborted);
+                return;
+            }
+
+            var requestedEmpresaId = tenantResolution.EmpresaId ?? ResolveDefaultEmpresaId(context);
             if (requestedEmpresaId.HasValue && tenantContextAccessor.UserId.HasValue)
             {
                 tenantContextAccessor.IsSystemContext = true;
@@ -54,13 +64,34 @@ public sealed class TenantResolutionMiddleware
         await next(context);
     }
 
-    private static Guid? ResolveRequestedEmpresaId(HttpContext context)
+    private static TenantHeaderResolution ResolveRequestedEmpresaId(HttpContext context)
     {
         if (!context.Request.Headers.TryGetValue(EmpresaHeader, out var values))
         {
-            return null;
+            return TenantHeaderResolution.Empty;
         }
 
-        return Guid.TryParse(values.ToString(), out var empresaId) ? empresaId : null;
+        var rawValue = values.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return TenantHeaderResolution.Empty;
+        }
+
+        return Guid.TryParse(rawValue, out var empresaId)
+            ? TenantHeaderResolution.Valid(empresaId)
+            : TenantHeaderResolution.Invalid;
+    }
+
+    private static Guid? ResolveDefaultEmpresaId(HttpContext context)
+    {
+        var rawValue = context.User.FindFirstValue("default_empresa_id");
+        return Guid.TryParse(rawValue, out var empresaId) ? empresaId : null;
+    }
+
+    private readonly record struct TenantHeaderResolution(Guid? EmpresaId, bool IsValid)
+    {
+        public static TenantHeaderResolution Empty => new(null, true);
+        public static TenantHeaderResolution Invalid => new(null, false);
+        public static TenantHeaderResolution Valid(Guid empresaId) => new(empresaId, true);
     }
 }

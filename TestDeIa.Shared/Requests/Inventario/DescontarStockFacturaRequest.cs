@@ -18,6 +18,6 @@ public sealed class DescontarStockFacturaItemRequest
     [Required]
     public Guid ProductoId { get; set; }
 
-    [Range(typeof(decimal), "0.01", "999999999")]
+    [Range(typeof(decimal), "0.01", "999999999", ParseLimitsInInvariantCulture = true)]
     public decimal Cantidad { get; set; }
 }

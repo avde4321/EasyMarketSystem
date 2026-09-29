@@ -1,0 +1,119 @@
+@page "/tesoreria/conciliacion/{CuentaId:guid}"
+@using TestDeIa.Shared.Security
+@attribute [Authorize(Policy = SecurityPolicyNames.ConfiguracionAccess)]
+
+<PageTitle>Conciliación bancaria</PageTitle>
+
+<section class="module-page reconciliation-page">
+    <header class="module-header treasury-hero">
+        <div>
+            <span class="eyebrow">CONCILIACIÓN</span>
+            <h1>Conciliación bancaria</h1>
+            <p>Selecciona movimientos del Libro Bancos y cruza contra el extracto importado.</p>
+        </div>
+        <div class="toolbar-actions">
+            <button class="secondary-action" type="button" @onclick="LoadAsync">Actualizar</button>
+            <button class="primary-action" type="button" @onclick="RunAutoMatchAsync" disabled="@isBusy">Conciliar automático</button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="success-message">@successMessage</div>
+    }
+
+    <section class="filter-card">
+        <div class="form-grid">
+            <div class="form-field">
+                <label>Desde</label>
+                <InputDate class="form-control" @bind-Value="fechaDesde" />
+            </div>
+            <div class="form-field">
+                <label>Hasta</label>
+                <InputDate class="form-control" @bind-Value="fechaHasta" />
+            </div>
+            <div class="form-field">
+                <label>Tipo extracto</label>
+                <InputSelect class="form-control" @bind-Value="tipoMovimiento">
+                    <option value="">Todos</option>
+                    <option value="1">Depósitos / Créditos</option>
+                    <option value="2">Retiros / Débitos</option>
+                </InputSelect>
+            </div>
+            <div class="form-field">
+                <label>Buscar</label>
+                <InputText class="form-control" @bind-Value="searchTerm" placeholder="Referencia, concepto o beneficiario..." />
+            </div>
+        </div>
+        <button class="secondary-action" type="button" @onclick="LoadAsync">Aplicar filtros</button>
+    </section>
+
+    <section class="split-reconciliation">
+        <article class="reconciliation-column">
+            <header>
+                <h2>Libro Bancos (EasyMarket)</h2>
+                <span>@movimientos.Count pendientes</span>
+            </header>
+            <div class="reconciliation-list">
+                @foreach (var item in movimientos)
+                {
+                    <button type="button"
+                            class="recon-row @(selectedMovimiento?.Id == item.Id ? "is-selected" : string.Empty)"
+                            @onclick="() => SelectMovimiento(item)">
+                        <span class="row-date">@item.Fecha.ToString("yyyy-MM-dd")</span>
+                        <strong>@item.Beneficiario</strong>
+                        <small>@item.TipoNombre</small>
+                        <b>@item.Monto.ToString("C2")</b>
+                    </button>
+                }
+            </div>
+        </article>
+
+        <article class="reconciliation-column">
+            <header>
+                <h2>Extracto Bancario</h2>
+                <span>@extractos.Count pendientes</span>
+            </header>
+            <div class="reconciliation-list">
+                @foreach (var item in extractos)
+                {
+                    var suggestion = GetSuggestion(item.Id);
+                    <button type="button"
+                            class="recon-row @ResolveSuggestionClass(suggestion) @(selectedExtracto?.Id == item.Id ? "is-selected" : string.Empty)"
+                            @onclick="() => SelectExtracto(item)">
+                        <span class="row-date">@item.FechaTransaccion.ToString("yyyy-MM-dd")</span>
+                        <strong>@item.ConceptoDescripcion</strong>
+                        <small>@item.NumeroDocumentoRef</small>
+                        <b>@item.Monto.ToString("C2")</b>
+                        @if (suggestion is not null)
+                        {
+                            <em>@suggestion.Confianza% - @suggestion.Motivo</em>
+                        }
+                    </button>
+                }
+            </div>
+        </article>
+    </section>
+
+    <div class="reconciliation-bottom-bar">
+        <div>
+            <span>Libro seleccionado</span>
+            <strong>@SelectedMovimientoTotal.ToString("C2")</strong>
+        </div>
+        <div>
+            <span>Extracto seleccionado</span>
+            <strong>@SelectedExtractoTotal.ToString("C2")</strong>
+        </div>
+        <div class="bar-diff">
+            <span>Descuadre</span>
+            <strong>@(SelectedMovimientoTotal - SelectedExtractoTotal).ToString("C2")</strong>
+        </div>
+        <button class="primary-action" type="button" @onclick="ConciliarSeleccionAsync" disabled="@(!CanConciliarSeleccion || isBusy)">Conciliar Selección</button>
+        <button class="secondary-action" type="button" @onclick="CrearNotaDebitoAsync" disabled="@(selectedExtracto is null || isBusy)">Crear Nota de Débito / Comisión</button>
+    </div>
+</section>

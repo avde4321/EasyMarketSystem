@@ -10,7 +10,7 @@ public sealed class EgresoMermaRequest
     [Required]
     public Guid BodegaId { get; set; }
 
-    [Range(typeof(decimal), "0.01", "999999999", ErrorMessage = "La cantidad debe ser mayor a cero.")]
+    [Range(typeof(decimal), "0.01", "999999999", ErrorMessage = "La cantidad debe ser mayor a cero.", ParseLimitsInInvariantCulture = true)]
     public decimal Cantidad { get; set; }
 
     [Required(ErrorMessage = "El motivo de merma es obligatorio.")]

@@ -16,9 +16,9 @@ public sealed class AjusteStockRequest
     [StringLength(80, ErrorMessage = "La referencia no puede superar 80 caracteres.")]
     public string? Referencia { get; set; }
 
-    [Range(typeof(decimal), "0.01", "999999999", ErrorMessage = "La cantidad debe ser mayor a cero.")]
+    [Range(typeof(decimal), "0.01", "999999999", ErrorMessage = "La cantidad debe ser mayor a cero.", ParseLimitsInInvariantCulture = true)]
     public decimal Cantidad { get; set; }
 
-    [Range(typeof(decimal), "0", "999999999", ErrorMessage = "El costo unitario no puede ser negativo.")]
+    [Range(typeof(decimal), "0", "999999999", ErrorMessage = "El costo unitario no puede ser negativo.", ParseLimitsInInvariantCulture = true)]
     public decimal CostoUnitario { get; set; }
 }
