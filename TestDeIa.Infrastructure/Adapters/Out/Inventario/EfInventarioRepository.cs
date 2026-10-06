@@ -871,9 +871,11 @@ public sealed class EfInventarioRepository : IInventarioRepository
                     if (!producto.ControlaStock)
                     {
                         logger.LogInformation(
-                            "Se omite kardex y descuento de stock para el producto {ProductoId} en la factura {FacturaId} porque ControlaStock es false.",
+                            "Se omite kardex y descuento de stock para el producto {ProductoId} en la factura {FacturaId} porque ControlaStock es false. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}",
                             producto.Id,
-                            facturaId);
+                            facturaId,
+                            tenantContextAccessor.EmpresaId,
+                            tenantContextAccessor.UserId);
                         continue;
                     }
 
@@ -894,11 +896,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
                 }
 
                 logger.LogInformation(
-                    "Kardex de salida aplicado para factura {FacturaId} con referencia {ReferenciaFactura} y {TotalItems} items sobre bodega {BodegaNombre}.",
+                    "Kardex de salida aplicado para factura {FacturaId} con referencia {ReferenciaFactura} y {TotalItems} items sobre bodega {BodegaNombre}. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}",
                     facturaId,
                     referenciaFactura,
                     items.Count,
-                    operationalBodega.Nombre);
+                    operationalBodega.Nombre,
+                    tenantContextAccessor.EmpresaId,
+                    tenantContextAccessor.UserId);
             },
             $"descuento de stock por factura {referenciaFactura}",
             cancellationToken);
@@ -1014,10 +1018,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
             {
                 logger.LogWarning(
                     exception,
-                    "Colision de concurrencia durante {Operation}. Reintento {Attempt} de {MaxRetries}.",
+                    "Colision de concurrencia durante {Operation}. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, Reintento {Attempt} de {MaxRetries}. Error: {Mensaje}",
                     operationName,
+                    tenantContextAccessor.EmpresaId,
+                    tenantContextAccessor.UserId,
                     attempt,
-                    MaxConcurrencyRetries);
+                    MaxConcurrencyRetries,
+                    exception.Message);
 
                 if (transaction is not null)
                 {
@@ -1027,7 +1034,7 @@ public sealed class EfInventarioRepository : IInventarioRepository
                 dbContext.ChangeTracker.Clear();
                 await Task.Delay(TimeSpan.FromMilliseconds(60 * attempt), cancellationToken);
             }
-            catch
+            catch (Exception exception)
             {
                 if (transaction is not null)
                 {
@@ -1035,6 +1042,13 @@ public sealed class EfInventarioRepository : IInventarioRepository
                 }
 
                 dbContext.ChangeTracker.Clear();
+                logger.LogError(
+                    exception,
+                    "Error en operacion de inventario/kardex. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, Operacion: {Operation}, Error: {Mensaje}",
+                    tenantContextAccessor.EmpresaId,
+                    tenantContextAccessor.UserId,
+                    operationName,
+                    exception.Message);
                 throw;
             }
         }

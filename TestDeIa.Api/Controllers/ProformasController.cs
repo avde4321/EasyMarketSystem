@@ -19,8 +19,7 @@ public sealed class ProformasController(IProformaService proformaService) : Cont
         [FromQuery] int take = 10,
         CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await proformaService.GetPagedAsync(term, skip, take, cancellationToken));
     }
 

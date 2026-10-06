@@ -29,6 +29,9 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private string? busyDocumentKind;
     private string? downloadStatusMessage;
     private string tipoDocumentoFiltro = string.Empty;
+    private string estadoSriFiltro = string.Empty;
+    private DateTime fechaDesde;
+    private DateTime fechaHasta;
     private bool showNotaCreditoModal;
     private bool showWhatsAppModal;
     private bool isLoadingNotaCreditoOrigen;
@@ -37,19 +40,22 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private string notaCreditoMotivo = string.Empty;
     private readonly Dictionary<Guid, decimal> notaCreditoCantidades = [];
     private FacturaMonitorResponse? selectedWhatsAppFactura;
-    private const int PageSize = 10;
+    private int pageSize = 10;
     private int totalCount;
     private int currentSkip;
     private IEnumerable<FacturaMonitorResponse> VisibleFacturas => facturas;
     private bool CanGoPrevious => currentSkip > 0;
-    private bool CanGoNext => currentSkip + PageSize < totalCount;
-    private int PageNumber => (currentSkip / PageSize) + 1;
-    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+    private bool CanGoNext => currentSkip + pageSize < totalCount;
+    private int PageNumber => (currentSkip / pageSize) + 1;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
     private string SelectedComprobanteRideLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/ride";
     private string SelectedComprobanteXmlLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/xml-generado";
 
     protected override async Task OnInitializedAsync()
     {
+        var now = DateTime.Now;
+        fechaDesde = new DateTime(now.Year, now.Month, 1, 0, 0, 0);
+        fechaHasta = now;
         cancellationTokenSource = new CancellationTokenSource();
         timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 
@@ -69,14 +75,23 @@ public partial class ComprobantesMonitor : IAsyncDisposable
 
         try
         {
-            var page = await FacturacionApiClient.GetMonitorAsync(searchTerm, tipoDocumentoFiltro, currentSkip, PageSize);
+            var page = await FacturacionApiClient.GetMonitorAsync(
+                searchTerm,
+                tipoDocumentoFiltro,
+                estadoSriFiltro,
+                fechaDesde,
+                fechaHasta,
+                currentSkip,
+                pageSize);
             facturas.Clear();
             facturas.AddRange(page.Items);
             totalCount = page.TotalCount;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            errorMessage = "No se pudo cargar el monitor de comprobantes.";
+            errorMessage = string.IsNullOrWhiteSpace(exception.Message)
+                ? "No se pudo cargar el monitor de comprobantes."
+                : exception.Message;
             await PopupNotificationService.ShowErrorAsync(errorMessage);
         }
         finally
@@ -395,7 +410,7 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             return;
         }
 
-        currentSkip = Math.Max(0, currentSkip - PageSize);
+        currentSkip = Math.Max(0, currentSkip - pageSize);
         await LoadMonitorAsync();
     }
 
@@ -406,8 +421,47 @@ public partial class ComprobantesMonitor : IAsyncDisposable
             return;
         }
 
-        currentSkip += PageSize;
+        currentSkip += pageSize;
         await LoadMonitorAsync();
+    }
+
+    private static string FormatDate(DateTimeOffset value)
+    {
+        return value.LocalDateTime.ToString("dd/MM/yyyy HH:mm", CultureInfo.CurrentCulture);
+    }
+
+    private static string FormatMoney(decimal value)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"$ USD {value:0.00}");
+    }
+
+    private static string GetEstadoCssClass(string estado)
+    {
+        var normalized = NormalizeEstado(estado);
+        return normalized switch
+        {
+            "AUTORIZADO" => "status-autorizado",
+            "DEVUELTA" or "NO_AUTORIZADO" or "RECHAZADO" or "ERROR" => "status-rechazado",
+            "EN_PROCESO" or "RECIBIDO" or "PENDIENTE" => "status-enproceso",
+            "GENERADO" or "FIRMADO" or "NO_FIRMADO" => "status-generado",
+            _ => "status-generado"
+        };
+    }
+
+    private static string GetEstadoLabel(string estado)
+    {
+        return NormalizeEstado(estado) switch
+        {
+            "NO_FIRMADO" => "GENERADO",
+            "PENDIENTE" => "EN PROCESO",
+            "RECHAZADO" => "NO AUTORIZADO",
+            var value => value.Replace("_", " ", StringComparison.Ordinal)
+        };
+    }
+
+    private static string NormalizeEstado(string estado)
+    {
+        return estado.Trim().Replace("-", "_", StringComparison.Ordinal).Replace(" ", "_", StringComparison.Ordinal).ToUpperInvariant();
     }
 
     public async ValueTask DisposeAsync()

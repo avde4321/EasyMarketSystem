@@ -28,12 +28,17 @@ public sealed class RetencionService(
 {
     public async Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(
         string? term,
+        DateTimeOffset fechaDesde,
+        DateTimeOffset fechaHasta,
         int skip,
         int take,
         CancellationToken cancellationToken = default)
     {
+        var desde = fechaDesde.DateTime;
+        var hasta = fechaHasta.DateTime;
         var query = dbContext.ComprobantesRetencion
             .AsNoTracking()
+            .Where(current => current.FechaEmision >= desde && current.FechaEmision <= hasta)
             .AsQueryable();
 
         var normalizedTerm = term?.Trim();
@@ -48,15 +53,34 @@ public sealed class RetencionService(
         }
 
         var total = await query.CountAsync(cancellationToken);
-        var entities = await query
+        var items = await query
             .OrderByDescending(current => current.FechaEmision)
             .Skip(skip)
             .Take(take)
+            .Select(current => new ComprobanteRetencionResponse
+            {
+                Id = current.Id,
+                EmpresaId = current.EmpresaId,
+                CompraId = current.CompraId,
+                ProveedorId = current.ProveedorId,
+                Establecimiento = current.Establecimiento,
+                PuntoEmision = current.PuntoEmision,
+                Secuencial = current.Secuencial,
+                ClaveAcceso = current.ClaveAcceso,
+                FechaEmision = current.FechaEmision.Date,
+                AmbienteSRI = (byte)current.AmbienteSRI,
+                EstadoSRI = (int)current.EstadoSRI,
+                EstadoSRINombre = current.EstadoSRI.ToString(),
+                NumeroAutorizacion = current.NumeroAutorizacion,
+                FechaAutorizacion = current.FechaAutorizacion.HasValue ? current.FechaAutorizacion.Value.Date : null,
+                MensajeErrorSRI = current.MensajeErrorSRI,
+                TotalRetenido = current.TotalRetenido
+            })
             .ToArrayAsync(cancellationToken);
 
         return new PagedResultResponse<ComprobanteRetencionResponse>
         {
-            Items = entities.Select(Map).ToArray(),
+            Items = items,
             TotalCount = total,
             Skip = skip,
             Take = take

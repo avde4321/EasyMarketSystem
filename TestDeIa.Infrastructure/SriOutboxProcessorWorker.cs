@@ -40,7 +40,12 @@ public sealed class SriOutboxProcessorWorker(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Error no controlado en el worker de Outbox SRI. El proceso continuara en el siguiente ciclo.");
+                logger.LogError(
+                    exception,
+                    "Error no controlado en el worker de Outbox SRI. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, Error: {Mensaje}",
+                    null,
+                    null,
+                    exception.Message);
             }
 
             await Task.Delay(delay, stoppingToken);
@@ -112,7 +117,21 @@ public sealed class SriOutboxProcessorWorker(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "No se pudo procesar item de Outbox SRI {ColaId}.", candidateId);
+            var context = await dbContext.ColaProcesamientoSRI
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(current => current.Id == candidateId)
+                .Select(current => new { current.EmpresaId, current.ComprobanteId })
+                .FirstOrDefaultAsync(stoppingToken);
+
+            logger.LogWarning(
+                exception,
+                "No se pudo procesar item de Outbox SRI {ColaId}. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, ComprobanteId: {ComprobanteId}, Error: {Mensaje}",
+                candidateId,
+                context?.EmpresaId,
+                null,
+                context?.ComprobanteId,
+                exception.Message);
             await MarkAsFailedAsync(dbContext, candidateId, exception.Message, stoppingToken);
         }
     }

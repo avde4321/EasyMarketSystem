@@ -64,8 +64,7 @@ public sealed class XmlComprasController(
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
     public async Task<IActionResult> GetPendientes([FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 50);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await xmlSriParserService.GetPendientesAsync(skip, take, cancellationToken));
     }
 

@@ -14,13 +14,16 @@ public sealed class SecurityController : ControllerBase
 {
     private readonly ILoginUseCase loginUseCase;
     private readonly ISecurityManagementUseCase securityManagementUseCase;
+    private readonly ILogger<SecurityController> logger;
 
     public SecurityController(
         ILoginUseCase loginUseCase,
-        ISecurityManagementUseCase securityManagementUseCase)
+        ISecurityManagementUseCase securityManagementUseCase,
+        ILogger<SecurityController> logger)
     {
         this.loginUseCase = loginUseCase;
         this.securityManagementUseCase = securityManagementUseCase;
+        this.logger = logger;
     }
 
     [HttpPost("login")]
@@ -35,10 +38,25 @@ public sealed class SecurityController : ControllerBase
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             cancellationToken);
 
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (!response.Succeeded)
         {
+            logger.LogWarning(
+                "Login fallido. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, UserName: {UserName}, Ip: {IpAddress}, Error: {Mensaje}",
+                response.ActiveEmpresaId,
+                null,
+                request.UserName,
+                ipAddress,
+                response.ErrorMessage);
             return Unauthorized(response);
         }
+
+        logger.LogInformation(
+            "Login exitoso. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, UserName: {UserName}, Ip: {IpAddress}",
+            response.ActiveEmpresaId,
+            null,
+            response.UserName,
+            ipAddress);
 
         return Ok(response);
     }
@@ -49,8 +67,7 @@ public sealed class SecurityController : ControllerBase
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> GetUsers([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await securityManagementUseCase.GetUsersPagedAsync(term, skip, take, cancellationToken));
     }
 
@@ -67,8 +84,7 @@ public sealed class SecurityController : ControllerBase
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> GetAuditoria([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await securityManagementUseCase.GetAuditLogsPagedAsync(term, skip, take, cancellationToken));
     }
 

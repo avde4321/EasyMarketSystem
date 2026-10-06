@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 using TestDeIa.Application.Modules.Caja.Ports.Out;
 using TestDeIa.Application.Modules.Security.Ports.Out;
@@ -13,7 +14,8 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Caja;
 
 public sealed class EfCajaSesionRepository(
     TestDeIaDbContext dbContext,
-    ICurrentUserAccessor currentUserAccessor) : ICajaSesionRepository
+    ICurrentUserAccessor currentUserAccessor,
+    ILogger<EfCajaSesionRepository> logger) : ICajaSesionRepository
 {
     public async Task<CajaSesion?> GetActivaAsync(CancellationToken cancellationToken = default)
     {
@@ -111,6 +113,10 @@ public sealed class EfCajaSesionRepository(
     {
         var empresaId = currentUserAccessor.GetRequiredEmpresaId();
         var usuarioId = currentUserAccessor.GetRequiredUserId();
+        logger.LogInformation(
+            "Iniciando cierre de caja. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}",
+            empresaId,
+            usuarioId);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
@@ -181,6 +187,12 @@ public sealed class EfCajaSesionRepository(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        logger.LogInformation(
+            "Cierre de caja completado. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, CajaSesionId: {CajaSesionId}, Diferencia: {DiferenciaMonto}",
+            empresaId,
+            usuarioId,
+            entity.Id,
+            entity.DiferenciaMonto);
 
         return Map(entity);
     }

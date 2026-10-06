@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Modules.Facturacion.Models;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
@@ -20,19 +21,22 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
     private readonly SriXadesBesSigner signer;
     private readonly SriSoapClient soapClient;
     private readonly SriResponseParser responseParser;
+    private readonly ILogger<SriFacturaProcessor> logger;
 
     public SriFacturaProcessor(
         TestDeIaDbContext dbContext,
         SriFacturaXmlSchemaValidator xmlSchemaValidator,
         SriXadesBesSigner signer,
         SriSoapClient soapClient,
-        SriResponseParser responseParser)
+        SriResponseParser responseParser,
+        ILogger<SriFacturaProcessor> logger)
     {
         this.dbContext = dbContext;
         this.xmlSchemaValidator = xmlSchemaValidator;
         this.signer = signer;
         this.soapClient = soapClient;
         this.responseParser = responseParser;
+        this.logger = logger;
     }
 
     public async Task<SriFacturaProcessingResult> ProcessAsync(Factura factura, CancellationToken cancellationToken = default)
@@ -86,6 +90,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (InvalidOperationException exception)
         {
+            LogSriError(factura, exception, "Error validando XML de factura SRI.");
             return BuildRejectedResult(factura, exception.Message, null);
         }
 
@@ -158,6 +163,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
                 }
                 catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
                 {
+                    LogSriError(factura, exception, "Timeout consultando autorizacion SRI.");
                     return BuildPendingNetworkResult(
                         factura,
                         xmlFirmado,
@@ -165,6 +171,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
                 }
                 catch (HttpRequestException exception)
                 {
+                    LogSriError(factura, exception, "Error de red consultando autorizacion SRI.");
                     return BuildPendingNetworkResult(
                         factura,
                         xmlFirmado,
@@ -201,6 +208,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            LogSriError(factura, exception, "Timeout comunicandose con el SRI.");
             return BuildPendingNetworkResult(
                 factura,
                 factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
@@ -208,6 +216,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (HttpRequestException exception)
         {
+            LogSriError(factura, exception, "Error de red comunicandose con el SRI.");
             return BuildPendingNetworkResult(
                 factura,
                 factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
@@ -215,10 +224,12 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (CryptographicException exception)
         {
+            LogSriError(factura, exception, "Error firmando factura SRI.");
             return BuildUnsignedResult(factura, $"No se pudo firmar el comprobante con el certificado .p12. Detalle: {exception.Message}");
         }
         catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException or FormatException)
         {
+            LogSriError(factura, exception, "Error generando firma XAdES-BES.");
             return BuildUnsignedResult(factura, $"La firma XAdES-BES no pudo generarse. Detalle: {exception.Message}");
         }
     }
@@ -317,6 +328,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            LogSriError(factura, exception, "Timeout consultando autorizacion SRI pendiente.");
             return BuildPendingNetworkResult(
                 factura,
                 factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
@@ -324,6 +336,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
         catch (HttpRequestException exception)
         {
+            LogSriError(factura, exception, "Error de red consultando autorizacion SRI pendiente.");
             return BuildPendingNetworkResult(
                 factura,
                 factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
@@ -336,6 +349,18 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         return string.Join(" || ", mensajes
             .Select(current => current.ToString())
             .Where(current => !string.IsNullOrWhiteSpace(current)));
+    }
+
+    private void LogSriError(Factura factura, Exception exception, string message)
+    {
+        logger.LogError(
+            exception,
+            "{Message} EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, FacturaId: {FacturaId}, Error: {Mensaje}",
+            message,
+            factura.EmpresaId,
+            null,
+            factura.Id,
+            exception.Message);
     }
 
     private static string EscapeJson(string value)

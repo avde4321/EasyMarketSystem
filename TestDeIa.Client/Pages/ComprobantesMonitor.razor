@@ -4,6 +4,8 @@
 
 <PageTitle>Monitor de Comprobantes</PageTitle>
 
+<ErrorBoundary>
+<ChildContent>
 <section class="module-page">
     <header class="module-header">
         <div>
@@ -26,6 +28,26 @@
                 <option value="01">Facturas</option>
                 <option value="04">Notas de crédito</option>
             </InputSelect>
+            <InputSelect class="form-control document-filter" @bind-Value="estadoSriFiltro">
+                <option value="">Todos los estados</option>
+                <option value="GENERADO">Generado/Firmado</option>
+                <option value="EN_PROCESO">En proceso</option>
+                <option value="AUTORIZADO">Autorizado</option>
+                <option value="NO_AUTORIZADO">Devuelta/No autorizado</option>
+            </InputSelect>
+            <label class="date-filter">
+                <span>Desde</span>
+                <input class="form-control" type="datetime-local" @bind="fechaDesde" />
+            </label>
+            <label class="date-filter">
+                <span>Hasta</span>
+                <input class="form-control" type="datetime-local" @bind="fechaHasta" />
+            </label>
+            <InputSelect class="form-control page-size-filter" @bind-Value="pageSize" @bind-Value:after="SearchAsync">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </InputSelect>
             <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
             <button class="ghost-button" type="button" @onclick="() => LoadMonitorAsync()">Refrescar lista</button>
         </div>
@@ -37,11 +59,15 @@
         </div>
         @if (isLoading)
         {
-            <p><em>Cargando comprobantes...</em></p>
+            <div class="skeleton-list" aria-label="Cargando comprobantes">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+            </div>
         }
         else if (facturas.Count == 0)
         {
-            <div class="empty-state">Todavia no hay facturas emitidas.</div>
+            <div class="empty-state">No se encontraron comprobantes para los filtros seleccionados.</div>
         }
         else
         {
@@ -75,13 +101,13 @@
                                     <small>@factura.ClienteIdentificacion</small>
                                 </td>
                                 <td data-label="Pago">@factura.FormaPago</td>
-                                <td data-label="Estado"><span class="status-pill status-@factura.Estado.ToLowerInvariant()">@factura.Estado</span></td>
+                                <td data-label="Estado"><span class="status-pill @GetEstadoCssClass(factura.Estado)">@GetEstadoLabel(factura.Estado)</span></td>
                                 <td data-label="Total">
-                                    <strong>@factura.Total.ToString("0.00")</strong>
-                                    <small>Sub: @factura.Subtotal.ToString("0.00") | IVA: @factura.IvaTotal.ToString("0.00")</small>
+                                    <strong>@FormatMoney(factura.Total)</strong>
+                                    <small>Sub: @FormatMoney(factura.Subtotal) | IVA: @FormatMoney(factura.IvaTotal)</small>
                                 </td>
-                                <td data-label="Emision">@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                <td data-label="Autorizacion">@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                                <td data-label="Emision">@FormatDate(factura.FechaEmision)</td>
+                                <td data-label="Autorizacion">@(factura.FechaAutorizacion.HasValue ? FormatDate(factura.FechaAutorizacion.Value) : "-")</td>
                                 <td data-label="Mensaje">@factura.MensajeEstado</td>
                                 <td data-label="Documentos">
                                     <div class="table-actions">
@@ -230,3 +256,12 @@
                        LinkXml="@SelectedComprobanteXmlLink"
                        OnClose="CloseWhatsAppModal" />
 </section>
+</ChildContent>
+<ErrorContent Context="exception">
+    <section class="module-page">
+        <div class="alert-message">
+            No se pudo mostrar la pantalla de comprobantes. Actualiza la página o intenta nuevamente.
+        </div>
+    </section>
+</ErrorContent>
+</ErrorBoundary>

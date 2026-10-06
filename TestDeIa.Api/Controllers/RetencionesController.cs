@@ -16,13 +16,15 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
     public async Task<IActionResult> GetPaged(
         [FromQuery] string? term,
+        [FromQuery] DateTimeOffset? fechaDesde = null,
+        [FromQuery] DateTimeOffset? fechaHasta = null,
         [FromQuery] int skip = 0,
-        [FromQuery] int take = 10,
+        [FromQuery] int take = QueryDefaults.DefaultTake,
         CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
-        return Ok(await retencionService.GetPagedAsync(term, skip, take, cancellationToken));
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
+        var rango = QueryDefaults.ResolveCurrentMonthRange(fechaDesde, fechaHasta);
+        return Ok(await retencionService.GetPagedAsync(term, rango.Desde, rango.Hasta, skip, take, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

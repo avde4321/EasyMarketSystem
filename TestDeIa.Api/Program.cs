@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TestDeIa.Api.Configuration;
+using TestDeIa.Api.Health;
 using TestDeIa.Api.Middleware;
 using TestDeIa.Api.Reporting;
 using TestDeIa.Api.Security;
@@ -21,6 +22,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddSingleton<SimpleRidePdfRenderer>();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("sqlserver");
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -170,8 +173,10 @@ app.UseCors("BlazorClient");
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseMiddleware<SaaSQuotaExceptionMiddleware>();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

@@ -67,8 +67,7 @@ public sealed class InventarioController : ControllerBase
     [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetProductos([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 50);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         var productos = await inventarioUseCase.GetCatalogoPagedAsync(term, skip, take, bodegaId, cancellationToken);
         return Ok(productos);
     }

@@ -32,8 +32,8 @@ public sealed class ReporteriaGerencialController(
         CancellationToken cancellationToken = default)
     {
         var empresaId = GetEmpresaId();
-        var fechaFin = (hasta ?? DateTime.Today).Date;
-        var fechaInicio = (desde ?? fechaFin.AddDays(-30)).Date;
+        top = Math.Clamp(top, 1, QueryDefaults.MaxTake);
+        var (fechaInicio, fechaFin) = ResolveDateRange(desde, hasta);
         return Ok(await dashboardService.ObtenerTopProductosMasVendidosAsync(empresaId, top, fechaInicio, fechaFin, cancellationToken));
     }
 
@@ -45,8 +45,7 @@ public sealed class ReporteriaGerencialController(
         CancellationToken cancellationToken = default)
     {
         var empresaId = GetEmpresaId();
-        var fechaFin = (hasta ?? DateTime.Today).Date;
-        var fechaInicio = (desde ?? fechaFin.AddDays(-30)).Date;
+        var (fechaInicio, fechaFin) = ResolveDateRange(desde, hasta);
         return Ok(await dashboardService.ObtenerVentasPorBodegaYMetodoPagoAsync(empresaId, fechaInicio, fechaFin, cancellationToken));
     }
 
@@ -58,8 +57,7 @@ public sealed class ReporteriaGerencialController(
         CancellationToken cancellationToken = default)
     {
         var empresaId = GetEmpresaId();
-        var fechaFin = (hasta ?? DateTime.Today).Date;
-        var fechaInicio = (desde ?? fechaFin.AddDays(-30)).Date;
+        var (fechaInicio, fechaFin) = ResolveDateRange(desde, hasta);
         return Ok(await dashboardService.ObtenerKpisRentabilidadAsync(empresaId, fechaInicio, fechaFin, cancellationToken));
     }
 
@@ -81,8 +79,8 @@ public sealed class ReporteriaGerencialController(
         [FromQuery] int take = 50,
         CancellationToken cancellationToken = default)
     {
-        var fechaFin = (hasta ?? DateTime.Today).Date;
-        var fechaInicio = (desde ?? fechaFin.AddDays(-30)).Date;
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
+        var (fechaInicio, fechaFin) = ResolveDateRange(desde, hasta);
         return Ok(await reporteService.ObtenerKardexValorizadoAsync(fechaInicio, fechaFin, bodegaId, skip, take, cancellationToken));
     }
 
@@ -95,8 +93,8 @@ public sealed class ReporteriaGerencialController(
         [FromQuery] int take = 50,
         CancellationToken cancellationToken = default)
     {
-        var fechaFin = (hasta ?? DateTime.Today).Date;
-        var fechaInicio = (desde ?? fechaFin.AddDays(-30)).Date;
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
+        var (fechaInicio, fechaFin) = ResolveDateRange(desde, hasta);
         return Ok(await reporteService.ObtenerCierresCajaAsync(fechaInicio, fechaFin, skip, take, cancellationToken));
     }
 
@@ -104,5 +102,19 @@ public sealed class ReporteriaGerencialController(
     {
         return tenantContextAccessor.EmpresaId
             ?? throw new InvalidOperationException("No existe una empresa activa para consultar reportería gerencial.");
+    }
+
+    private static (DateTime Desde, DateTime Hasta) ResolveDateRange(DateTime? desde, DateTime? hasta)
+    {
+        var today = DateTime.Today;
+        var fechaInicio = (desde ?? new DateTime(today.Year, today.Month, 1)).Date;
+        var fechaFin = (hasta ?? today).Date;
+
+        if (fechaFin < fechaInicio)
+        {
+            (fechaInicio, fechaFin) = (fechaFin, fechaInicio);
+        }
+
+        return (fechaInicio, fechaFin);
     }
 }

@@ -60,12 +60,28 @@ public sealed class FacturacionApiClient
         return (false, "No se pudo emitir la factura.", null);
     }
 
-    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, string? tipoDocumentoId, int skip, int take)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(
+        string? term,
+        string? tipoDocumentoId,
+        string? estadoSriId,
+        DateTime fechaDesde,
+        DateTime fechaHasta,
+        int skip,
+        int take)
     {
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
         var tipoDocumentoQuery = string.IsNullOrWhiteSpace(tipoDocumentoId) ? string.Empty : $"&tipoDocumentoId={Uri.EscapeDataString(tipoDocumentoId)}";
-        return await httpClient.GetFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}{tipoDocumentoQuery}")
-            ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
+        var estadoQuery = string.IsNullOrWhiteSpace(estadoSriId) ? string.Empty : $"&estadoSriId={Uri.EscapeDataString(estadoSriId)}";
+        var fechaQuery = $"&fechaDesde={Uri.EscapeDataString(fechaDesde.ToString("O"))}&fechaHasta={Uri.EscapeDataString(fechaHasta.ToString("O"))}";
+        var response = await httpClient.GetAsync($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}{tipoDocumentoQuery}{estadoQuery}{fechaQuery}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>()
+                ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
+        }
+
+        throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo cargar el monitor de comprobantes."));
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage, NotaCreditoOrigenResponseDto? Data)> GetNotaCreditoOrigenAsync(Guid facturaId)
@@ -159,7 +175,7 @@ public sealed class FacturacionApiClient
         try
         {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return error?.Message ?? fallback;
+            return error?.Message ?? error?.Detail ?? error?.Title ?? fallback;
         }
         catch
         {
@@ -170,5 +186,9 @@ public sealed class FacturacionApiClient
     private sealed class ApiError
     {
         public string? Message { get; set; }
+
+        public string? Title { get; set; }
+
+        public string? Detail { get; set; }
     }
 }

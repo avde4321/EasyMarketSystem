@@ -30,8 +30,7 @@ public sealed class FacturacionController : ControllerBase
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> SearchClientes([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         var clientes = await facturacionUseCase.SearchClientesAsync(term, skip, take, cancellationToken);
         return Ok(clientes);
     }
@@ -40,8 +39,7 @@ public sealed class FacturacionController : ControllerBase
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> SearchProductos([FromQuery] string term, [FromQuery] int skip = 0, [FromQuery] int take = 10, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         var productos = await facturacionUseCase.SearchProductosAsync(term, skip, take, bodegaId, cancellationToken);
         return Ok(productos);
     }
@@ -80,11 +78,19 @@ public sealed class FacturacionController : ControllerBase
 
     [HttpGet("monitor")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
-    public async Task<IActionResult> GetMonitor([FromQuery] string? term, [FromQuery] string? tipoDocumentoId = null, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetMonitor(
+        [FromQuery] string? term,
+        [FromQuery] string? tipoDocumentoId = null,
+        [FromQuery] string? estadoSriId = null,
+        [FromQuery] DateTimeOffset? fechaDesde = null,
+        [FromQuery] DateTimeOffset? fechaHasta = null,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = QueryDefaults.DefaultTake,
+        CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
-        return Ok(await facturacionUseCase.GetMonitorAsync(term, tipoDocumentoId, skip, take, cancellationToken));
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
+        var rango = QueryDefaults.ResolveCurrentMonthRange(fechaDesde, fechaHasta);
+        return Ok(await facturacionUseCase.GetMonitorAsync(term, tipoDocumentoId, estadoSriId, rango.Desde, rango.Hasta, skip, take, cancellationToken));
     }
 
     [HttpGet("comisiones/liquidacion")]

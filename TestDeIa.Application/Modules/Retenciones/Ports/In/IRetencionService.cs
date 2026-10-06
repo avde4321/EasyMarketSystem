@@ -6,7 +6,13 @@ namespace TestDeIa.Application.Modules.Retenciones.Ports.In;
 
 public interface IRetencionService
 {
-    Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default);
+    Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(
+        string? term,
+        DateTimeOffset fechaDesde,
+        DateTimeOffset fechaHasta,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
 
     Task<ComprobanteRetencionResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

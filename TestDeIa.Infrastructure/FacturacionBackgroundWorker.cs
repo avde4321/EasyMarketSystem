@@ -52,7 +52,12 @@ public sealed class FacturacionBackgroundWorker : BackgroundService
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Error procesando la cola de facturacion.");
+                logger.LogError(
+                    exception,
+                    "Error procesando la cola de facturacion. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, Error: {Mensaje}",
+                    null,
+                    null,
+                    exception.Message);
                 await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
             }
         }

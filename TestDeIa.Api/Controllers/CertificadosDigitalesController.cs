@@ -21,8 +21,7 @@ public sealed class CertificadosDigitalesController(ICertificadoDigitalEmpresaUs
         [FromQuery] int take = 10,
         CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await certificadoUseCase.GetPagedAsync(term, empresaId, soloAlertas, skip, take, cancellationToken));
     }
 

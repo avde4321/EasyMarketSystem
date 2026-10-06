@@ -3,6 +3,7 @@ using System.Data;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Application.Modules.Saas.Ports.In;
 using TestDeIa.Domain.Modules.Caja.Entities;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
@@ -23,15 +24,18 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
     private readonly IInventarioRepository inventarioRepository;
+    private readonly ISaaSQuotaValidationService quotaValidationService;
 
     public EfFacturacionRepository(
         TestDeIaDbContext dbContext,
         ITenantContextAccessor tenantContextAccessor,
-        IInventarioRepository inventarioRepository)
+        IInventarioRepository inventarioRepository,
+        ISaaSQuotaValidationService quotaValidationService)
     {
         this.dbContext = dbContext;
         this.tenantContextAccessor = tenantContextAccessor;
         this.inventarioRepository = inventarioRepository;
+        this.quotaValidationService = quotaValidationService;
     }
 
     public async Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
@@ -45,7 +49,6 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         var query = dbContext.Personas
             .AsNoTracking()
-            .Include(persona => persona.Cliente)
             .Where(persona =>
                 !persona.IsSystemRecord &&
                 persona.IsActive &&
@@ -53,17 +56,13 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                  persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
                  (persona.NombreComercial != null && persona.NombreComercial.Contains(normalizedTerm))));
         var totalCount = await query.CountAsync(cancellationToken);
-        var personas = await query
+        var clientes = await query
             .OrderBy(persona => persona.Identificacion)
             .Skip(skip)
             .Take(take)
-            .ToListAsync(cancellationToken);
-
-        return new PagedResultResponse<PosClienteResponse>
-        {
-            Items = personas.Select(persona => new PosClienteResponse
+            .Select(persona => new PosClienteResponse
             {
-                ClienteId = persona.Cliente?.PersonaId,
+                ClienteId = persona.Cliente != null ? persona.Cliente.PersonaId : null,
                 PersonaId = persona.Id,
                 TipoIdentificacion = persona.TipoIdentificacion,
                 Identificacion = persona.Identificacion,
@@ -72,8 +71,13 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 Email = persona.CorreoElectronicoPrincipal,
                 Telefono = persona.TelefonoCelular,
                 Direccion = persona.DireccionPrincipal,
-                HasClienteExtension = persona.Cliente is not null && persona.Cliente.IsActive
-            }).ToArray(),
+                HasClienteExtension = persona.Cliente != null && persona.Cliente.IsActive
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return new PagedResultResponse<PosClienteResponse>
+        {
+            Items = clientes,
             TotalCount = totalCount,
             Skip = skip,
             Take = take
@@ -93,7 +97,6 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         var query = dbContext.Productos
             .AsNoTracking()
-            .Include(producto => producto.ProductosBodega)
             .Where(producto =>
                 producto.IsActive &&
                 (!producto.ControlaStock || producto.ProductosBodega.Any(existencia => existencia.BodegaId == operationalBodegaId)) &&
@@ -106,11 +109,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .OrderBy(producto => producto.Nombre)
             .Skip(skip)
             .Take(take)
-            .ToListAsync(cancellationToken);
-
-        return new PagedResultResponse<PosProductoResponse>
-        {
-            Items = productos.Select(producto => new PosProductoResponse
+            .Select(producto => new PosProductoResponse
             {
                 ProductoId = producto.Id,
                 Codigo = producto.Codigo,
@@ -127,7 +126,12 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 AplicaComision = producto.AplicaComision,
                 TipoComision = producto.TipoComision,
                 ValorComision = producto.ValorComision
-            }).ToArray(),
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return new PagedResultResponse<PosProductoResponse>
+        {
+            Items = productos,
             TotalCount = totalCount,
             Skip = skip,
             Take = take
@@ -218,6 +222,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             ?? throw new InvalidOperationException("No se encontro el cliente seleccionado.");
 
         var empresaActivaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la factura.");
+        await quotaValidationService.CanEmitirFacturaAsync(empresaActivaId, cancellationToken);
 
         var empresa = await dbContext.EmpresasEmisoras
             .AsNoTracking()
@@ -561,102 +566,145 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         };
     }
 
-    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(string? term, string? tipoDocumentoId, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(
+        string? term,
+        string? tipoDocumentoId,
+        string? estadoSriId,
+        DateTimeOffset fechaDesde,
+        DateTimeOffset fechaHasta,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term?.Trim();
         var normalizedTipoDocumento = tipoDocumentoId?.Trim();
+        var normalizedEstado = estadoSriId?.Trim();
         var incluirFacturas = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "01";
         var incluirNotasCredito = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "04";
         var comprobantes = new List<FacturaMonitorResponse>();
+        var totalCount = 0;
+        var takeForMerge = skip + take;
+        var estadoFiltro = TryParseFacturaEstado(normalizedEstado);
 
         if (incluirFacturas)
         {
-            var facturas = await dbContext.Set<FacturaEntity>()
-            .AsNoTracking()
-            .OrderByDescending(factura => factura.FechaEmision)
-            .Select(factura => new FacturaMonitorResponse
+            var query = dbContext.Set<FacturaEntity>()
+                .AsNoTracking()
+                .Where(factura => factura.FechaEmision >= fechaDesde && factura.FechaEmision <= fechaHasta);
+
+            if (estadoFiltro.HasValue)
             {
-                Id = factura.Id,
-                Secuencial = factura.Secuencial,
-                Establecimiento = factura.Establecimiento,
-                PuntoEmision = factura.PuntoEmision,
-                TipoDocumentoId = "01",
-                TipoDocumentoNombre = "Factura",
-                ClienteIdentificacion = factura.ClienteIdentificacion,
-                ClienteTipoIdentificacion = factura.ClienteTipoIdentificacion,
-                ClienteNombre = factura.ClienteNombre,
-                FormaPago = factura.FormaPago,
-                Estado = factura.Estado.ToApiValue(),
-                Subtotal = factura.Subtotal,
-                IvaTotal = factura.IvaTotal,
-                Total = factura.Total,
-                ClaveAcceso = factura.ClaveAcceso,
-                NumeroAutorizacion = factura.NumeroAutorizacion,
-                MensajeEstado = factura.MensajeEstado,
-                TieneXmlGenerado = factura.XmlGenerado != null && factura.XmlGenerado != string.Empty,
-                TieneXmlFirmado = factura.XmlFirmado != null && factura.XmlFirmado != string.Empty,
-                FechaEmision = factura.FechaEmision,
-                FechaAutorizacion = factura.FechaAutorizacion
-            })
-            .ToListAsync(cancellationToken);
+                query = query.Where(factura => factura.Estado == estadoFiltro.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedTerm))
+            {
+                query = query.Where(factura =>
+                    factura.Establecimiento.Contains(normalizedTerm) ||
+                    factura.PuntoEmision.Contains(normalizedTerm) ||
+                    factura.ClienteNombre.Contains(normalizedTerm) ||
+                    factura.ClienteIdentificacion.Contains(normalizedTerm) ||
+                    factura.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                    factura.FormaPago.Contains(normalizedTerm) ||
+                    (factura.ClaveAcceso != null && factura.ClaveAcceso.Contains(normalizedTerm)) ||
+                    (factura.MensajeEstado != null && factura.MensajeEstado.Contains(normalizedTerm)));
+            }
+
+            totalCount += await query.CountAsync(cancellationToken);
+
+            var facturas = await query
+                .OrderByDescending(factura => factura.FechaEmision)
+                .Take(takeForMerge)
+                .Select(factura => new FacturaMonitorResponse
+                {
+                    Id = factura.Id,
+                    Secuencial = factura.Secuencial,
+                    Establecimiento = factura.Establecimiento,
+                    PuntoEmision = factura.PuntoEmision,
+                    TipoDocumentoId = "01",
+                    TipoDocumentoNombre = "Factura",
+                    ClienteIdentificacion = factura.ClienteIdentificacion,
+                    ClienteTipoIdentificacion = factura.ClienteTipoIdentificacion,
+                    ClienteNombre = factura.ClienteNombre,
+                    FormaPago = factura.FormaPago,
+                    Estado = factura.Estado.ToApiValue(),
+                    Subtotal = factura.Subtotal,
+                    IvaTotal = factura.IvaTotal,
+                    Total = factura.Total,
+                    ClaveAcceso = factura.ClaveAcceso,
+                    NumeroAutorizacion = factura.NumeroAutorizacion,
+                    MensajeEstado = factura.MensajeEstado,
+                    TieneXmlGenerado = factura.XmlGenerado != null && factura.XmlGenerado != string.Empty,
+                    TieneXmlFirmado = factura.XmlFirmado != null && factura.XmlFirmado != string.Empty,
+                    FechaEmision = factura.FechaEmision,
+                    FechaAutorizacion = factura.FechaAutorizacion
+                })
+                .ToListAsync(cancellationToken);
 
             comprobantes.AddRange(facturas);
         }
 
         if (incluirNotasCredito)
         {
-            var notasCredito = await dbContext.ComprobanteCabecera
-            .AsNoTracking()
-            .Where(comprobante => comprobante.TipoDocumentoId == "04")
-            .OrderByDescending(comprobante => comprobante.FechaEmision)
-            .Select(comprobante => new FacturaMonitorResponse
+            var query = dbContext.ComprobanteCabecera
+                .AsNoTracking()
+                .Where(comprobante =>
+                    comprobante.TipoDocumentoId == "04" &&
+                    comprobante.FechaEmision >= fechaDesde &&
+                    comprobante.FechaEmision <= fechaHasta);
+
+            if (estadoFiltro.HasValue)
             {
-                Id = comprobante.Id,
-                Secuencial = comprobante.Secuencial,
-                Establecimiento = comprobante.Establecimiento,
-                PuntoEmision = comprobante.PuntoEmision,
-                TipoDocumentoId = comprobante.TipoDocumentoId,
-                TipoDocumentoNombre = "Nota de credito",
-                ClienteIdentificacion = comprobante.ClienteIdentificacion,
-                ClienteTipoIdentificacion = comprobante.ClienteTipoIdentificacion,
-                ClienteNombre = comprobante.ClienteNombre,
-                FormaPago = "Devolucion",
-                Estado = comprobante.Estado.ToApiValue(),
-                Subtotal = comprobante.Subtotal,
-                IvaTotal = comprobante.IvaTotal,
-                Total = comprobante.Total,
-                ClaveAcceso = comprobante.ClaveAcceso,
-                NumeroAutorizacion = comprobante.NumeroAutorizacion,
-                MensajeEstado = comprobante.MotivoModificacion,
-                TieneXmlGenerado = comprobante.XmlGenerado != null && comprobante.XmlGenerado != string.Empty,
-                TieneXmlFirmado = comprobante.XmlFirmado != null && comprobante.XmlFirmado != string.Empty,
-                FechaEmision = comprobante.FechaEmision,
-                FechaAutorizacion = comprobante.FechaAutorizacion
-            })
-            .ToListAsync(cancellationToken);
+                query = query.Where(comprobante => comprobante.Estado == estadoFiltro.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedTerm))
+            {
+                query = query.Where(comprobante =>
+                    comprobante.Establecimiento.Contains(normalizedTerm) ||
+                    comprobante.PuntoEmision.Contains(normalizedTerm) ||
+                    comprobante.ClienteNombre.Contains(normalizedTerm) ||
+                    comprobante.ClienteIdentificacion.Contains(normalizedTerm) ||
+                    comprobante.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                    comprobante.TipoDocumentoId.Contains(normalizedTerm) ||
+                    (comprobante.ClaveAcceso != null && comprobante.ClaveAcceso.Contains(normalizedTerm)) ||
+                    (comprobante.MotivoModificacion != null && comprobante.MotivoModificacion.Contains(normalizedTerm)));
+            }
+
+            totalCount += await query.CountAsync(cancellationToken);
+
+            var notasCredito = await query
+                .OrderByDescending(comprobante => comprobante.FechaEmision)
+                .Take(takeForMerge)
+                .Select(comprobante => new FacturaMonitorResponse
+                {
+                    Id = comprobante.Id,
+                    Secuencial = comprobante.Secuencial,
+                    Establecimiento = comprobante.Establecimiento,
+                    PuntoEmision = comprobante.PuntoEmision,
+                    TipoDocumentoId = comprobante.TipoDocumentoId,
+                    TipoDocumentoNombre = "Nota de credito",
+                    ClienteIdentificacion = comprobante.ClienteIdentificacion,
+                    ClienteTipoIdentificacion = comprobante.ClienteTipoIdentificacion,
+                    ClienteNombre = comprobante.ClienteNombre,
+                    FormaPago = "Devolucion",
+                    Estado = comprobante.Estado.ToApiValue(),
+                    Subtotal = comprobante.Subtotal,
+                    IvaTotal = comprobante.IvaTotal,
+                    Total = comprobante.Total,
+                    ClaveAcceso = comprobante.ClaveAcceso,
+                    NumeroAutorizacion = comprobante.NumeroAutorizacion,
+                    MensajeEstado = comprobante.MotivoModificacion,
+                    TieneXmlGenerado = comprobante.XmlGenerado != null && comprobante.XmlGenerado != string.Empty,
+                    TieneXmlFirmado = comprobante.XmlFirmado != null && comprobante.XmlFirmado != string.Empty,
+                    FechaEmision = comprobante.FechaEmision,
+                    FechaAutorizacion = comprobante.FechaAutorizacion
+                })
+                .ToListAsync(cancellationToken);
 
             comprobantes.AddRange(notasCredito);
         }
-
-        if (!string.IsNullOrWhiteSpace(normalizedTerm))
-        {
-            comprobantes = comprobantes
-                .Where(comprobante =>
-                comprobante.Establecimiento.Contains(normalizedTerm) ||
-                comprobante.PuntoEmision.Contains(normalizedTerm) ||
-                comprobante.ClienteNombre.Contains(normalizedTerm) ||
-                comprobante.ClienteIdentificacion.Contains(normalizedTerm) ||
-                comprobante.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
-                comprobante.FormaPago.Contains(normalizedTerm) ||
-                comprobante.TipoDocumentoNombre.Contains(normalizedTerm) ||
-                comprobante.TipoDocumentoId.Contains(normalizedTerm) ||
-                (comprobante.ClaveAcceso != null && comprobante.ClaveAcceso.Contains(normalizedTerm)) ||
-                comprobante.Estado.Contains(normalizedTerm) ||
-                (comprobante.MensajeEstado != null && comprobante.MensajeEstado.Contains(normalizedTerm)))
-                .ToList();
-        }
-
-        var totalCount = comprobantes.Count;
+        
         var pageItems = comprobantes
             .OrderByDescending(comprobante => comprobante.FechaEmision)
             .Skip(skip)
@@ -751,6 +799,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await quotaValidationService.IncrementarFacturasEmitidasMesActualAsync(factura.EmpresaId, cancellationToken);
     }
 
     public async Task MarkFacturaAsAuthorizedAsync(
@@ -1275,6 +1324,26 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     {
         return SriCatalogCodes.NormalizeFormaPagoCode(formaPago)
             ?? throw new InvalidOperationException("La forma de pago seleccionada no esta mapeada a un codigo SRI valido.");
+    }
+
+    private static FacturaEstado? TryParseFacturaEstado(string? estado)
+    {
+        if (string.IsNullOrWhiteSpace(estado))
+        {
+            return null;
+        }
+
+        var normalized = estado.Trim().Replace("-", "_", StringComparison.Ordinal).Replace(" ", "_", StringComparison.Ordinal).ToUpperInvariant();
+
+        return normalized switch
+        {
+            "GENERADO" or "FIRMADO" or "NO_FIRMADO" => FacturaEstado.NO_FIRMADO,
+            "EN_PROCESO" or "RECIBIDO" or "PENDIENTE" => FacturaEstado.PENDIENTE,
+            "AUTORIZADO" => FacturaEstado.AUTORIZADO,
+            "DEVUELTA" or "NO_AUTORIZADO" or "RECHAZADO" or "ERROR" => FacturaEstado.RECHAZADO,
+            _ when Enum.TryParse<FacturaEstado>(normalized, ignoreCase: true, out var parsed) => parsed,
+            _ => null
+        };
     }
 
     private async Task<long> ReserveNextSecuencialAsync(

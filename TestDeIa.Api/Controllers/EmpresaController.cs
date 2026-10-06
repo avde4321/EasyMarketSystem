@@ -33,8 +33,7 @@ public sealed class EmpresaController : ControllerBase
     [HttpGet("paged")]
     public async Task<IActionResult> GetPaged([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 25);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await empresaUseCase.GetPagedAsync(term, skip, take, cancellationToken));
     }
 

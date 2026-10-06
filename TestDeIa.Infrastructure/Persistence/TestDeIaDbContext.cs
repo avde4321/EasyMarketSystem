@@ -26,6 +26,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<SecurityPermisoEntity> SecurityPermisos => Set<SecurityPermisoEntity>();
     public DbSet<SecurityRolPermisoEntity> SecurityRolPermisos => Set<SecurityRolPermisoEntity>();
     public DbSet<SecurityAuditLogEntity> SecurityAuditLogs => Set<SecurityAuditLogEntity>();
+    public DbSet<SaasPlanEntity> SaasPlanes => Set<SaasPlanEntity>();
+    public DbSet<SaasSuscripcionEntity> SaasSuscripciones => Set<SaasSuscripcionEntity>();
 
     public DbSet<SecurityUserRoleEntity> SecurityUserRoles => Set<SecurityUserRoleEntity>();
 
@@ -189,6 +191,8 @@ public sealed class TestDeIaDbContext : DbContext
                 tenantContextAccessor.IsSystemContext ||
                 entity.EmpresasAcceso.Any(link => link.EmpresaId == tenantContextAccessor.EmpresaId));
         modelBuilder.Entity<SecurityAuditLogEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<SaasSuscripcionEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<SecurityUserRoleEntity>()
             .HasQueryFilter(entity =>

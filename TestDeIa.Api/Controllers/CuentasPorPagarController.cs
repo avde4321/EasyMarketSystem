@@ -25,8 +25,7 @@ public sealed class CuentasPorPagarController : ControllerBase
         [FromQuery] int take = 10,
         CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 50);
-        skip = Math.Max(0, skip);
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
         return Ok(await compraUseCase.GetCuentasPorPagarAsync(term, proveedorId, skip, take, cancellationToken));
     }
 
