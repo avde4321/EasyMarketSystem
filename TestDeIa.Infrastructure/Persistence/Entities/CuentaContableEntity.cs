@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Contabilidad.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class CuentaContableEntity
+public sealed class CuentaContableEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

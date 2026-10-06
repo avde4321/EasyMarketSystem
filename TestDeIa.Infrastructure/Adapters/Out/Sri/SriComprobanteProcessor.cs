@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Modules.Sri.Models;
+using TestDeIa.Application.Modules.Sri.Ports.In;
 using TestDeIa.Application.Modules.Sri.Ports.Out;
 using TestDeIa.Domain.Modules.Sri;
 using TestDeIa.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Sri;
 public sealed class SriComprobanteProcessor(
     TestDeIaDbContext dbContext,
     IDocumentoStorageService documentoStorageService,
+    ISriStateEngineService sriStateEngineService,
     ILogger<SriComprobanteProcessor> logger) : ISriComprobanteProcessor
 {
     public async Task<SriOutboxProcessingResult> ProcessAsync(
@@ -30,10 +32,19 @@ public sealed class SriComprobanteProcessor(
 
         await PersistExistingXmlArtifactsAsync(item, cancellationToken);
 
-        item.Estado = SriOutboxEstados.Autorizado;
-        item.Mensaje = "Registro outbox procesado sin reenviar al SRI. Se conservaron artefactos existentes como DocumentoAdjunto cuando estuvieron disponibles.";
-        item.UltimoError = null;
-        item.UpdatedAt = DateTimeOffset.UtcNow;
+        var message = "Registro outbox procesado sin reenviar al SRI. Se conservaron artefactos existentes como DocumentoAdjunto cuando estuvieron disponibles.";
+        await sriStateEngineService.ApplyTransitionAsync(new SriTransitionRequest
+        {
+            EmpresaId = item.EmpresaId,
+            ComprobanteId = item.ComprobanteId,
+            TipoDocumentoId = item.TipoDocumentoId,
+            EstadoNuevoCodigo = SriEstadosComprobante.Autorizado,
+            MensajeRespuesta = message,
+            WorkerNode = workerId
+        }, cancellationToken);
+
+        item.Intentos = 0;
+        item.NextRetryAt = null;
         item.ProcessingNode = null;
         item.ProcessingStartedAt = null;
 
@@ -47,7 +58,7 @@ public sealed class SriComprobanteProcessor(
         return new SriOutboxProcessingResult
         {
             Succeeded = true,
-            Message = item.Mensaje
+            Message = message
         };
     }
 
@@ -142,6 +153,8 @@ public sealed class SriComprobanteProcessor(
             RutaStorage = storage.RutaStorage,
             HashSHA256 = storage.HashSHA256,
             TamanoBytes = storage.TamanoBytes,
+            EsCifrado = storage.EsCifrado,
+            AlgoritmoCifrado = storage.AlgoritmoCifrado,
             Origen = "Worker",
             EsActivo = true,
             Version = 1,

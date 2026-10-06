@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using TestDeIa.Application.Modules.Security.Models;
@@ -22,18 +21,13 @@ public sealed class JwtSecurityTokenGenerator : ISecurityTokenGenerator
     {
         var issuer = configuration["Security:Jwt:Issuer"] ?? "TestDeIa";
         var audience = configuration["Security:Jwt:Audience"] ?? "TestDeIa.Client";
-        var secret = configuration["Security:Jwt:Secret"]
-            ?? throw new InvalidOperationException("Security:Jwt:Secret no esta configurado.");
-        if (Encoding.UTF8.GetByteCount(secret) < 32)
-        {
-            throw new InvalidOperationException("Security:Jwt:Secret debe tener al menos 32 bytes.");
-        }
-
         var expirationMinutes = int.TryParse(
             configuration["Security:Jwt:ExpirationMinutes"],
             out var configuredMinutes)
             ? configuredMinutes
-            : 60;
+            : 30;
+
+        expirationMinutes = Math.Clamp(expirationMinutes, 5, 60);
 
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expirationMinutes);
         var issuedAt = DateTimeOffset.UtcNow;
@@ -57,14 +51,15 @@ public sealed class JwtSecurityTokenGenerator : ISecurityTokenGenerator
         claims.AddRange(user.Permissions.Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(permission => new Claim(SecurityClaimTypes.Permission, permission)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var signingKey = JwtSigningKeyResolver.ResolvePrimarySigningKey(configuration);
+        var credentials = new SigningCredentials(signingKey.SecurityKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer,
             audience,
             claims,
             expires: expiresAt.UtcDateTime,
             signingCredentials: credentials);
+        token.Header[JwtHeaderParameterNames.Kid] = signingKey.KeyId;
 
         return new GeneratedToken(
             new JwtSecurityTokenHandler().WriteToken(token),

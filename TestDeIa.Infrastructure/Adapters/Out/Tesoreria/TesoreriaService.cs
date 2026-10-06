@@ -103,7 +103,8 @@ public sealed class TesoreriaService(
         var existingKeys = await dbContext.ExtractoBancarioDetalles
             .AsNoTracking()
             .Where(current =>
-                current.ExtractoHeader.CuentaBancariaId == cuenta.Id &&
+                current.EmpresaId == empresaId &&
+                current.CuentaBancariaId == cuenta.Id &&
                 current.FechaTransaccion >= fechaDesde.Date &&
                 current.FechaTransaccion < fechaHasta.Date.AddDays(1))
             .Select(current => new
@@ -142,6 +143,8 @@ public sealed class TesoreriaService(
             header.Detalles.Add(new ExtractoBancarioDetalleEntity
             {
                 Id = Guid.NewGuid(),
+                EmpresaId = empresaId,
+                CuentaBancariaId = cuenta.Id,
                 ExtractoHeaderId = header.Id,
                 FechaTransaccion = detail.FechaTransaccion.Date,
                 NumeroDocumentoRef = Truncate(detail.NumeroDocumentoRef, 50),
@@ -249,8 +252,8 @@ public sealed class TesoreriaService(
             .Include(current => current.ExtractoHeader)
             .ThenInclude(current => current.CuentaBancaria)
             .Where(current =>
-                current.ExtractoHeader.CuentaBancaria.EmpresaId == empresaId &&
-                current.ExtractoHeader.CuentaBancariaId == cuentaBancariaId &&
+                current.EmpresaId == empresaId &&
+                current.CuentaBancariaId == cuentaBancariaId &&
                 !current.Conciliado);
 
         if (desde.HasValue)

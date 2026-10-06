@@ -620,6 +620,16 @@
                                             </span>
                                             <span class="nav-text">Catalogos</span>
                                         </NavLink>
+                                        <NavLink class="nav-sublink" href="sri/catalogo-errores" title="Errores SRI">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M7 4.5h10v15H7z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M9.5 8.5h5M9.5 12h5M9.5 15.5h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                                    <path d="M16.5 15.5h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.6" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Errores SRI</span>
+                                        </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="@SecurityPolicyNames.UsuariosAdministrar">
@@ -719,7 +729,7 @@
             "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "compras/reporte-fisico-financiero" => "compras",
             "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "contabilidad/libro-diario" or "contabilidad/libro-mayor" or "contabilidad/balance-general" or "contabilidad/estado-resultados" or "contabilidad/cierre-periodo" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
             "reporteria/ventas" => "reporteria",
-            "empresa" or "empresa/certificados" or "usuarios" or "catalogos" or "seguridad/auditoria" => "configuracion",
+            "empresa" or "empresa/certificados" or "usuarios" or "catalogos" or "sri/catalogo-errores" or "seguridad/auditoria" => "configuracion",
             _ => expandedGroup
         };
     }

@@ -32,7 +32,10 @@ public sealed class ConciliacionService(
         var extractos = await dbContext.ExtractoBancarioDetalles
             .Include(current => current.ExtractoHeader)
             .ThenInclude(current => current.CuentaBancaria)
-            .Where(current => current.ExtractoHeader.CuentaBancariaId == cuentaId && !current.Conciliado)
+            .Where(current =>
+                current.EmpresaId == empresaId &&
+                current.CuentaBancariaId == cuentaId &&
+                !current.Conciliado)
             .OrderBy(current => current.FechaTransaccion)
             .Take(500)
             .ToListAsync(cancellationToken);
@@ -148,19 +151,19 @@ public sealed class ConciliacionService(
         var extracto = await dbContext.ExtractoBancarioDetalles
             .Include(current => current.ExtractoHeader)
             .ThenInclude(current => current.CuentaBancaria)
-            .FirstOrDefaultAsync(current => current.Id == request.ExtractoDetalleId, cancellationToken)
+            .FirstOrDefaultAsync(current => current.EmpresaId == empresaId && current.Id == request.ExtractoDetalleId, cancellationToken)
             ?? throw new InvalidOperationException("El movimiento del extracto no existe.");
 
-        if (extracto.ExtractoHeader.CuentaBancaria.EmpresaId != empresaId)
+        if (extracto.CuentaBancariaId != extracto.ExtractoHeader.CuentaBancariaId)
         {
-            throw new InvalidOperationException("El movimiento del extracto no pertenece a la empresa activa.");
+            throw new InvalidOperationException("El movimiento del extracto tiene una referencia bancaria inconsistente.");
         }
 
         var movimiento = await dbContext.MovimientosTesoreria
             .FirstOrDefaultAsync(current =>
                 current.EmpresaId == empresaId &&
                 current.Id == request.MovimientoTesoreriaId &&
-                current.CuentaBancariaId == extracto.ExtractoHeader.CuentaBancariaId,
+                current.CuentaBancariaId == extracto.CuentaBancariaId,
                 cancellationToken)
             ?? throw new InvalidOperationException("El movimiento de tesorería no existe para la cuenta seleccionada.");
 

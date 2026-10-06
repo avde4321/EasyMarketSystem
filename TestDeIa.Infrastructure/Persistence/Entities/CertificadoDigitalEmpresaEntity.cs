@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class CertificadoDigitalEmpresaEntity
+public sealed class CertificadoDigitalEmpresaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

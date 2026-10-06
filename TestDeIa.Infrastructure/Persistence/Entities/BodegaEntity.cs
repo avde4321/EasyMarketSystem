@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class BodegaEntity
+public sealed class BodegaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

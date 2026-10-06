@@ -18,6 +18,9 @@ public sealed class SecurityHeadersMiddleware
             headers.TryAdd("X-Frame-Options", "DENY");
             headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
             headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+            headers.TryAdd(
+                "Content-Security-Policy",
+                "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'");
 
             if (context.Request.IsHttps)
             {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TestDeIa.Application.Modules.Compras.Ports.In;
 using TestDeIa.Shared.Requests.Compras;
 using TestDeIa.Shared.Security;
@@ -60,6 +61,7 @@ public sealed class ComprasController : ControllerBase
 
     [HttpPost("analizar-factura-proveedor")]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     [RequestSizeLimit(10_000_000)]
     public async Task<IActionResult> AnalizarFacturaProveedor(IFormFile? archivo, CancellationToken cancellationToken)
     {
@@ -102,3 +104,5 @@ public sealed class ComprasController : ControllerBase
         }
     }
 }
+
+

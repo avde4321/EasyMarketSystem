@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Security.Entities;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class SecurityAuditLogEntity
+public sealed class SecurityAuditLogEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

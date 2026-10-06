@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Integraciones.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class TransaccionPagoDigitalEntity
+public sealed class TransaccionPagoDigitalEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

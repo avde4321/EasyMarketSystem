@@ -274,6 +274,8 @@ public sealed class ConciliacionTestService(
         header.Detalles.Add(new ExtractoBancarioDetalleEntity
         {
             Id = Guid.NewGuid(),
+            EmpresaId = context.EmpresaId,
+            CuentaBancariaId = context.Cuenta.Id,
             ExtractoHeaderId = header.Id,
             FechaTransaccion = fecha.Date,
             NumeroDocumentoRef = referencia,

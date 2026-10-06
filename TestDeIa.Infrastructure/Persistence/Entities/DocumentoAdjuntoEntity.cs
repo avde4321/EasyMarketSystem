@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class DocumentoAdjuntoEntity
+public sealed class DocumentoAdjuntoEntity : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -25,6 +25,10 @@ public sealed class DocumentoAdjuntoEntity
     public string HashSHA256 { get; set; } = string.Empty;
 
     public long TamanoBytes { get; set; }
+
+    public bool EsCifrado { get; set; }
+
+    public string? AlgoritmoCifrado { get; set; }
 
     public Guid? CreadoPorUsuarioId { get; set; }
 

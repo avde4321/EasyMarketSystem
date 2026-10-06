@@ -12,6 +12,12 @@ public sealed class ExtractoBancarioDetalleEntityConfiguration : IEntityTypeConf
 
         builder.HasKey(entity => entity.Id);
 
+        builder.Property(entity => entity.EmpresaId)
+            .IsRequired();
+
+        builder.Property(entity => entity.CuentaBancariaId)
+            .IsRequired();
+
         builder.Property(entity => entity.NumeroDocumentoRef)
             .HasMaxLength(50);
 
@@ -34,6 +40,9 @@ public sealed class ExtractoBancarioDetalleEntityConfiguration : IEntityTypeConf
         builder.HasIndex(entity => entity.NumeroDocumentoRef);
         builder.HasIndex(entity => new { entity.ExtractoHeaderId, entity.Conciliado });
         builder.HasIndex(entity => new { entity.FechaTransaccion, entity.NumeroDocumentoRef });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.CuentaBancariaId, entity.FechaTransaccion });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.CuentaBancariaId, entity.Conciliado, entity.FechaTransaccion });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.CuentaBancariaId, entity.NumeroDocumentoRef, entity.Monto });
 
         builder.HasOne(entity => entity.ExtractoHeader)
             .WithMany(entity => entity.Detalles)

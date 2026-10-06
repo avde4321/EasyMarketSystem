@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ProveedorEntity
+public sealed class ProveedorEntity : ITenantEntity
 {
     public Guid PersonaId { get; set; }
     public Guid EmpresaId { get; set; }

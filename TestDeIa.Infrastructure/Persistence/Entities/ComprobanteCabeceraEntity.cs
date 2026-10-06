@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Facturacion.Entities;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ComprobanteCabeceraEntity
+public sealed class ComprobanteCabeceraEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

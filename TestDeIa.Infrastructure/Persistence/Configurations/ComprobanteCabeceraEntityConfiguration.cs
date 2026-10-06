@@ -48,7 +48,9 @@ public sealed class ComprobanteCabeceraEntityConfiguration : IEntityTypeConfigur
 
         builder.HasIndex(entity => new { entity.EmpresaId, entity.TipoDocumentoId, entity.Establecimiento, entity.PuntoEmision, entity.Secuencial })
             .IsUnique();
-        builder.HasIndex(entity => entity.ClaveAcceso).IsUnique();
-        builder.HasIndex(entity => new { entity.Estado, entity.CreatedAt });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.ClaveAcceso }).IsUnique();
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.Estado });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.Estado, entity.CreatedAt });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.FechaEmision });
     }
 }

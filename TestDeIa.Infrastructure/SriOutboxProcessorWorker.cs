@@ -60,6 +60,8 @@ public sealed class SriOutboxProcessorWorker(
             .AsNoTracking()
             .Where(current =>
                 current.Estado == SriOutboxEstados.Pendiente ||
+                current.Estado == SriOutboxEstados.Generado ||
+                current.Estado == SriOutboxEstados.Firmado ||
                 (current.Estado == SriOutboxEstados.Error &&
                  current.Intentos < options.MaxIntentos &&
                  (!current.NextRetryAt.HasValue || current.NextRetryAt <= now)))
@@ -86,6 +88,8 @@ public sealed class SriOutboxProcessorWorker(
             .Where(current =>
                 current.Id == candidateId &&
                 (current.Estado == SriOutboxEstados.Pendiente ||
+                 current.Estado == SriOutboxEstados.Generado ||
+                 current.Estado == SriOutboxEstados.Firmado ||
                  (current.Estado == SriOutboxEstados.Error &&
                   current.Intentos < options.MaxIntentos &&
                   (!current.NextRetryAt.HasValue || current.NextRetryAt <= now))))

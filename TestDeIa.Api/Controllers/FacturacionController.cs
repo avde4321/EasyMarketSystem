@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Security;
@@ -63,6 +64,7 @@ public sealed class FacturacionController : ControllerBase
 
     [HttpPost("facturas")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     public async Task<IActionResult> EmitirFactura([FromBody] EmitirFacturaRequest request, CancellationToken cancellationToken)
     {
         try
@@ -101,6 +103,7 @@ public sealed class FacturacionController : ControllerBase
 
     [HttpPost("notas-credito")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     public async Task<IActionResult> CrearNotaCredito([FromBody] NotaCreditoRequestDto request, CancellationToken cancellationToken)
     {
         try
@@ -128,3 +131,5 @@ public sealed class FacturacionController : ControllerBase
         }
     }
 }
+
+

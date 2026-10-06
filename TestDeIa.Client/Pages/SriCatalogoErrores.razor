@@ -1,0 +1,141 @@
+@page "/sri/catalogo-errores"
+@attribute [Authorize(Policy = SecurityPolicyNames.CatalogosAdministrar)]
+@using TestDeIa.Client.Services.Sri
+@using TestDeIa.Shared.Responses.Sri
+@inject SriCatalogosApiClient SriCatalogosApiClient
+
+<PageTitle>Catálogo de Errores SRI</PageTitle>
+
+<section class="module-page">
+    <header class="module-header">
+        <div>
+            <span class="eyebrow">SRI Ecuador</span>
+            <h1>Catálogo de Errores SRI</h1>
+            <p>Consulta códigos de respuesta del SRI, su clasificación y la acción sugerida para corregirlos.</p>
+        </div>
+    </header>
+
+    <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por código, mensaje o solución..." />
+            <button type="button" class="primary-action compact" @onclick="LoadAsync" disabled="@isLoading">Buscar</button>
+            <button type="button" class="ghost-button compact" @onclick="ClearAsync" disabled="@isLoading">Limpiar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p><em>Cargando catálogo SRI...</em></p>
+        }
+        else if (errores.Count == 0)
+        {
+            <div class="empty-state">No hay errores SRI registrados con ese criterio.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Mensaje SRI</th>
+                        <th>Tipo</th>
+                        <th>Solución sugerida</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var error in errores)
+                    {
+                        <tr>
+                            <td><strong>@error.CodigoSri</strong></td>
+                            <td>@error.MensajeSri</td>
+                            <td><span class="status-badge @GetTipoClass(error.TipoError)">@error.TipoError</span></td>
+                            <td>@error.SolucionSugerida</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <section class="table-card">
+        <header class="section-header">
+            <div>
+                <h2>Estados del comprobante electrónico</h2>
+                <p>Reglas funcionales que usa el motor para decidir reenvíos, consultas y edición del documento base.</p>
+            </div>
+        </header>
+
+        @if (estados.Count == 0)
+        {
+            <div class="empty-state">No se pudo cargar el catálogo de estados.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Descripción</th>
+                        <th>Recepción</th>
+                        <th>Autorización</th>
+                        <th>Final</th>
+                        <th>Editable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var estado in estados)
+                    {
+                        <tr>
+                            <td><strong>@estado.Codigo</strong><br /><small>@estado.Nombre</small></td>
+                            <td>@estado.Descripcion</td>
+                            <td>@(estado.RequiereReenvioRecepcion ? "Requiere reenvío" : "No")</td>
+                            <td>@(estado.RequiereConsultaAutorizacion ? "Consultar SRI" : "No")</td>
+                            <td>@(estado.EsEstadoFinal ? "Sí" : "No")</td>
+                            <td>@(estado.EsEditable ? "Sí" : "No")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@code {
+    private List<SriCatalogoErrorResponse> errores = [];
+    private List<SriEstadoComprobanteResponse> estados = [];
+    private string? searchTerm;
+    private bool isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        estados = (await SriCatalogosApiClient.GetEstadosAsync()).ToList();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            errores = (await SriCatalogosApiClient.GetErroresAsync(searchTerm)).ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        searchTerm = null;
+        await LoadAsync();
+    }
+
+    private static string GetTipoClass(string tipo) => tipo switch
+    {
+        "Advertencia" => "warning",
+        "ErrorFirma" => "danger",
+        "ErrorRecepcion" => "danger",
+        "ErrorAutorizacion" => "danger",
+        _ => "neutral"
+    };
+}

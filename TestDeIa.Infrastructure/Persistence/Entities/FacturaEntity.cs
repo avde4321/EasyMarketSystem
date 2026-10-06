@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class FacturaEntity
+public sealed class FacturaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

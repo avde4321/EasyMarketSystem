@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class MemoriaAnalisisFiscalEntity
+public sealed class MemoriaAnalisisFiscalEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

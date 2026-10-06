@@ -27,9 +27,12 @@ public sealed class ColaProcesamientoSriEntityConfiguration : IEntityTypeConfigu
         builder.Property(entity => entity.RowVersion).IsRowVersion();
 
         builder.HasIndex(entity => new { entity.EmpresaId, entity.Estado, entity.NextRetryAt, entity.CreatedAt });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.Estado });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.ComprobanteId, entity.TipoDocumentoId });
         builder.HasIndex(entity => new { entity.ComprobanteId, entity.TipoDocumentoId });
+        var validStates = string.Join(",", SriOutboxEstados.ValidStates.Select(state => $"'{state}'"));
         builder.ToTable(table => table.HasCheckConstraint(
             "CK_ColaProcesamientoSRI_Estado",
-            $"[Estado] IN ('{SriOutboxEstados.Pendiente}','{SriOutboxEstados.EnProceso}','{SriOutboxEstados.Autorizado}','{SriOutboxEstados.Error}','{SriOutboxEstados.Devuelto}')"));
+            $"[Estado] IN ({validStates})"));
     }
 }

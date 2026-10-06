@@ -1,8 +1,8 @@
-﻿using TestDeIa.Domain.Modules.Compras.Enums;
+using TestDeIa.Domain.Modules.Compras.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class CompraEntity
+public sealed class CompraEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

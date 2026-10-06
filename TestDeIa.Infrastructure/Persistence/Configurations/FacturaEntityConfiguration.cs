@@ -137,7 +137,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.InventarioAplicado)
             .HasDefaultValue(false);
 
-        builder.HasIndex(factura => new { factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
             .IsUnique();
 
         builder.HasOne<BodegaEntity>()
@@ -150,10 +150,14 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasForeignKey(factura => factura.CajaSesionId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(factura => factura.ClaveAcceso)
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.ClaveAcceso })
             .IsUnique();
 
-        builder.HasIndex(factura => new { factura.Estado, factura.CreatedAt });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.FechaEmision });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Estado });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Secuencial });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.ClienteId });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Estado, factura.CreatedAt });
         builder.HasIndex(factura => new { factura.EmpresaId, factura.CajaSesionId, factura.CreatedAt });
     }
 }

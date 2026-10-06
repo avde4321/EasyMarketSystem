@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ColaProcesamientoSriEntity
+public sealed class ColaProcesamientoSriEntity : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

@@ -48,6 +48,13 @@ public sealed class DocumentoAdjuntoEntityConfiguration : IEntityTypeConfigurati
             .IsUnicode(false)
             .IsRequired();
 
+        builder.Property(entity => entity.EsCifrado)
+            .HasDefaultValue(false);
+
+        builder.Property(entity => entity.AlgoritmoCifrado)
+            .HasMaxLength(30)
+            .IsUnicode(false);
+
         builder.Property(entity => entity.Origen)
             .HasMaxLength(30)
             .IsUnicode(false)

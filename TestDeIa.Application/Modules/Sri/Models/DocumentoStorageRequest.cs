@@ -21,4 +21,6 @@ public sealed class DocumentoStorageRequest
     public Guid? CreadoPorUsuarioId { get; init; }
 
     public string Origen { get; init; } = "Automatico";
+
+    public bool RequiereCifrado { get; init; }
 }

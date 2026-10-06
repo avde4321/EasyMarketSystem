@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class SecurityUserPuntoEmisionEntity
+public sealed class SecurityUserPuntoEmisionEntity : ITenantEntity
 {
     public Guid SecurityUserId { get; set; }
 

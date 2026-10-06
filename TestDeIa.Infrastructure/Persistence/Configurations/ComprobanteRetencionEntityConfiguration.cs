@@ -53,10 +53,11 @@ public sealed class ComprobanteRetencionEntityConfiguration : IEntityTypeConfigu
         builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.Establecimiento, retencion.PuntoEmision, retencion.Secuencial })
             .IsUnique();
 
-        builder.HasIndex(retencion => retencion.ClaveAcceso)
+        builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.ClaveAcceso })
             .IsUnique()
             .HasFilter("[ClaveAcceso] IS NOT NULL");
 
+        builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.EstadoSRI });
         builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.ProveedorId, retencion.FechaEmision });
         builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.EstadoSRI, retencion.FechaEmision });
 

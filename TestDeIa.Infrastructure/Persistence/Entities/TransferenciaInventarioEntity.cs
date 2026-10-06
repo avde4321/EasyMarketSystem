@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class TransferenciaInventarioEntity
+public sealed class TransferenciaInventarioEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

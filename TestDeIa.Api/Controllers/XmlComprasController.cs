@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.XmlSri.Ports.In;
 using TestDeIa.Shared.Requests.XmlSri;
@@ -18,6 +19,7 @@ public sealed class XmlComprasController(
 {
     [HttpPost("cargar-masivo")]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     [RequestSizeLimit(30_000_000)]
     public async Task<IActionResult> CargarMasivo(IReadOnlyCollection<IFormFile> archivos, CancellationToken cancellationToken)
     {
@@ -111,3 +113,5 @@ public sealed class XmlComprasController(
         }
     }
 }
+
+

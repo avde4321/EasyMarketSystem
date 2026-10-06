@@ -2,7 +2,7 @@ using TestDeIa.Shared.Personas;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class PersonaNaturalEntity
+public sealed class PersonaNaturalEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

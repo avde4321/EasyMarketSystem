@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Caja.Entities;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class CajaSesionEntity
+public sealed class CajaSesionEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

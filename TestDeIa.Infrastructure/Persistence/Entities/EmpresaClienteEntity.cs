@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class EmpresaClienteEntity
+public sealed class EmpresaClienteEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

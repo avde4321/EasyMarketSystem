@@ -1223,11 +1223,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ComprobanteId", "TipoDocumentoId");
 
+                    b.HasIndex("EmpresaId", "Estado");
+
+                    b.HasIndex("EmpresaId", "ComprobanteId", "TipoDocumentoId");
+
                     b.HasIndex("EmpresaId", "Estado", "NextRetryAt", "CreatedAt");
 
                     b.ToTable("ColaProcesamientoSRI", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ColaProcesamientoSRI_Estado", "[Estado] IN ('PENDIENTE','EN_PROCESO','AUTORIZADO','ERROR','DEVUELTO')");
+                            t.HasCheckConstraint("CK_ColaProcesamientoSRI_Estado", "[Estado] IN ('PENDIENTE','GENERADO','FIRMADO','EN_PROCESO','AUTORIZADO','NO_AUTORIZADO','ANULADO','ERROR','DEVUELTO','DEVUELTA')");
                         });
                 });
 
@@ -1462,6 +1466,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProveedorId");
 
+                    b.HasIndex("EmpresaId", "ClaveAccesoProveedor")
+                        .HasFilter("[ClaveAccesoProveedor] IS NOT NULL");
+
+                    b.HasIndex("EmpresaId", "EstadoCompra", "FechaEmision");
+
+                    b.HasIndex("EmpresaId", "ProveedorId", "EstadoCompra");
+
+                    b.HasIndex("EmpresaId", "ProveedorId", "FechaEmision");
+
                     b.HasIndex("EmpresaId", "TipoDocumentoCodigo", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
@@ -1618,12 +1631,16 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClaveAcceso")
-                        .IsUnique();
-
                     b.HasIndex("ComprobanteModificadoId");
 
-                    b.HasIndex("Estado", "CreatedAt");
+                    b.HasIndex("EmpresaId", "ClaveAcceso")
+                        .IsUnique();
+
+                    b.HasIndex("EmpresaId", "Estado");
+
+                    b.HasIndex("EmpresaId", "FechaEmision");
+
+                    b.HasIndex("EmpresaId", "Estado", "CreatedAt");
 
                     b.HasIndex("EmpresaId", "TipoDocumentoId", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
@@ -1816,13 +1833,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClaveAcceso")
-                        .IsUnique()
-                        .HasFilter("[ClaveAcceso] IS NOT NULL");
-
                     b.HasIndex("CompraId");
 
                     b.HasIndex("ProveedorId");
+
+                    b.HasIndex("EmpresaId", "ClaveAcceso")
+                        .IsUnique()
+                        .HasFilter("[ClaveAcceso] IS NOT NULL");
+
+                    b.HasIndex("EmpresaId", "EstadoSRI");
 
                     b.HasIndex("EmpresaId", "EstadoSRI", "FechaEmision");
 
@@ -1985,6 +2004,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProveedorId");
 
+                    b.HasIndex("EmpresaId", "EstadoDeuda", "FechaVence");
+
+                    b.HasIndex("EmpresaId", "ProveedorId", "EstadoDeuda");
+
                     b.HasIndex("EmpresaId", "ProveedorId", "FechaVence");
 
                     b.ToTable("CuentasPorPagar", (string)null);
@@ -1994,6 +2017,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AlgoritmoCifrado")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -2020,6 +2048,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("EsCifrado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTimeOffset>("FechaCreacion")
                         .ValueGeneratedOnAdd()
@@ -2506,6 +2539,12 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<Guid>("CuentaBancariaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ExtractoHeaderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2540,6 +2579,12 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasIndex("ExtractoHeaderId", "Conciliado");
 
                     b.HasIndex("FechaTransaccion", "NumeroDocumentoRef");
+
+                    b.HasIndex("EmpresaId", "CuentaBancariaId", "FechaTransaccion");
+
+                    b.HasIndex("EmpresaId", "CuentaBancariaId", "Conciliado", "FechaTransaccion");
+
+                    b.HasIndex("EmpresaId", "CuentaBancariaId", "NumeroDocumentoRef", "Monto");
 
                     b.ToTable("ExtractoBancarioDetalles", (string)null);
                 });
@@ -2979,14 +3024,22 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CajaSesionId");
 
-                    b.HasIndex("ClaveAcceso")
+                    b.HasIndex("EmpresaId", "ClaveAcceso")
                         .IsUnique();
 
-                    b.HasIndex("Estado", "CreatedAt");
+                    b.HasIndex("EmpresaId", "ClienteId");
+
+                    b.HasIndex("EmpresaId", "Estado");
+
+                    b.HasIndex("EmpresaId", "FechaEmision");
+
+                    b.HasIndex("EmpresaId", "Secuencial");
 
                     b.HasIndex("EmpresaId", "CajaSesionId", "CreatedAt");
 
-                    b.HasIndex("Establecimiento", "PuntoEmision", "Secuencial")
+                    b.HasIndex("EmpresaId", "Estado", "CreatedAt");
+
+                    b.HasIndex("EmpresaId", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
                     b.ToTable("Facturas", (string)null);
@@ -4861,6 +4914,252 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SriCatalogoErrorEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodigoSri")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("MensajeSri")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("SolucionSugerida")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("TipoError")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodigoSri")
+                        .IsUnique();
+
+                    b.ToTable("SriCatalogoErrores", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CodigoSri = "35",
+                            MensajeSri = "CLAVE ACCESO REGISTRADA",
+                            SolucionSugerida = "Consultar autorización con la misma clave de acceso antes de reemitir. Si ya está autorizado, recuperar XML autorizado.",
+                            TipoError = "Advertencia"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CodigoSri = "43",
+                            MensajeSri = "CLAVE DE ACCESO INVALIDA",
+                            SolucionSugerida = "Validar fecha, RUC, ambiente, establecimiento, punto de emisión, secuencial, tipo de emisión y dígito verificador módulo 11.",
+                            TipoError = "ErrorRecepcion"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CodigoSri = "45",
+                            MensajeSri = "SECUENCIAL REGISTRADO",
+                            SolucionSugerida = "Verificar que el secuencial no haya sido usado previamente para el mismo establecimiento y punto de emisión.",
+                            TipoError = "ErrorRecepcion"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CodigoSri = "70",
+                            MensajeSri = "FIRMA INVALIDA",
+                            SolucionSugerida = "Revisar vigencia del certificado, contraseña, algoritmo de firma XAdES-BES y que el XML no se haya alterado después de firmar.",
+                            TipoError = "ErrorFirma"
+                        });
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SriEstadoComprobanteEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("EsEditable")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EsEstadoFinal")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("RequiereConsultaAutorizacion")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiereReenvioRecepcion")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("SriEstadosComprobante", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Codigo = "GENERADO",
+                            Descripcion = "XML generado localmente y listo para firma.",
+                            EsEditable = true,
+                            EsEstadoFinal = false,
+                            Nombre = "Generado",
+                            RequiereConsultaAutorizacion = false,
+                            RequiereReenvioRecepcion = false
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Codigo = "FIRMADO",
+                            Descripcion = "XML firmado electrónicamente y pendiente de recepción SRI.",
+                            EsEditable = false,
+                            EsEstadoFinal = false,
+                            Nombre = "Firmado",
+                            RequiereConsultaAutorizacion = false,
+                            RequiereReenvioRecepcion = true
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Codigo = "DEVUELTA",
+                            Descripcion = "Recepción SRI devolvió el comprobante por errores de estructura, clave o firma.",
+                            EsEditable = true,
+                            EsEstadoFinal = false,
+                            Nombre = "Devuelta",
+                            RequiereConsultaAutorizacion = false,
+                            RequiereReenvioRecepcion = true
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Codigo = "EN_PROCESO",
+                            Descripcion = "Comprobante recibido por el SRI y pendiente de autorización.",
+                            EsEditable = false,
+                            EsEstadoFinal = false,
+                            Nombre = "En proceso",
+                            RequiereConsultaAutorizacion = true,
+                            RequiereReenvioRecepcion = false
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Codigo = "AUTORIZADO",
+                            Descripcion = "Comprobante autorizado por el SRI.",
+                            EsEditable = false,
+                            EsEstadoFinal = true,
+                            Nombre = "Autorizado",
+                            RequiereConsultaAutorizacion = false,
+                            RequiereReenvioRecepcion = false
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Codigo = "NO_AUTORIZADO",
+                            Descripcion = "Autorización SRI rechazó el comprobante.",
+                            EsEditable = true,
+                            EsEstadoFinal = false,
+                            Nombre = "No autorizado",
+                            RequiereConsultaAutorizacion = true,
+                            RequiereReenvioRecepcion = false
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Codigo = "ANULADO",
+                            Descripcion = "Comprobante anulado o marcado como sin validez operativa.",
+                            EsEditable = false,
+                            EsEstadoFinal = true,
+                            Nombre = "Anulado",
+                            RequiereConsultaAutorizacion = false,
+                            RequiereReenvioRecepcion = false
+                        });
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SriHistorialEstadoComprobanteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CodigoErrorSri")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<Guid>("ComprobanteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("EstadoAnteriorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EstadoNuevoId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("FechaTransaccion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetimeoffset")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("MensajeRespuesta")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("TipoDocumentoId")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WorkerNode")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstadoAnteriorId");
+
+                    b.HasIndex("EstadoNuevoId");
+
+                    b.HasIndex("EmpresaId", "ComprobanteId", "FechaTransaccion");
+
+                    b.HasIndex("EmpresaId", "EstadoNuevoId", "FechaTransaccion");
+
+                    b.ToTable("SriHistorialEstadosComprobante", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransaccionPagoDigitalEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5715,6 +6014,24 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SriHistorialEstadoComprobanteEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.SriEstadoComprobanteEntity", "EstadoAnterior")
+                        .WithMany()
+                        .HasForeignKey("EstadoAnteriorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.SriEstadoComprobanteEntity", "EstadoNuevo")
+                        .WithMany()
+                        .HasForeignKey("EstadoNuevoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EstadoAnterior");
+
+                    b.Navigation("EstadoNuevo");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.TransaccionPagoDigitalEntity", b =>

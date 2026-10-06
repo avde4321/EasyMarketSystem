@@ -26,6 +26,8 @@ public sealed class CuentaPorPagarEntityConfiguration : IEntityTypeConfiguration
             .HasColumnType("decimal(18,2)");
 
         builder.HasIndex(entity => new { entity.EmpresaId, entity.ProveedorId, entity.FechaVence });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.ProveedorId, entity.EstadoDeuda });
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.EstadoDeuda, entity.FechaVence });
 
         builder.HasOne(entity => entity.Compra)
             .WithMany()

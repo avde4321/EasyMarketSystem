@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Tesoreria.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class MovimientoTesoreriaEntity
+public sealed class MovimientoTesoreriaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

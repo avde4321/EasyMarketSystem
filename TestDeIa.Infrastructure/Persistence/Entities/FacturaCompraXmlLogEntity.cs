@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.XmlSri.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class FacturaCompraXmlLogEntity
+public sealed class FacturaCompraXmlLogEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

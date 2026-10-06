@@ -1,6 +1,6 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class EmpleadoEntity
+public sealed class EmpleadoEntity : ITenantEntity
 {
     public Guid PersonaId { get; set; }
 

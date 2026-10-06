@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Proformas.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ProformaEntity
+public sealed class ProformaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

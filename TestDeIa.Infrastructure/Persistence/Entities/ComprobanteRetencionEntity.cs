@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Retenciones.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ComprobanteRetencionEntity
+public sealed class ComprobanteRetencionEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

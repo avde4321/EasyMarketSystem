@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.ActivosFijos.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class ActivoFijoEntity
+public sealed class ActivoFijoEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }

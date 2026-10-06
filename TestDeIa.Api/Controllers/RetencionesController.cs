@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TestDeIa.Application.Modules.Retenciones.Ports.In;
 using TestDeIa.Shared.Requests.Retenciones;
 using TestDeIa.Shared.Security;
@@ -62,6 +63,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
 
     [HttpPost("{id:guid}/procesar-sri")]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     public async Task<IActionResult> ProcesarSri(Guid id, CancellationToken cancellationToken = default)
     {
         try
@@ -76,6 +78,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
 
     [HttpPost("{id:guid}/reintentar-autorizacion")]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     public async Task<IActionResult> ReintentarAutorizacion(Guid id, CancellationToken cancellationToken = default)
     {
         try
@@ -88,3 +91,5 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
         }
     }
 }
+
+

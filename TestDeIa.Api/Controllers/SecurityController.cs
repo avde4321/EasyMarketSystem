@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TestDeIa.Application.Modules.Security.Ports.In;
 using TestDeIa.Shared.Requests.Security;
 using TestDeIa.Shared.Security;
@@ -24,6 +25,7 @@ public sealed class SecurityController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.Login)]
     public async Task<IActionResult> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
@@ -185,3 +187,5 @@ public sealed class SecurityController : ControllerBase
         }
     }
 }
+
+

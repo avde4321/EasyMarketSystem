@@ -84,6 +84,9 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<ComprobanteDetalleEntity> ComprobanteDetalle => Set<ComprobanteDetalleEntity>();
     public DbSet<ColaProcesamientoSriEntity> ColaProcesamientoSRI => Set<ColaProcesamientoSriEntity>();
     public DbSet<DocumentoAdjuntoEntity> DocumentosAdjuntos => Set<DocumentoAdjuntoEntity>();
+    public DbSet<SriEstadoComprobanteEntity> SriEstadosComprobante => Set<SriEstadoComprobanteEntity>();
+    public DbSet<SriCatalogoErrorEntity> SriCatalogoErrores => Set<SriCatalogoErrorEntity>();
+    public DbSet<SriHistorialEstadoComprobanteEntity> SriHistorialEstadosComprobante => Set<SriHistorialEstadoComprobanteEntity>();
     public DbSet<ProformaEntity> Proformas => Set<ProformaEntity>();
     public DbSet<ProformaDetalleEntity> ProformaDetalles => Set<ProformaDetalleEntity>();
     public DbSet<ComprobanteRetencionEntity> ComprobantesRetencion => Set<ComprobanteRetencionEntity>();
@@ -134,7 +137,7 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<ExtractoBancarioHeaderEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.CuentaBancaria.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ExtractoBancarioDetalleEntity>()
-            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.ExtractoHeader.CuentaBancaria.EmpresaId == tenantContextAccessor.EmpresaId);
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<MovimientoTesoreriaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProductoEntity>()
@@ -171,6 +174,8 @@ public sealed class TestDeIaDbContext : DbContext
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<DocumentoAdjuntoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<SriHistorialEstadoComprobanteEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProformaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<ProformaDetalleEntity>()
@@ -190,6 +195,10 @@ public sealed class TestDeIaDbContext : DbContext
                 tenantContextAccessor.IsSystemContext ||
                 entity.User.EmpresasAcceso.Any(link => link.EmpresaId == tenantContextAccessor.EmpresaId));
         modelBuilder.Entity<SecurityUserEmpresaEntity>()
+            .HasQueryFilter(entity =>
+                tenantContextAccessor.IsSystemContext ||
+                entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<SecurityUserPuntoEmisionEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
                 entity.EmpresaId == tenantContextAccessor.EmpresaId);

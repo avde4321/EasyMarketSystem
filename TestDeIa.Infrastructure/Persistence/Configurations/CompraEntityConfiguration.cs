@@ -17,6 +17,11 @@ public sealed class CompraEntityConfiguration : IEntityTypeConfiguration<CompraE
 
         builder.HasIndex(compra => new { compra.EmpresaId, compra.TipoDocumentoCodigo, compra.Establecimiento, compra.PuntoEmision, compra.Secuencial })
             .IsUnique();
+        builder.HasIndex(compra => new { compra.EmpresaId, compra.ProveedorId, compra.EstadoCompra });
+        builder.HasIndex(compra => new { compra.EmpresaId, compra.ProveedorId, compra.FechaEmision });
+        builder.HasIndex(compra => new { compra.EmpresaId, compra.EstadoCompra, compra.FechaEmision });
+        builder.HasIndex(compra => new { compra.EmpresaId, compra.ClaveAccesoProveedor })
+            .HasFilter("[ClaveAccesoProveedor] IS NOT NULL");
 
         builder.Property(compra => compra.TipoDocumentoCodigo)
             .HasMaxLength(2)

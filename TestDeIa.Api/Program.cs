@@ -1,4 +1,3 @@
-using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -11,7 +10,9 @@ using TestDeIa.Api.Reporting;
 using TestDeIa.Api.Security;
 using TestDeIa.Application;
 using TestDeIa.Infrastructure;
+using TestDeIa.Infrastructure.Adapters.Out.Security;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,27 @@ builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter(SecurityRateLimitPolicyNames.Login, limiter =>
+    {
+        limiter.PermitLimit = builder.Configuration.GetValue("Security:RateLimiting:LoginPermitLimit", 5);
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+        limiter.AutoReplenishment = true;
+    });
+    options.AddFixedWindowLimiter(SecurityRateLimitPolicyNames.IntegracionMasiva, limiter =>
+    {
+        limiter.PermitLimit = builder.Configuration.GetValue("Security:RateLimiting:IntegracionMasivaPermitLimit", 20);
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+        limiter.AutoReplenishment = true;
+    });
+    options.AddFixedWindowLimiter(SecurityRateLimitPolicyNames.WebhookPago, limiter =>
+    {
+        limiter.PermitLimit = builder.Configuration.GetValue("Security:RateLimiting:WebhookPagoPermitLimit", 60);
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+        limiter.AutoReplenishment = true;
+    });
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
     {
         var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -61,15 +83,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-var jwtSecret = builder.Configuration["Security:Jwt:Secret"]
-    ?? (builder.Environment.IsDevelopment() ? "TestDeIa_Crm_Development_Secret_Key_Change_In_Production_2026" : null);
-if (string.IsNullOrWhiteSpace(jwtSecret) || Encoding.UTF8.GetByteCount(jwtSecret) < 32)
-{
-    throw new InvalidOperationException("Security:Jwt:Secret debe configurarse con al menos 32 bytes.");
-}
-
 var jwtIssuer = builder.Configuration["Security:Jwt:Issuer"] ?? "TestDeIa";
 var jwtAudience = builder.Configuration["Security:Jwt:Audience"] ?? "TestDeIa.Client";
+var jwtSigningKeys = JwtSigningKeyResolver.ResolveSigningKeys(builder.Configuration);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -86,7 +102,7 @@ builder.Services
             RequireExpirationTime = true,
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKeys = jwtSigningKeys.Select(current => current.SecurityKey),
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ClockSkew = TimeSpan.FromMinutes(1)
         };
@@ -142,6 +158,10 @@ await app.UseDatabaseInitializationAsync();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

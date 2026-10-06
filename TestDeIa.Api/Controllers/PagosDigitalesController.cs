@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Integraciones.Ports.In;
@@ -18,6 +19,7 @@ public sealed class PagosDigitalesController(
 {
     [HttpPost("generar-link")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
     public async Task<IActionResult> GenerarLink(
         [FromBody] GenerarLinkPagoDto request,
         CancellationToken cancellationToken)
@@ -56,6 +58,7 @@ public sealed class PagosDigitalesController(
 
     [HttpPost("webhook/payphone")]
     [AllowAnonymous]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.WebhookPago)]
     public async Task<IActionResult> ProcesarWebhookPayPhone(
         [FromBody] PayPhoneWebhookDto request,
         CancellationToken cancellationToken)
@@ -79,3 +82,5 @@ public sealed class PagosDigitalesController(
     }
 
 }
+
+

@@ -2,7 +2,7 @@ using TestDeIa.Domain.Modules.Integraciones.Enums;
 
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class WhatsAppNotificacionLogEntity
+public sealed class WhatsAppNotificacionLogEntity : ITenantEntity
 {
     public Guid Id { get; set; }
 

@@ -22,6 +22,7 @@ using TestDeIa.Client.Services.Personas;
 using TestDeIa.Client.Services.Proformas;
 using TestDeIa.Client.Services.Reporteria;
 using TestDeIa.Client.Services.Retenciones;
+using TestDeIa.Client.Services.Sri;
 using TestDeIa.Client.Services.Tesoreria;
 using TestDeIa.Client.Services.XmlSri;
 
@@ -76,6 +77,7 @@ public static class ClientServiceRegistration
         services.AddScoped<PosOfflineApiClient>();
         services.AddScoped<XmlComprasApiClient>();
         services.AddScoped<TesoreriaApiClient>();
+        services.AddScoped<SriCatalogosApiClient>();
 
         return services;
     }
