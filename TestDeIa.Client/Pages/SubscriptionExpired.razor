@@ -1,0 +1,91 @@
+@page "/subscription-expired"
+@attribute [Authorize]
+@inject TestDeIa.Client.Services.Saas.SaasApiClient SaasApiClient
+@inject NavigationManager NavigationManager
+
+<PageTitle>Suscripción requerida</PageTitle>
+
+<section class="subscription-shell">
+    <div class="subscription-card">
+        <span class="subscription-eyebrow">Plan requerido</span>
+        <h1>Tu empresa necesita una suscripción activa</h1>
+        <p>
+            Para continuar usando EasyMarket Systems, tu empresa necesita una suscripción activa.
+            Selecciona un plan o contacta al administrador para regularizar el acceso.
+        </p>
+
+        @if (isLoading)
+        {
+            <div class="subscription-loading">Cargando planes disponibles...</div>
+        }
+        else if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="subscription-error">@errorMessage</div>
+        }
+        else
+        {
+            <div class="plans-grid">
+                @foreach (var plan in plans)
+                {
+                    <article class="plan-card">
+                        <h2>@plan.Nombre</h2>
+                        <div class="plan-price">
+                            @(plan.PrecioMensual == 0 ? "Personalizado" : $"$ {plan.PrecioMensual:N2} / mes")
+                        </div>
+                        <ul>
+                            <li>Facturas mensuales: @(plan.LimiteFacturasMensuales == 0 ? "Ilimitadas" : plan.LimiteFacturasMensuales)</li>
+                            <li>Usuarios: @(plan.LimiteUsuarios == 0 ? "Ilimitados" : plan.LimiteUsuarios)</li>
+                            <li>Sucursales: @(plan.LimiteSucursales == 0 ? "Ilimitadas" : plan.LimiteSucursales)</li>
+                            <li>SRI: @(plan.PermiteModuloSRI ? "Incluido" : "No incluido")</li>
+                            <li>Kardex avanzado: @(plan.PermiteModuloKardexAvanzado ? "Incluido" : "No incluido")</li>
+                        </ul>
+                        <button class="plan-action" type="button" @onclick="ContactarAdministrador">
+                            Seleccionar plan
+                        </button>
+                    </article>
+                }
+            </div>
+        }
+
+        <div class="subscription-actions">
+            <button type="button" class="secondary-action" @onclick="ContactarAdministrador">
+                Contactar administrador
+            </button>
+            <button type="button" class="primary-action" @onclick="VolverAlInicio">
+                Volver a mis empresas
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    private IReadOnlyCollection<TestDeIa.Shared.Responses.Saas.SaasPlanResponse> plans = [];
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            plans = await SaasApiClient.GetPlansAsync();
+        }
+        catch
+        {
+            errorMessage = "No se pudieron cargar los planes en este momento. Contacta al administrador del sistema.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ContactarAdministrador()
+    {
+        NavigationManager.NavigateTo("mailto:soporte@easymarket.local?subject=Renovacion%20de%20suscripcion%20EasyMarket", forceLoad: true);
+    }
+
+    private void VolverAlInicio()
+    {
+        NavigationManager.NavigateTo("/empresa");
+    }
+}

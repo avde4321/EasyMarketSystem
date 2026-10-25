@@ -30,6 +30,8 @@ public partial class Empresa
     private readonly List<CatalogoItemResponse> tiposEmision = [];
     private readonly List<BodegaResponse> bodegas = [];
     private bool isSaving;
+    private bool showSaveConfirmation;
+    private string saveConfirmationMessage = string.Empty;
     private bool showWorkflowModal;
     private bool showPuntosEmisionModal;
     private int currentStep = 1;
@@ -48,14 +50,22 @@ public partial class Empresa
     private bool CanGoNext => currentSkip + PageSize < totalCount;
     private int PageNumber => (currentSkip / PageSize) + 1;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-    private IReadOnlyList<BodegaResponse> activeBodegas => bodegas.Where(current => current.IsActive).OrderBy(current => current.Nombre).ToList();
+    private IReadOnlyList<BodegaResponse> activeBodegas => selectedEmpresaId.HasValue
+        ? bodegas.Where(current => current.IsActive).OrderBy(current => current.Nombre).ToList()
+        : [];
     private int CurrentStep => currentStep;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCatalogosAsync();
-        await LoadBodegasAsync();
-        await LoadAsync(resetPaging: true);
+        try
+        {
+            await LoadCatalogosAsync();
+            await LoadAsync(resetPaging: true);
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo cargar la configuración. Intenta nuevamente.";
+        }
     }
 
     private async Task LoadCatalogosAsync()
@@ -69,7 +79,10 @@ public partial class Empresa
     private async Task LoadBodegasAsync()
     {
         bodegas.Clear();
-        bodegas.AddRange(await InventarioApiClient.GetBodegasAsync());
+        if (selectedEmpresaId.HasValue)
+        {
+            bodegas.AddRange(await EmpresaApiClient.GetBodegasAsync(selectedEmpresaId.Value));
+        }
     }
 
     private async Task LoadAsync(bool resetPaging = false)
@@ -108,6 +121,10 @@ public partial class Empresa
 
     private async Task SaveAsync()
     {
+        if (isSaving)
+        {
+            return;
+        }
         isSaving = true;
         errorMessage = null;
         statusMessage = null;
@@ -132,7 +149,12 @@ public partial class Empresa
             showWorkflowModal = false;
             showPuntosEmisionModal = false;
             currentStep = 1;
+            searchTerm = string.Empty;
             await LoadAsync(resetPaging: true);
+            saveConfirmationMessage = isUpdate
+                ? "La empresa se actualizó correctamente."
+                : "La empresa se registró correctamente.";
+            showSaveConfirmation = true;
         }
         catch (HttpRequestException)
         {
@@ -179,6 +201,7 @@ public partial class Empresa
     private async Task LoadEmpresaIntoEditorAsync(Guid id, bool openWorkflow)
     {
         selectedEmpresaId = id;
+        await LoadBodegasAsync();
         empresaActual = empresas.FirstOrDefault(current => current.Id == id) ?? await EmpresaApiClient.GetByIdAsync(id);
 
         if (empresaActual is null)
@@ -240,16 +263,7 @@ public partial class Empresa
             TipoEmision = tiposEmision.FirstOrDefault()?.Codigo ?? "1",
             IsActive = true,
             ModoDesarrollo = true,
-            PuntosEmision =
-            [
-                new EmpresaPuntoEmisionRequest
-                {
-                    Establecimiento = "001",
-                    PuntoEmision = "001",
-                    BodegaId = activeBodegas.FirstOrDefault()?.Id,
-                    IsDefault = true
-                }
-            ]
+            PuntosEmision = []
         };
 
         ResetPuntoEmisionDraft();
@@ -260,15 +274,44 @@ public partial class Empresa
 
     private void AddPuntoEmision()
     {
+        errorMessage = null;
+        statusMessage = null;
+
+        var normalizedEstablecimiento = puntoEmisionDraft.Establecimiento?.Trim() ?? string.Empty;
+        var normalizedPuntoEmision = puntoEmisionDraft.PuntoEmision?.Trim() ?? string.Empty;
+
+        if (!IsThreeDigitCode(normalizedEstablecimiento) || !IsThreeDigitCode(normalizedPuntoEmision))
+        {
+            errorMessage = "El establecimiento y el punto de emisión deben tener 3 dígitos numéricos.";
+            return;
+        }
+
+        if (empresaRequest.PuntosEmision
+            .Where((_, index) => !editingPuntoIndex.HasValue || index != editingPuntoIndex.Value)
+            .Any(current =>
+                string.Equals(current.Establecimiento?.Trim(), normalizedEstablecimiento, StringComparison.Ordinal) &&
+                string.Equals(current.PuntoEmision?.Trim(), normalizedPuntoEmision, StringComparison.Ordinal)))
+        {
+            errorMessage = $"La combinación {normalizedEstablecimiento}-{normalizedPuntoEmision} ya está agregada.";
+            return;
+        }
+
         if (editingPuntoIndex.HasValue)
         {
+            if (!IsValidPuntoIndex(editingPuntoIndex.Value))
+            {
+                ResetPuntoEmisionDraft();
+                showPuntosEmisionModal = false;
+                return;
+            }
+
             empresaRequest.PuntosEmision[editingPuntoIndex.Value] = new EmpresaPuntoEmisionRequest
             {
-                Id = puntoEmisionDraft.Id,
+                Id = selectedEmpresaId.HasValue ? puntoEmisionDraft.Id : null,
                 BodegaId = puntoEmisionDraft.BodegaId,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
-                Establecimiento = puntoEmisionDraft.Establecimiento,
-                PuntoEmision = puntoEmisionDraft.PuntoEmision,
+                Establecimiento = normalizedEstablecimiento,
+                PuntoEmision = normalizedPuntoEmision,
                 IsDefault = puntoEmisionDraft.IsDefault
             };
         }
@@ -276,11 +319,11 @@ public partial class Empresa
         {
             empresaRequest.PuntosEmision.Add(new EmpresaPuntoEmisionRequest
             {
-                Id = puntoEmisionDraft.Id,
+                Id = selectedEmpresaId.HasValue ? puntoEmisionDraft.Id : null,
                 BodegaId = puntoEmisionDraft.BodegaId,
                 DireccionEstablecimiento = puntoEmisionDraft.DireccionEstablecimiento,
-                Establecimiento = puntoEmisionDraft.Establecimiento,
-                PuntoEmision = puntoEmisionDraft.PuntoEmision,
+                Establecimiento = normalizedEstablecimiento,
+                PuntoEmision = normalizedPuntoEmision,
                 IsDefault = puntoEmisionDraft.IsDefault || empresaRequest.PuntosEmision.Count == 0
             });
         }
@@ -297,7 +340,15 @@ public partial class Empresa
 
     private void RemovePuntoEmision(int index)
     {
-        if (empresaRequest.PuntosEmision.Count <= 1)
+        errorMessage = null;
+        statusMessage = null;
+
+        if (!IsValidPuntoIndex(index))
+        {
+            return;
+        }
+
+        if (selectedEmpresaId.HasValue && empresaRequest.PuntosEmision.Count <= 1)
         {
             errorMessage = "La empresa debe conservar al menos un punto de emisión.";
             return;
@@ -305,6 +356,7 @@ public partial class Empresa
 
         var wasDefault = empresaRequest.PuntosEmision[index].IsDefault;
         empresaRequest.PuntosEmision.RemoveAt(index);
+        NormalizeEditingIndexAfterRemove(index);
 
         if (wasDefault && empresaRequest.PuntosEmision.Count > 0)
         {
@@ -314,6 +366,11 @@ public partial class Empresa
 
     private void SetDefaultPuntoEmision(int index)
     {
+        if (!IsValidPuntoIndex(index))
+        {
+            return;
+        }
+
         for (var currentIndex = 0; currentIndex < empresaRequest.PuntosEmision.Count; currentIndex++)
         {
             empresaRequest.PuntosEmision[currentIndex].IsDefault = currentIndex == index;
@@ -322,6 +379,11 @@ public partial class Empresa
 
     private void EditPuntoEmision(int index)
     {
+        if (!IsValidPuntoIndex(index))
+        {
+            return;
+        }
+
         var punto = empresaRequest.PuntosEmision[index];
         editingPuntoIndex = index;
         puntoEmisionDraft = new EmpresaPuntoEmisionRequest
@@ -344,16 +406,46 @@ public partial class Empresa
         {
             Establecimiento = "001",
             PuntoEmision = "001",
-            BodegaId = activeBodegas.FirstOrDefault()?.Id,
+            BodegaId = null,
             IsDefault = empresaRequest.PuntosEmision.Count == 0
         };
+    }
+
+    private bool IsValidPuntoIndex(int index)
+    {
+        return index >= 0 && index < empresaRequest.PuntosEmision.Count;
+    }
+
+    private static bool IsThreeDigitCode(string value)
+    {
+        return value.Length == 3 && value.All(char.IsDigit);
+    }
+
+    private void NormalizeEditingIndexAfterRemove(int removedIndex)
+    {
+        if (!editingPuntoIndex.HasValue)
+        {
+            return;
+        }
+
+        if (editingPuntoIndex.Value == removedIndex)
+        {
+            ResetPuntoEmisionDraft();
+            showPuntosEmisionModal = false;
+            return;
+        }
+
+        if (editingPuntoIndex.Value > removedIndex)
+        {
+            editingPuntoIndex--;
+        }
     }
 
     private string GetBodegaName(Guid? bodegaId)
     {
         if (!bodegaId.HasValue || bodegaId.Value == Guid.Empty)
         {
-            return "Se asignará Principal";
+            return "Sin bodega asignada";
         }
 
         return activeBodegas.FirstOrDefault(current => current.Id == bodegaId.Value)?.Nombre ?? "Bodega no disponible";

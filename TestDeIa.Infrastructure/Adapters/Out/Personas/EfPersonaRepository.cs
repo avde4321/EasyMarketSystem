@@ -95,7 +95,6 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
         return dbContext.Personas.AnyAsync(
             persona =>
-                !persona.IsSystemRecord &&
                 persona.Identificacion == normalizedIdentificacion &&
                 (!excludedId.HasValue || persona.Id != excludedId.Value),
             cancellationToken);
@@ -106,7 +105,17 @@ public sealed class EfPersonaRepository : IPersonaRepository
         var entity = MapToEntity(persona);
         dbContext.Personas.Add(entity);
         await SyncSpecializedPersonRecordAsync(entity, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (entity.Identificacion == "9999999999999" &&
+            exception.InnerException is Microsoft.Data.SqlClient.SqlException sql &&
+            sql.Errors.Cast<Microsoft.Data.SqlClient.SqlError>().Any(error =>
+                error.Number is 2601 or 2627 && error.Message.Contains("IX_Personas_EmpresaId_Identificacion", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Esta empresa ya tiene registrado un consumidor final. Utiliza el registro existente.", exception);
+        }
 
         return await GetByIdAsync(entity.Id, cancellationToken) ?? MapToDomain(entity);
     }

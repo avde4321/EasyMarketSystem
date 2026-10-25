@@ -2443,7 +2443,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("BodegaId")
+                    b.Property<Guid?>("BodegaId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("DireccionEstablecimiento")
@@ -5754,8 +5754,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.BodegaEntity", "Bodega")
                         .WithMany()
                         .HasForeignKey("BodegaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", "Empresa")
                         .WithMany("PuntosEmision")

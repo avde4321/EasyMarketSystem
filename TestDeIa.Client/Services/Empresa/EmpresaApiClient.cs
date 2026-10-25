@@ -47,6 +47,11 @@ public sealed class EmpresaApiClient
         return await httpClient.GetFromJsonAsync<EmpresaResponse>($"api/empresa/{id}");
     }
 
+    public async Task<IReadOnlyCollection<TestDeIa.Shared.Responses.Inventario.BodegaResponse>> GetBodegasAsync(Guid id)
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<TestDeIa.Shared.Responses.Inventario.BodegaResponse>>($"api/empresa/{id}/bodegas") ?? [];
+    }
+
     public async Task<PagedResultResponse<EmpresaResponse>> GetPagedAsync(string? term, int skip, int take)
     {
         var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);

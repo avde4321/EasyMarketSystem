@@ -43,6 +43,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
     {
         var empresa = await dbContext.EmpresasEmisoras
             .AsNoTracking()
+            .Include(current => current.CertificadosDigitales)
             .FirstOrDefaultAsync(current => current.Id == factura.EmpresaId && current.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la empresa emisora activa para firmar la factura.");
 
@@ -94,19 +95,10 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
             return BuildRejectedResult(factura, exception.Message, null);
         }
 
-        if (empresa.CertificadoContenido is null || empresa.CertificadoContenido.Length == 0)
-        {
-            return BuildUnsignedResult(factura, "La empresa activa no tiene un certificado .p12 cargado para firmar el comprobante.");
-        }
-
-        if (string.IsNullOrWhiteSpace(empresa.CertificadoClave))
-        {
-            return BuildUnsignedResult(factura, "La empresa activa no tiene configurada la clave del certificado .p12.");
-        }
-
         try
         {
-            var xmlFirmado = signer.Sign(factura.XmlGenerado, empresa.CertificadoContenido, empresa.CertificadoClave);
+            var certificado = SriCertificateSelector.Resolve(empresa);
+            var xmlFirmado = signer.Sign(factura.XmlGenerado, certificado.Contenido, certificado.Clave);
             var xmlFirmadoBytes = Encoding.UTF8.GetBytes(xmlFirmado);
             var recepcionResponse = await soapClient.ValidarComprobanteAsync(factura.AmbienteSri, xmlFirmadoBytes, cancellationToken);
 

@@ -8,6 +8,49 @@ namespace TestDeIa.Tests.Tenancy;
 public sealed class TenantIsolationTests
 {
     [Fact]
+    public async Task CompanyListIncludesAllAssignedCompaniesButNotOtherUsersCompanies()
+    {
+        var tenant = new TenantContextAccessor { IsSystemContext = true };
+        await using var context = CreateContext(tenant, Guid.NewGuid().ToString("N"));
+        var userId = Guid.NewGuid();
+        var companyA = new EmpresaEmisoraEntity { Id = Guid.NewGuid(), Ruc = "0991111111001" };
+        var companyB = new EmpresaEmisoraEntity { Id = Guid.NewGuid(), Ruc = "0992222222001" };
+        var companyC = new EmpresaEmisoraEntity { Id = Guid.NewGuid(), Ruc = "0993333333001" };
+        context.EmpresasEmisoras.AddRange(companyA, companyB, companyC);
+        var warehouseB = new BodegaEntity
+        {
+            Id = Guid.NewGuid(), EmpresaId = companyB.Id, Codigo = "001", Nombre = "Bodega B", IsActive = true
+        };
+        context.Bodegas.Add(warehouseB);
+        context.EmpresaPuntosEmision.Add(new EmpresaPuntoEmisionEntity
+        {
+            Id = Guid.NewGuid(), EmpresaEmisoraId = companyB.Id, Empresa = companyB,
+            BodegaId = warehouseB.Id, Bodega = warehouseB, Establecimiento = "001", PuntoEmision = "001", IsDefault = true
+        });
+        context.SecurityUserEmpresas.AddRange(
+            new SecurityUserEmpresaEntity { SecurityUserId = userId, EmpresaId = companyA.Id, Empresa = companyA },
+            new SecurityUserEmpresaEntity { SecurityUserId = userId, EmpresaId = companyB.Id, Empresa = companyB },
+            new SecurityUserEmpresaEntity { SecurityUserId = Guid.NewGuid(), EmpresaId = companyC.Id, Empresa = companyC });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        tenant.IsSystemContext = false;
+        tenant.UserId = userId;
+        tenant.EmpresaId = companyA.Id;
+
+        var visibleIds = await context.EmpresasEmisoras.AsNoTracking().Select(c => c.Id).ToListAsync();
+        Assert.Contains(companyA.Id, visibleIds);
+        Assert.Contains(companyB.Id, visibleIds);
+        Assert.DoesNotContain(companyC.Id, visibleIds);
+        var repository = new TestDeIa.Infrastructure.Adapters.Out.Empresa.EfEmpresaRepository(
+            context, tenant, new TestDeIa.Infrastructure.Adapters.Out.Contabilidad.CatalogoNiifSeed());
+        var company = await repository.GetByIdAsync(companyB.Id);
+        Assert.NotNull(company);
+        Assert.Equal("Bodega B", Assert.Single(company.PuntosEmision).BodegaNombre);
+        Assert.Null(await repository.GetByIdAsync(companyC.Id));
+        Assert.Empty(await context.Bodegas.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public void EntitiesWithGuidEmpresaIdImplementTenantEntity()
     {
         var entityTypes = typeof(PersonaEntity).Assembly

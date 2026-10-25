@@ -58,6 +58,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
     public async Task<PersonaResponse> CreateAsync(PersonaRequest request, CancellationToken cancellationToken = default)
     {
+        NormalizeConsumidorFinal(request);
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
@@ -65,7 +66,9 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
         if (await personaRepository.ExistsByIdentificacionAsync(request.Identificacion, cancellationToken: cancellationToken))
         {
-            throw new InvalidOperationException("Ya existe una persona con esa identificacion.");
+            throw new InvalidOperationException(request.TipoIdentificacion == "07"
+                ? "Esta empresa ya tiene registrado un consumidor final. Utiliza el registro existente."
+                : "Ya existe una persona con esa identificacion.");
         }
 
         var persona = new Persona(
@@ -95,6 +98,7 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
     public async Task<PersonaResponse?> UpdateAsync(Guid id, PersonaRequest request, CancellationToken cancellationToken = default)
     {
+        NormalizeConsumidorFinal(request);
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion no coincide con los tipos soportados por facturacion electronica.");
@@ -135,6 +139,15 @@ public sealed class PersonaUseCase : IPersonaUseCase
 
         var updated = await personaRepository.UpdateAsync(persona, cancellationToken);
         return updated is null ? null : MapToResponse(updated);
+    }
+
+    private static void NormalizeConsumidorFinal(PersonaRequest request)
+    {
+        if (request.Identificacion?.Trim() != "9999999999999") return;
+        request.TipoIdentificacion = "07";
+        request.RazonSocialONombresCompletos = "CONSUMIDOR FINAL";
+        request.EsPersonaJuridica = false;
+        request.EsEmpresa = false;
     }
 
     private static PersonaResponse MapToResponse(Persona persona)

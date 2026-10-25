@@ -22,6 +22,7 @@ using TestDeIa.Client.Services.Personas;
 using TestDeIa.Client.Services.Proformas;
 using TestDeIa.Client.Services.Reporteria;
 using TestDeIa.Client.Services.Retenciones;
+using TestDeIa.Client.Services.Saas;
 using TestDeIa.Client.Services.Sri;
 using TestDeIa.Client.Services.Tesoreria;
 using TestDeIa.Client.Services.XmlSri;
@@ -42,11 +43,13 @@ public static class ClientServiceRegistration
         services.AddScoped<AuthenticationStateProvider>(provider =>
             provider.GetRequiredService<TokenAuthenticationStateProvider>());
         services.AddScoped<AuthenticationHeaderHandler>();
+        services.AddScoped<SubscriptionResponseHandler>();
         services.AddHttpClient("Api", client =>
         {
             client.BaseAddress = new Uri(apiOptions.BaseUrl);
         })
-        .AddHttpMessageHandler<AuthenticationHeaderHandler>();
+        .AddHttpMessageHandler<AuthenticationHeaderHandler>()
+        .AddHttpMessageHandler<SubscriptionResponseHandler>();
 
         services.AddScoped(provider => provider.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
         services.AddScoped<SecurityApiClient>();
@@ -78,6 +81,7 @@ public static class ClientServiceRegistration
         services.AddScoped<XmlComprasApiClient>();
         services.AddScoped<TesoreriaApiClient>();
         services.AddScoped<SriCatalogosApiClient>();
+        services.AddScoped<SaasApiClient>();
 
         return services;
     }

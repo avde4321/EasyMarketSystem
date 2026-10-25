@@ -22,6 +22,7 @@ public sealed class SriXadesBesSigner
             certificadoClave,
             X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
 
+        SriCertificateSelector.Validate(certificate);
         using var privateKey = certificate.GetRSAPrivateKey()
             ?? throw new InvalidOperationException("El certificado .p12 no contiene una clave privada RSA valida.");
 

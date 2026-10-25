@@ -74,7 +74,7 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         var tipoEmision = SriCatalogCodes.NormalizeTipoEmisionCode(request.TipoEmision)
             ?? throw new InvalidOperationException("El tipo de emision no existe en el catalogo parametrizado.");
         var empresaId = current?.Id ?? Guid.NewGuid();
-        var puntosEmision = BuildPuntosEmision(request, empresaId);
+        var puntosEmision = BuildPuntosEmision(request, empresaId, current is not null);
         var puntoDefault = puntosEmision.First(currentPunto => currentPunto.IsDefault);
 
         var empresa = new EmpresaEmisora(
@@ -107,11 +107,6 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             current is null ? null : DateTimeOffset.UtcNow);
 
         var saved = await empresaRepository.SaveAsync(empresa, cancellationToken);
-        if (request.CertificadoContenido is { Length: > 0 })
-        {
-            await SaveCertificateHistoryAsync(request, saved, cancellationToken);
-            saved = await empresaRepository.GetByIdAsync(saved.Id, cancellationToken) ?? saved;
-        }
 
         return MapResponse(saved);
     }
@@ -297,11 +292,11 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static IReadOnlyCollection<EmpresaPuntoEmision> BuildPuntosEmision(EmpresaRequest request, Guid empresaId)
+    private static IReadOnlyCollection<EmpresaPuntoEmision> BuildPuntosEmision(EmpresaRequest request, Guid empresaId, bool preserveExistingIds)
     {
         return request.PuntosEmision
             .Select((punto, index) => new EmpresaPuntoEmision(
-                punto.Id ?? Guid.NewGuid(),
+                preserveExistingIds && punto.Id.HasValue ? punto.Id.Value : Guid.NewGuid(),
                 empresaId,
                 punto.Establecimiento.Trim(),
                 punto.PuntoEmision.Trim(),

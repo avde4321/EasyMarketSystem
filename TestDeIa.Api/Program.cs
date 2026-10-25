@@ -167,12 +167,16 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseCors("BlazorClient");
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseMiddleware<RequireActiveSubscriptionMiddleware>();
 app.UseMiddleware<SaaSQuotaExceptionMiddleware>();
 app.UseAuthorization();
 

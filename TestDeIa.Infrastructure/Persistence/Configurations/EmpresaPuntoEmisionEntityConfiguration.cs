@@ -24,7 +24,7 @@ public sealed class EmpresaPuntoEmisionEntityConfiguration : IEntityTypeConfigur
             .HasMaxLength(300);
 
         builder.Property(punto => punto.BodegaId)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.HasIndex(punto => new { punto.EmpresaEmisoraId, punto.Establecimiento, punto.PuntoEmision })
             .IsUnique();

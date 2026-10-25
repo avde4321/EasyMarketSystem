@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using System.Security.Cryptography.X509Certificates;
 using System.Data;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
@@ -30,8 +32,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             return null;
         }
 
-        var entity = await dbContext.EmpresasEmisoras
+        var entity = await AuthorizedCompanyReadQuery()
             .AsNoTracking()
+            .Include(empresa => empresa.CertificadosDigitales)
             .Include(empresa => empresa.PuntosEmision)
             .ThenInclude(punto => punto.Bodega)
             .FirstOrDefaultAsync(empresa => empresa.Id == tenantContextAccessor.EmpresaId.Value, cancellationToken);
@@ -41,8 +44,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
     public async Task<IReadOnlyCollection<EmpresaEmisora>> GetMineAsync(CancellationToken cancellationToken = default)
     {
-        var entities = await dbContext.EmpresasEmisoras
+        var entities = await AuthorizedCompanyReadQuery()
             .AsNoTracking()
+            .Include(empresa => empresa.CertificadosDigitales)
             .Include(empresa => empresa.PuntosEmision)
             .ThenInclude(punto => punto.Bodega)
             .OrderByDescending(empresa => empresa.IsActive)
@@ -55,8 +59,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
     public async Task<PagedResultResponse<EmpresaEmisora>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term?.Trim();
-        var query = dbContext.EmpresasEmisoras
+        var query = AuthorizedCompanyReadQuery()
             .AsNoTracking()
+            .Include(empresa => empresa.CertificadosDigitales)
             .Include(empresa => empresa.PuntosEmision)
             .ThenInclude(punto => punto.Bodega)
             .AsQueryable();
@@ -93,8 +98,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
     public async Task<EmpresaEmisora?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var entity = await dbContext.EmpresasEmisoras
+        var entity = await AuthorizedCompanyReadQuery()
             .AsNoTracking()
+            .Include(empresa => empresa.CertificadosDigitales)
             .Include(empresa => empresa.PuntosEmision)
             .ThenInclude(punto => punto.Bodega)
             .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
@@ -104,6 +110,16 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
     public async Task<EmpresaEmisora> SaveAsync(EmpresaEmisora empresa, CancellationToken cancellationToken = default)
     {
+        // El RUC es único en toda la plataforma. Consultar solo existencia evita exponer datos de otros tenants.
+        var rucRegistrado = await dbContext.EmpresasEmisoras
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(current => current.Ruc == empresa.Ruc && current.Id != empresa.Id, cancellationToken);
+        if (rucRegistrado)
+        {
+            throw new InvalidOperationException("El RUC ya está registrado. Para modificar una empresa existente, utiliza la opción Editar; si no tienes acceso, contacta al administrador.");
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
         var entity = await dbContext.EmpresasEmisoras
@@ -142,9 +158,39 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         persistedEntity.ContribuyenteEspecial = empresa.ContribuyenteEspecial;
         persistedEntity.RegimenRimpe = empresa.RegimenRimpe;
         persistedEntity.AgenteRetencionResolucion = empresa.AgenteRetencionResolucion;
-        persistedEntity.CertificadoNombreArchivo = empresa.CertificadoNombreArchivo;
-        persistedEntity.CertificadoContenido = empresa.CertificadoContenido;
-        persistedEntity.CertificadoClave = empresa.CertificadoClave;
+        if (empresa.CertificadoContenido is { Length: > 0 } && !string.IsNullOrWhiteSpace(empresa.CertificadoClave))
+        {
+            using var certificate = X509CertificateLoader.LoadPkcs12(
+                empresa.CertificadoContenido, empresa.CertificadoClave, X509KeyStorageFlags.EphemeralKeySet);
+            var certificados = await dbContext.CertificadosDigitalesEmpresa
+                .Where(current => current.EmpresaId == empresa.Id).ToListAsync(cancellationToken);
+            var existente = certificados.FirstOrDefault(current => current.HuellaDigital == certificate.Thumbprint);
+            foreach (var current in certificados)
+            {
+                current.EsPrincipal = false;
+            }
+            if (existente is null)
+            {
+                existente = new CertificadoDigitalEmpresaEntity
+                {
+                    Id = Guid.NewGuid(), EmpresaId = empresa.Id,
+                    Nombre = $"Certificado {certificate.NotAfter:yyyy}",
+                    NombreArchivo = empresa.CertificadoNombreArchivo ?? "certificado.p12",
+                    Contenido = empresa.CertificadoContenido, Clave = empresa.CertificadoClave,
+                    Sujeto = certificate.Subject, Emisor = certificate.Issuer,
+                    NumeroSerie = certificate.SerialNumber, HuellaDigital = certificate.Thumbprint,
+                    FechaInicioVigencia = new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
+                    FechaFinVigencia = new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
+                    CreatedAt = DateTimeOffset.UtcNow, UsuarioCreacionId = tenantContextAccessor.UserId
+                };
+                dbContext.CertificadosDigitalesEmpresa.Add(existente);
+            }
+            existente.IsActive = true;
+            existente.EsPrincipal = true;
+        }
+        persistedEntity.CertificadoNombreArchivo = null;
+        persistedEntity.CertificadoContenido = null;
+        persistedEntity.CertificadoClave = null;
         persistedEntity.IsActive = empresa.IsActive;
         persistedEntity.UpdatedAt = empresa.UpdatedAt;
 
@@ -162,7 +208,18 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is SqlException sqlException &&
+            sqlException.Errors.Cast<SqlError>().Any(error =>
+                error.Number is 2601 or 2627 &&
+                error.Message.Contains("IX_EmpresasEmisoras_Ruc", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("El RUC ya está registrado. Revisa la empresa existente o contacta al administrador.", exception);
+        }
 
         await dbContext.EmpresaPuntosEmision
             .Where(current => current.EmpresaEmisoraId == persistedEntity.Id)
@@ -197,8 +254,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
 
         await transaction.CommitAsync(cancellationToken);
 
-        var persisted = await dbContext.EmpresasEmisoras
+        var persisted = await AuthorizedCompanyReadQuery()
             .AsNoTracking()
+            .Include(current => current.CertificadosDigitales)
             .Include(current => current.PuntosEmision)
             .ThenInclude(punto => punto.Bodega)
             .FirstAsync(current => current.Id == persistedEntity.Id, cancellationToken);
@@ -206,8 +264,22 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         return Map(persisted);
     }
 
+    private IQueryable<EmpresaEmisoraEntity> AuthorizedCompanyReadQuery()
+    {
+        // Solo para administración: los Includes deben leer la bodega de cada empresa autorizada,
+        // aunque no sea la activa. La autorización se aplica explícitamente en la consulta raíz.
+        var userId = tenantContextAccessor.UserId;
+        return dbContext.EmpresasEmisoras
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(company => userId.HasValue && dbContext.SecurityUserEmpresas
+                .IgnoreQueryFilters()
+                .Any(access => access.EmpresaId == company.Id && access.SecurityUserId == userId.Value));
+    }
+
     private static EmpresaEmisora Map(EmpresaEmisoraEntity entity)
     {
+        var certificado = entity.CertificadosDigitales.FirstOrDefault(current => current.IsActive && current.EsPrincipal);
         return new EmpresaEmisora(
             entity.Id,
             entity.OwnerUserId,
@@ -229,9 +301,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             entity.ContribuyenteEspecial,
             entity.RegimenRimpe,
             entity.AgenteRetencionResolucion,
-            entity.CertificadoNombreArchivo,
-            entity.CertificadoContenido,
-            entity.CertificadoClave,
+            certificado?.NombreArchivo ?? entity.CertificadoNombreArchivo,
+            certificado?.Contenido ?? entity.CertificadoContenido,
+            certificado?.Clave ?? entity.CertificadoClave,
             entity.PuntosEmision
                 .OrderByDescending(punto => punto.IsDefault)
                 .ThenBy(punto => punto.Establecimiento)
@@ -244,18 +316,19 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
                     punto.DireccionEstablecimiento,
                     punto.IsDefault,
                     punto.BodegaId,
-                    punto.Bodega.Nombre))
+                    punto.Bodega?.Nombre))
                 .ToArray(),
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
     }
 
-    private async Task<Guid> ResolvePuntoBodegaIdAsync(Guid empresaId, Guid? requestedBodegaId, CancellationToken cancellationToken)
+    private async Task<Guid?> ResolvePuntoBodegaIdAsync(Guid empresaId, Guid? requestedBodegaId, CancellationToken cancellationToken)
     {
         if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)
         {
             var requestedBodega = await dbContext.Bodegas
+                .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(current => current.Id == requestedBodegaId.Value && current.EmpresaId == empresaId, cancellationToken)
                 ?? throw new InvalidOperationException("La bodega seleccionada no pertenece a la empresa.");
 
@@ -267,42 +340,6 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             return requestedBodega.Id;
         }
 
-        var principal = await dbContext.Bodegas
-            .FirstOrDefaultAsync(current =>
-                current.EmpresaId == empresaId &&
-                current.IsActive &&
-                current.Nombre == "Principal",
-                cancellationToken);
-
-        if (principal is not null)
-        {
-            return principal.Id;
-        }
-
-        var firstActive = await dbContext.Bodegas
-            .Where(current => current.EmpresaId == empresaId && current.IsActive)
-            .OrderBy(current => current.Nombre)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (firstActive is not null)
-        {
-            return firstActive.Id;
-        }
-
-        var nuevaPrincipal = new BodegaEntity
-        {
-            Id = Guid.NewGuid(),
-            EmpresaId = empresaId,
-            Codigo = "001",
-            Nombre = "Principal",
-            Direccion = null,
-            EsPrincipal = true,
-            IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-
-        dbContext.Bodegas.Add(nuevaPrincipal);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return nuevaPrincipal.Id;
+        return null;
     }
 }

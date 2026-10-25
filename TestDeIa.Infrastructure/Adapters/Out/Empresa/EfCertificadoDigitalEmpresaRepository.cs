@@ -194,9 +194,9 @@ public sealed class EfCertificadoDigitalEmpresaRepository(TestDeIaDbContext dbCo
             .FirstOrDefaultAsync(current => current.Id == empresaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontró la empresa asociada al certificado.");
 
-        empresa.CertificadoNombreArchivo = certificado.NombreArchivo;
-        empresa.CertificadoContenido = certificado.Contenido;
-        empresa.CertificadoClave = certificado.Clave;
+        empresa.CertificadoNombreArchivo = null;
+        empresa.CertificadoContenido = null;
+        empresa.CertificadoClave = null;
         empresa.UpdatedAt = DateTimeOffset.UtcNow;
     }
 

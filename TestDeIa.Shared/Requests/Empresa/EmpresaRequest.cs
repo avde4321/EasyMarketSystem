@@ -57,5 +57,6 @@ public sealed class EmpresaRequest
     public bool IsActive { get; set; } = true;
 
     [Required(ErrorMessage = "Debes registrar al menos un punto de emision.")]
-    public List<EmpresaPuntoEmisionRequest> PuntosEmision { get; set; } = [new() { IsDefault = true }];
+    [MinLength(1, ErrorMessage = "Debes registrar al menos un punto de emision.")]
+    public List<EmpresaPuntoEmisionRequest> PuntosEmision { get; set; } = [];
 }

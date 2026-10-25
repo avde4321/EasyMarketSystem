@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TestDeIa.Api\TestDeIa.Api.csproj" />
     <ProjectReference Include="..\TestDeIa.Infrastructure\TestDeIa.Infrastructure.csproj" />
     <ProjectReference Include="..\TestDeIa.Application\TestDeIa.Application.csproj" />
   </ItemGroup>

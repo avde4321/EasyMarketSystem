@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Shared.Responses.Inventario;
 using TestDeIa.Application.Modules.Empresa.Ports.In;
 using TestDeIa.Shared.Requests.Empresa;
 
@@ -42,6 +45,26 @@ public sealed class EmpresaController : ControllerBase
     {
         var empresa = await empresaUseCase.GetByIdAsync(id, cancellationToken);
         return empresa is null ? NotFound() : Ok(empresa);
+    }
+
+    [HttpGet("{id:guid}/bodegas")]
+    public async Task<IActionResult> GetBodegas(Guid id, [FromServices] TestDeIaDbContext dbContext, CancellationToken cancellationToken)
+    {
+        if (await empresaUseCase.GetByIdAsync(id, cancellationToken) is null)
+        {
+            return NotFound();
+        }
+
+        // La empresa fue autorizada arriba; no depender de la empresa activa del selector.
+        var bodegas = await dbContext.Bodegas.IgnoreQueryFilters().AsNoTracking()
+            .Where(b => b.EmpresaId == id && b.IsActive)
+            .OrderBy(b => b.Nombre)
+            .Select(b => new BodegaResponse
+            {
+                Id = b.Id, Codigo = b.Codigo, Nombre = b.Nombre, Direccion = b.Direccion,
+                EsPrincipal = b.EsPrincipal, IsActive = b.IsActive, CreatedAt = b.CreatedAt, UpdatedAt = b.UpdatedAt
+            }).ToArrayAsync(cancellationToken);
+        return Ok(bodegas);
     }
 
     [HttpPost]

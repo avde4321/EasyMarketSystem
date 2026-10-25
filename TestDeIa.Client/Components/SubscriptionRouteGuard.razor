@@ -1,0 +1,48 @@
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider Authentication
+@inject TestDeIa.Client.Services.Saas.SaasApiClient Saas
+
+@if (allowed)
+{
+    @ChildContent
+}
+else if (error is not null)
+{
+    <p role="alert">@error</p>
+    <a href="/empresa">Volver a mis empresas</a>
+}
+else
+{
+    <p role="status">Verificando acceso de la empresa…</p>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool allowed;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');
+        var authenticated = (await Authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        if (!authenticated || path.Equals("empresa", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("subscription-expired", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("login", StringComparison.OrdinalIgnoreCase) || path.Equals("logout", StringComparison.OrdinalIgnoreCase))
+        {
+            allowed = true;
+            return;
+        }
+        try
+        {
+            var status = await Saas.GetSubscriptionStatusAsync();
+            if (status.Activa)
+                allowed = true;
+            else
+                Navigation.NavigateTo(status.Codigo == "EMPRESA_REQUIRED" ? "/empresa" : "/subscription-expired", replace: true);
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo comprobar el acceso de la empresa. Intenta nuevamente.";
+        }
+    }
+}

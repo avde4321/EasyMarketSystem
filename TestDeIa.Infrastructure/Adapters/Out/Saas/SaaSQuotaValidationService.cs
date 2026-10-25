@@ -8,6 +8,17 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Saas;
 
 public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext) : ISaaSQuotaValidationService
 {
+    public async Task EnsureActiveSubscriptionAsync(Guid empresaId, CancellationToken cancellationToken = default)
+    {
+        var subscription = await GetSubscriptionAsync(empresaId, cancellationToken);
+        if (subscription is null || !subscription.Plan.EsActivo)
+        {
+            throw new SubscriptionRequiredException("Su empresa no cuenta con un plan activo o su periodo de suscripcion ha expirado.");
+        }
+
+        EnsureSubscriptionCanOperate(subscription.EstadoSuscripcion, subscription.FechaVencimiento, useSubscriptionRequiredException: true);
+    }
+
     public async Task CanEmitirFacturaAsync(Guid empresaId, CancellationToken cancellationToken = default)
     {
         var subscription = await GetSubscriptionAsync(empresaId, cancellationToken);
@@ -124,19 +135,30 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext) : IS
                     current.Plan.Nombre,
                     current.Plan.LimiteFacturasMensuales,
                     current.Plan.LimiteUsuarios,
-                    current.Plan.LimiteSucursales)))
+                    current.Plan.LimiteSucursales,
+                    current.Plan.EsActivo)))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private static void EnsureSubscriptionCanOperate(EstadoSuscripcionSaas estado, DateTime fechaVencimiento)
+    private static void EnsureSubscriptionCanOperate(EstadoSuscripcionSaas estado, DateTime fechaVencimiento, bool useSubscriptionRequiredException = false)
     {
         if (estado is EstadoSuscripcionSaas.Suspendida or EstadoSuscripcionSaas.Cancelada)
         {
+            if (useSubscriptionRequiredException)
+            {
+                throw new SubscriptionRequiredException("Su empresa no cuenta con un plan activo o su periodo de suscripcion ha expirado.");
+            }
+
             throw new SaaSQuotaExceededException("La suscripcion de la empresa no permite operar porque se encuentra suspendida o cancelada.", "SUSCRIPCION_INACTIVA");
         }
 
         if (fechaVencimiento.Date < DateTime.UtcNow.Date)
         {
+            if (useSubscriptionRequiredException)
+            {
+                throw new SubscriptionRequiredException("Su empresa no cuenta con un plan activo o su periodo de suscripcion ha expirado.");
+            }
+
             throw new SaaSQuotaExceededException("La suscripcion de la empresa se encuentra vencida.", "SUSCRIPCION_VENCIDA");
         }
     }
@@ -158,5 +180,6 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext) : IS
         string Nombre,
         int LimiteFacturasMensuales,
         int LimiteUsuarios,
-        int LimiteSucursales);
+        int LimiteSucursales,
+        bool EsActivo);
 }

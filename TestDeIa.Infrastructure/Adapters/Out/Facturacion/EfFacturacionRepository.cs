@@ -202,8 +202,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         return puntos.Select(current => new PosPuntoEmisionResponse
         {
-            BodegaId = current.BodegaId,
-            BodegaNombre = current.Bodega.Nombre,
+            BodegaId = current.BodegaId ?? Guid.Empty,
+            BodegaNombre = current.Bodega == null ? "Sin bodega asignada" : current.Bodega.Nombre,
             Establecimiento = current.Establecimiento,
             PuntoEmision = current.PuntoEmision,
             DireccionEstablecimiento = current.DireccionEstablecimiento,
@@ -251,6 +251,10 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         await EnsurePuntoEmisionAllowedForCurrentUserAsync(usuarioId, empresaActivaId, puntoEmision.Id, cancellationToken);
 
+        if (puntoEmision.Bodega is null || !puntoEmision.BodegaId.HasValue)
+        {
+            throw new InvalidOperationException("El punto de emisión no tiene bodega asignada. Crea una bodega y asígnala antes de facturar.");
+        }
         if (!puntoEmision.Bodega.IsActive)
         {
             throw new InvalidOperationException($"La bodega {puntoEmision.Bodega.Nombre} asociada al punto de emision no se encuentra activa.");
@@ -288,7 +292,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .ToArray();
 
         var productIds = itemsByProduct.Select(item => item.ProductoId).ToArray();
-        var operationalBodegaId = puntoEmision.BodegaId;
+        var operationalBodegaId = puntoEmision.BodegaId
+            ?? throw new InvalidOperationException("El punto de emisión no tiene bodega asignada. Crea una bodega y asígnala antes de facturar.");
         var productos = await dbContext.Productos
             .Include(producto => producto.ProductosBodega)
             .Where(producto => productIds.Contains(producto.Id) && producto.IsActive)

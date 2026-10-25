@@ -257,7 +257,7 @@ public sealed class RetencionService(
             return Map(retencion);
         }
 
-        var (certificadoContenido, certificadoClave) = ResolveCertificate(empresa);
+        var (certificadoContenido, certificadoClave) = TestDeIa.Infrastructure.Adapters.Out.Facturacion.SriCertificateSelector.Resolve(empresa);
         var xmlFirmado = signer.Sign(xmlGenerado, certificadoContenido, certificadoClave);
         logger.LogInformation("XML de retencion firmado localmente. RetencionId={RetencionId}.", retencion.Id);
 

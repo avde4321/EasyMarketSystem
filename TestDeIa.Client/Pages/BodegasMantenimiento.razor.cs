@@ -33,6 +33,14 @@ public partial class BodegasMantenimiento
                 .OrderByDescending(bodega => bodega.EsPrincipal)
                 .ThenBy(bodega => bodega.Codigo));
         }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.PaymentRequired)
+        {
+            dialogMessage = "La empresa necesita una suscripción activa para administrar bodegas.";
+        }
+        catch (HttpRequestException)
+        {
+            dialogMessage = "No se pudieron cargar las bodegas. Intenta nuevamente.";
+        }
         finally
         {
             isLoading = false;

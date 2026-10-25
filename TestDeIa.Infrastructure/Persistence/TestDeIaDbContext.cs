@@ -201,7 +201,8 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<SecurityUserEmpresaEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                entity.EmpresaId == tenantContextAccessor.EmpresaId);
+                entity.EmpresaId == tenantContextAccessor.EmpresaId ||
+                (tenantContextAccessor.UserId.HasValue && entity.SecurityUserId == tenantContextAccessor.UserId.Value));
         modelBuilder.Entity<SecurityUserPuntoEmisionEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||

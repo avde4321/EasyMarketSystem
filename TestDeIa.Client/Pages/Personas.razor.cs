@@ -213,6 +213,15 @@ public partial class Personas
             ? BuildFromEmpresaCliente()
             : BuildFromPersonaNatural();
 
+        if (request.Identificacion.Trim() == "9999999999999")
+        {
+            request.TipoIdentificacion = "07";
+            request.RazonSocialONombresCompletos = "CONSUMIDOR FINAL";
+            request.EsPersonaJuridica = false;
+            request.EsEmpresa = false;
+            return true;
+        }
+
         if (registroCrudTipo == RegistroCrudTipo.Persona && tipoRegistroDocumento is TipoRegistroDocumento.Cedula)
         {
             if (!ValidadorEcuador.EsCedulaValida(personaNaturalForm.NumeroDocumento))

@@ -10,7 +10,6 @@
             <p>Administra múltiples RUCs, firmas .p12/.pfx y parámetros tributarios por empresa.</p>
         </div>
         <div class="header-actions empresa-header-actions">
-            <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">@(selectedEmpresaId.HasValue ? "Continuar edición" : "Iniciar configuración")</button>
             <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
         </div>
     </header>
@@ -124,6 +123,22 @@
     </section>
 </section>
 
+@if (showSaveConfirmation)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="empresa-save-title">
+            <header class="modal-header">
+                <h2 id="empresa-save-title">Registro correcto</h2>
+                <button class="icon-button" type="button" aria-label="Cerrar" @onclick="() => showSaveConfirmation = false">x</button>
+            </header>
+            <p role="status">@saveConfirmationMessage</p>
+            <footer class="modal-actions">
+                <button class="primary-action" type="button" @onclick="() => showSaveConfirmation = false">Aceptar</button>
+            </footer>
+        </section>
+    </div>
+}
+
 @if (showWorkflowModal)
 {
     <div class="modal-backdrop">
@@ -151,6 +166,11 @@
 
             <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator />
+                <ValidationSummary />
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert-message" role="alert">@errorMessage</div>
+                }
 
                 <div class="workflow-carousel empresa-workflow-carousel">
                     @if (CurrentStep == 1)
@@ -295,7 +315,7 @@
                                     <label class="summary-label">Resumen de puntos</label>
                                     <p class="summary-text">@GetPuntosResumenDraft()</p>
                                 </div>
-                                <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Elegir punto de emisión</button>
+                                <button class="secondary-action" type="button" @onclick="OpenPuntosEmisionModal">Agregar punto de emisión</button>
                             </div>
 
                             <section class="table-card embedded-card">
@@ -322,6 +342,7 @@
                                             {
                                                 @for (var index = 0; index < empresaRequest.PuntosEmision.Count; index++)
                                                 {
+                                                    var rowIndex = index;
                                                     var punto = empresaRequest.PuntosEmision[index];
                                                     <tr>
                                                         <td data-label="Establecimiento">@punto.Establecimiento</td>
@@ -335,9 +356,9 @@
                                                         </td>
                                                         <td data-label="Acciones">
                                                             <div class="row-actions">
-                                                                <button class="ghost-button" type="button" @onclick="() => EditPuntoEmision(index)">Editar</button>
-                                                                <button class="secondary-action" type="button" @onclick="() => SetDefaultPuntoEmision(index)">Predeterminar</button>
-                                                                <button class="danger-button" type="button" @onclick="() => RemovePuntoEmision(index)">Quitar</button>
+                                                                <button class="ghost-button" type="button" @onclick="() => EditPuntoEmision(rowIndex)">Editar</button>
+                                                                <button class="secondary-action" type="button" @onclick="() => SetDefaultPuntoEmision(rowIndex)">Predeterminar</button>
+                                                                <button class="danger-button" type="button" @onclick="() => RemovePuntoEmision(rowIndex)">Quitar</button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -394,7 +415,7 @@
                 <div class="form-field full">
                     <label>Bodega de despacho por defecto</label>
                     <InputSelect class="form-control" @bind-Value="puntoEmisionDraft.BodegaId">
-                        <option value="">Asignar Principal automáticamente</option>
+                        <option value="">Sin bodega (asignar después)</option>
                         @foreach (var bodega in activeBodegas)
                         {
                             <option value="@bodega.Id">@bodega.Nombre</option>

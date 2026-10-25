@@ -29,6 +29,7 @@ public sealed class SriCompraProcessor : ISriCompraProcessor
     {
         var empresa = await dbContext.EmpresasEmisoras
             .AsNoTracking()
+            .Include(current => current.CertificadosDigitales)
             .FirstOrDefaultAsync(current => current.Id == compra.EmpresaId && current.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la empresa emisora activa para firmar la liquidacion.");
 
@@ -65,19 +66,10 @@ public sealed class SriCompraProcessor : ISriCompraProcessor
             return BuildRejected(compra, exception.Message);
         }
 
-        if (empresa.CertificadoContenido is null || empresa.CertificadoContenido.Length == 0)
-        {
-            return BuildUnsigned(compra, "La empresa activa no tiene un certificado .p12 cargado para firmar la liquidacion.");
-        }
-
-        if (string.IsNullOrWhiteSpace(empresa.CertificadoClave))
-        {
-            return BuildUnsigned(compra, "La empresa activa no tiene configurada la clave del certificado .p12.");
-        }
-
         try
         {
-            var xmlFirmado = signer.Sign(compra.XmlGenerado, empresa.CertificadoContenido, empresa.CertificadoClave);
+            var certificado = SriCertificateSelector.Resolve(empresa);
+            var xmlFirmado = signer.Sign(compra.XmlGenerado, certificado.Contenido, certificado.Clave);
             return new SriCompraProcessingResult
             {
                 EstadoFinal = FacturaEstado.PENDIENTE,

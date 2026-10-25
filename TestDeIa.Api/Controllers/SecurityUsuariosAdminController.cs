@@ -46,7 +46,7 @@ public sealed class SecurityUsuariosAdminController : ControllerBase
             {
                 Id = current.Id,
                 EmpresaId = current.EmpresaEmisoraId,
-                BodegaId = current.BodegaId,
+                BodegaId = current.BodegaId ?? Guid.Empty,
                 Establecimiento = current.Establecimiento,
                 PuntoEmision = current.PuntoEmision,
                 DisplayName = $"{current.Establecimiento}-{current.PuntoEmision}",

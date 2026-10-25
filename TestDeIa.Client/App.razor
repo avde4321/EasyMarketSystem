@@ -1,12 +1,32 @@
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
+            <ErrorBoundary @key="routeData">
+            <ChildContent>
+            <SubscriptionRouteGuard>
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
                     <RedirectToLogin />
                 </NotAuthorized>
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </SubscriptionRouteGuard>
+            </ChildContent>
+            <ErrorContent Context="error">
+                <LayoutView Layout="@typeof(MainLayout)">
+                    @if (error is HttpRequestException httpError && httpError.StatusCode == System.Net.HttpStatusCode.PaymentRequired)
+                    {
+                        <p role="status">Esta empresa necesita una suscripción activa para usar este módulo.</p>
+                        <a class="primary-action" href="/subscription-expired">Ver planes</a>
+                    }
+                    else
+                    {
+                        <p role="alert">No se pudo cargar esta pantalla. Puedes volver a tus empresas e intentar nuevamente.</p>
+                    }
+                    <a class="secondary-action" href="/empresa">Mis empresas</a>
+                </LayoutView>
+            </ErrorContent>
+            </ErrorBoundary>
         </Found>
         <NotFound>
             <PageTitle>No encontrado</PageTitle>
