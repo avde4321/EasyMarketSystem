@@ -3,6 +3,8 @@
 @using TestDeIa.Shared.Compras
 @attribute [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>@PageTitleText</PageTitle>
 
 <section class="module-page compras-page">

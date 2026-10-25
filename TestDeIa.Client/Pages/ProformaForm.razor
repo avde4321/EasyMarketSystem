@@ -141,6 +141,8 @@
     </div>
 </section>
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 @code {
     [Parameter] public Guid? ProformaId { get; set; }
 

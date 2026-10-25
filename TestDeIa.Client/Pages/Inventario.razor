@@ -1,6 +1,8 @@
 @page "/inventario"
 @attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Inventario</PageTitle>
 
 <section class="module-page">

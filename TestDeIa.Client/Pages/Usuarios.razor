@@ -1,6 +1,8 @@
 @page "/usuarios"
 @attribute [Authorize(Roles = SecurityRoleNames.Administrador)]
 
+<ProcessingOverlay IsVisible="@(isSaving || isSavingProfile)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Usuarios</PageTitle>
 
 <section class="module-page">

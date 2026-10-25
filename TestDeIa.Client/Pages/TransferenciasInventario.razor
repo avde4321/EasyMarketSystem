@@ -1,6 +1,8 @@
 @page "/inventario/transferencias"
 @attribute [Authorize(Policy = SecurityPolicyNames.InventarioView)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Transferencias de inventario</PageTitle>
 
 <section class="module-page transfers-page">

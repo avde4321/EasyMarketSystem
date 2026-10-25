@@ -1,6 +1,8 @@
 @page "/personas"
 @attribute [Authorize(Policy = SecurityPolicyNames.PersonasView)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Personas</PageTitle>
 
 <section class="module-page">

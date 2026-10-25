@@ -21,6 +21,11 @@ public partial class ComprobantesMonitor : IAsyncDisposable
 
     private readonly List<FacturaMonitorResponse> facturas = [];
     private bool isLoading = true;
+    private FacturaMonitorResponse? mensajeSeleccionado;
+    private void CerrarMensajeConTeclado(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") mensajeSeleccionado = null;
+    }
     private string? errorMessage;
     private PeriodicTimer? timer;
     private CancellationTokenSource? cancellationTokenSource;

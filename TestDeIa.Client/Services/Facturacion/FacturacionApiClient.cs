@@ -8,6 +8,18 @@ namespace TestDeIa.Client.Services.Facturacion;
 
 public sealed class FacturacionApiClient
 {
+    public async Task<FacturaProcesamientoResponse?> GetProcesamientoAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/facturacion/facturas/{id}/procesamiento");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo consultar el documento."));
+        return await response.Content.ReadFromJsonAsync<FacturaProcesamientoResponse>();
+    }
+    public async Task<FacturaProcesamientoResponse?> ReprocesarAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/facturacion/facturas/{id}/reprocesar", null);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo reprocesar el documento."));
+        return await response.Content.ReadFromJsonAsync<FacturaProcesamientoResponse>();
+    }
     private readonly HttpClient httpClient;
 
     public FacturacionApiClient(HttpClient httpClient)
@@ -51,13 +63,7 @@ public sealed class FacturacionApiClient
             return (true, null, await response.Content.ReadFromJsonAsync<FacturaEmissionResponse>());
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Message ?? "No se pudo emitir la factura.", null);
-        }
-
-        return (false, "No se pudo emitir la factura.", null);
+        return (false, await ReadErrorAsync(response, $"No se pudo emitir la factura (HTTP {(int)response.StatusCode})."), null);
     }
 
     public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(

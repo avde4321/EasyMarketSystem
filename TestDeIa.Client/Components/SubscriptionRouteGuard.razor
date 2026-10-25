@@ -6,11 +6,6 @@
 {
     @ChildContent
 }
-else if (error is not null)
-{
-    <p role="alert">@error</p>
-    <a href="/empresa">Volver a mis empresas</a>
-}
 else
 {
     <p role="status">Verificando acceso de la empresa…</p>
@@ -19,7 +14,6 @@ else
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
     private bool allowed;
-    private string? error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -42,7 +36,16 @@ else
         }
         catch (HttpRequestException)
         {
-            error = "No se pudo comprobar el acceso de la empresa. Intenta nuevamente.";
+            if (string.IsNullOrEmpty(path))
+            {
+                // Ya estamos en Inicio: mostrar su panel sin repetir la redirección.
+                // Las APIs conservan sus validaciones de acceso y suscripción.
+                allowed = true;
+            }
+            else
+            {
+                Navigation.NavigateTo("/", replace: true);
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 @page "/caja/control"
 @attribute [Authorize(Policy = SecurityPolicyNames.CajaOperar)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Control de caja</PageTitle>
 
 <section class="page-shell">

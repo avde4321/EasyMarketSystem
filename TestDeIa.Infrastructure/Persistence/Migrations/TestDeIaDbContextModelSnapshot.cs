@@ -2912,8 +2912,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("MensajeEstado")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("MontoRecibido")
                         .HasPrecision(18, 2)
@@ -3160,8 +3159,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Mensaje")
                         .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

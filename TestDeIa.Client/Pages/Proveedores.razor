@@ -1,6 +1,8 @@
 @page "/proveedores"
 @attribute [Authorize(Policy = SecurityPolicyNames.ProveedoresView)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Proveedores</PageTitle>
 
 <section class="module-page">

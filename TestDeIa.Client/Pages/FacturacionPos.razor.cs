@@ -53,6 +53,7 @@ public partial class FacturacionPos : IDisposable
     private readonly List<PosProductoResponse> productoResults = [];
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
     private readonly List<PosOperadorResponse> operadores = [];
+    private Guid? administradorOperadorPredeterminado;
     private readonly List<CatalogoItemResponse> formasPago = [];
     private readonly List<CartItemModel> cartItems = [];
     private string clienteSearchTerm = string.Empty;
@@ -100,7 +101,6 @@ public partial class FacturacionPos : IDisposable
     private decimal VueltoCalculado => Math.Max(0m, Math.Round((efectivoRecibido ?? 0m) - GetCartTotal(), 2, MidpointRounding.AwayFromZero));
     private decimal MontoPendienteEfectivo => IsCashPayment ? Math.Max(0m, Math.Round(GetCartTotal() - (efectivoRecibido ?? 0m), 2, MidpointRounding.AwayFromZero)) : 0m;
     private bool IsCashPaymentCovered => !IsCashPayment || GetCartTotal() <= 0 || (efectivoRecibido ?? 0m) >= GetCartTotal();
-    private bool CanCheckout => HasOperationalContext && ((hasCajaActiva && !hasCajaVencida) || !isOnline) && !isSubmitting && selectedCliente?.ClienteId.HasValue == true && cartItems.Count > 0 && IsCashPaymentCovered;
     private string CajaModalTitle => hasCajaVencida ? "Caja pendiente de cierre" : "Caja cerrada";
     private string CajaModalMessage => hasCajaVencida && cajaActiva is not null
         ? $"Tienes una caja abierta desde {cajaActiva.FechaApertura.ToLocalTime():dd/MM/yyyy HH:mm}. Debes cerrarla antes de operar el POS y abrir una nueva caja con la fecha correcta de hoy."
@@ -130,6 +130,8 @@ public partial class FacturacionPos : IDisposable
         var authenticationState = await AuthenticationStateTask;
         var user = authenticationState.User;
         canEditServicePrice = user.Identity?.IsAuthenticated == true && user.IsInRole(SecurityRoleNames.Administrador);
+        administradorOperadorPredeterminado = canEditServicePrice &&
+            Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId) ? userId : null;
     }
 
     private async Task LoadCatalogosAsync()
@@ -362,7 +364,9 @@ public partial class FacturacionPos : IDisposable
             PrecioVenta = producto.PrecioVenta,
             PorcentajeIva = producto.PorcentajeIva,
             ControlaStock = producto.ControlaStock,
-            UsuarioIdOperador = null,
+            UsuarioIdOperador = !producto.ControlaStock && operadores.Count == 1 &&
+                operadores[0].UsuarioId == administradorOperadorPredeterminado
+                    ? administradorOperadorPredeterminado : null,
             Cantidad = 1
         });
     }
@@ -419,12 +423,14 @@ public partial class FacturacionPos : IDisposable
         if (selectedCliente is null)
         {
             errorMessage = "Selecciona un cliente antes de cobrar.";
+            ShowPosInfoModal("Datos pendientes", errorMessage);
             return;
         }
 
         if (!selectedCliente.HasClienteExtension || !selectedCliente.ClienteId.HasValue)
         {
             errorMessage = "La persona seleccionada aun no tiene el rol de cliente en esta empresa. Activalo antes de facturar.";
+            ShowPosInfoModal("Cliente pendiente de activar", errorMessage);
             return;
         }
 
@@ -436,31 +442,35 @@ public partial class FacturacionPos : IDisposable
         if (cartItems.Count == 0)
         {
             errorMessage = "Agrega al menos un producto al carrito.";
+            ShowPosInfoModal("Detalle pendiente", errorMessage);
             return;
         }
 
         if (cartItems.Any(item => item.Cantidad <= 0))
         {
             errorMessage = "Todas las cantidades deben ser mayores a cero.";
+            ShowPosInfoModal("Revisa las cantidades", errorMessage);
             return;
         }
 
         if (cartItems.Any(item => item.IsService && (!item.UsuarioIdOperador.HasValue || item.UsuarioIdOperador.Value == Guid.Empty)))
         {
             errorMessage = "Cada servicio debe tener un operador asignado antes de cobrar.";
+            ShowPosInfoModal("Operador pendiente", errorMessage);
             return;
         }
 
         if (cartItems.Any(item => item.IsService && item.PrecioVenta < 0))
         {
             errorMessage = "El precio de los servicios no puede ser negativo.";
+            ShowPosInfoModal("Revisa el precio", errorMessage);
             return;
         }
 
         if (IsCashPayment && !IsCashPaymentCovered)
         {
             errorMessage = $"El efectivo recibido no cubre el total. Faltan {MontoPendienteEfectivo:0.00}.";
-            await PopupNotificationService.ShowErrorAsync(errorMessage);
+            ShowPosInfoModal("Efectivo insuficiente", errorMessage);
             return;
         }
 

@@ -9,6 +9,7 @@
 @inject TestDeIa.Client.Services.PopupNotificationService PopupNotificationService
 
 <PageTitle>Registro de Asiento</PageTitle>
+<ProcessingOverlay IsVisible="@isSaving" Title="Guardando asiento contable" />
 
 <section class="module-page registro-asiento-page">
     <header class="module-header registro-asiento-header">
@@ -36,7 +37,7 @@
         <header class="section-header compact-section-header">
             <div>
                 <h2>Nuevo asiento</h2>
-                <p>Agrega l韓eas contables aceptables y mant閚 el Debe y Haber cuadrados en tiempo real.</p>
+                <p>Agrega l铆neas contables aceptables y mant茅n el Debe y Haber cuadrados en tiempo real.</p>
             </div>
         </header>
 
@@ -56,7 +57,7 @@
                     </InputSelect>
                 </div>
                 <div class="form-field">
-                    <label>M骴ulo origen</label>
+                    <label>M贸dulo origen</label>
                     <InputSelect class="form-control" @bind-Value="request.ModuloOrigen">
                         <option value="Diario">Diario</option>
                         <option value="Pos">POS</option>
@@ -145,7 +146,7 @@
         <header class="section-header compact-section-header">
             <div>
                 <h2>Libro diario reciente</h2>
-                <p>Consulta de los 鷏timos asientos manuales y originados desde otros m骴ulos.</p>
+                <p>Consulta de los 煤ltimos asientos manuales y originados desde otros m贸dulos.</p>
             </div>
             <button class="ghost-button" type="button" @onclick="LoadAsync" disabled="@isLoading">@(isLoading ? "Actualizando..." : "Actualizar")</button>
         </header>
@@ -156,7 +157,7 @@
         }
         else if (libroDiario.Count == 0)
         {
-            <div class="empty-state">Todav韆 no existen asientos contables registrados.</div>
+            <div class="empty-state">Todav铆a no existen asientos contables registrados.</div>
         }
         else
         {
@@ -164,10 +165,10 @@
                 <table class="data-table responsive-table">
                     <thead>
                         <tr>
-                            <th>N鷐ero</th>
+                            <th>N煤mero</th>
                             <th>Fecha</th>
                             <th>Concepto</th>
-                            <th>M骴ulo</th>
+                            <th>M贸dulo</th>
                             <th>Estado</th>
                             <th>Debe</th>
                             <th>Haber</th>
@@ -177,10 +178,10 @@
                         @foreach (var asiento in libroDiario)
                         {
                             <tr>
-                                <td data-label="N鷐ero">@asiento.NumeroAsiento</td>
+                                <td data-label="N煤mero">@asiento.NumeroAsiento</td>
                                 <td data-label="Fecha">@asiento.FechaContable.ToString("yyyy-MM-dd")</td>
                                 <td data-label="Concepto">@asiento.Concepto</td>
-                                <td data-label="M骴ulo">@asiento.ModuloOrigen</td>
+                                <td data-label="M贸dulo">@asiento.ModuloOrigen</td>
                                 <td data-label="Estado"><span class="status-pill @(asiento.Estado == "Posteado" ? "is-active" : string.Empty)">@asiento.Estado</span></td>
                                 <td data-label="Debe">@asiento.TotalDebe.ToString("0.00")</td>
                                 <td data-label="Haber">@asiento.TotalHaber.ToString("0.00")</td>
@@ -225,7 +226,7 @@
         }
         catch (HttpRequestException)
         {
-            errorMessage = "No se pudo cargar la informaci髇 contable de la empresa activa.";
+            errorMessage = "No se pudo cargar la informaci贸n contable de la empresa activa.";
         }
         finally
         {

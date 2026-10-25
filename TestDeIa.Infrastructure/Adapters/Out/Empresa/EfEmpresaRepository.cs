@@ -221,30 +221,49 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             throw new InvalidOperationException("El RUC ya está registrado. Revisa la empresa existente o contacta al administrador.", exception);
         }
 
-        await dbContext.EmpresaPuntosEmision
+        var existingPoints = await dbContext.EmpresaPuntosEmision
+            .IgnoreQueryFilters()
             .Where(current => current.EmpresaEmisoraId == persistedEntity.Id)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        if (empresa.PuntosEmision.Count > 0)
+            .ToListAsync(cancellationToken);
+        var retainedIds = empresa.PuntosEmision.Select(point => point.Id).ToHashSet();
+        foreach (var removed in existingPoints.Where(point => !retainedIds.Contains(point.Id)))
         {
-            var points = new List<EmpresaPuntoEmisionEntity>();
-            foreach (var punto in empresa.PuntosEmision)
+            var hasHistory = await dbContext.CajaSesiones.IgnoreQueryFilters()
+                .AnyAsync(caja => caja.EmpresaId == persistedEntity.Id && caja.PuntoEmisionId == removed.Id, cancellationToken);
+            var assigned = await dbContext.Set<SecurityUserPuntoEmisionEntity>().IgnoreQueryFilters()
+                .AnyAsync(link => link.EmpresaId == persistedEntity.Id && link.EmpresaPuntoEmisionId == removed.Id, cancellationToken);
+            if (hasHistory || assigned)
+                throw new InvalidOperationException($"No puedes quitar el punto {removed.Establecimiento}-{removed.PuntoEmision}: tiene cajas o usuarios asociados. Conserva el punto y edita sus datos.");
+            dbContext.EmpresaPuntosEmision.Remove(removed);
+        }
+
+        foreach (var punto in empresa.PuntosEmision)
+        {
+            var point = existingPoints.FirstOrDefault(current => current.Id == punto.Id);
+            if (point is null)
             {
-                points.Add(new EmpresaPuntoEmisionEntity
+                if (await dbContext.EmpresaPuntosEmision.IgnoreQueryFilters()
+                    .AnyAsync(current => current.Id == punto.Id && current.EmpresaEmisoraId != persistedEntity.Id, cancellationToken))
+                    throw new InvalidOperationException("El punto de emisión no pertenece a esta empresa.");
+                point = new EmpresaPuntoEmisionEntity
                 {
                     Id = punto.Id == Guid.Empty ? Guid.NewGuid() : punto.Id,
-                    EmpresaEmisoraId = persistedEntity.Id,
-                    BodegaId = await ResolvePuntoBodegaIdAsync(persistedEntity.Id, punto.BodegaId, cancellationToken),
-                    Establecimiento = punto.Establecimiento,
-                    PuntoEmision = punto.PuntoEmision,
-                    DireccionEstablecimiento = punto.DireccionEstablecimiento,
-                    IsDefault = punto.IsDefault
-                });
+                    EmpresaEmisoraId = persistedEntity.Id
+                };
+                dbContext.EmpresaPuntosEmision.Add(point);
             }
-
-            dbContext.EmpresaPuntosEmision.AddRange(points);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            var bodegaId = await ResolvePuntoBodegaIdAsync(persistedEntity.Id, punto.BodegaId, cancellationToken);
+            if (point.BodegaId != bodegaId && await dbContext.CajaSesiones.IgnoreQueryFilters()
+                .AnyAsync(caja => caja.EmpresaId == persistedEntity.Id && caja.PuntoEmisionId == point.Id &&
+                    caja.EstadoCaja == TestDeIa.Domain.Modules.Caja.Entities.CajaEstado.Abierta, cancellationToken))
+                throw new InvalidOperationException("Cierra la caja de este punto antes de cambiar su bodega.");
+            point.BodegaId = bodegaId;
+            point.Establecimiento = punto.Establecimiento;
+            point.PuntoEmision = punto.PuntoEmision;
+            point.DireccionEstablecimiento = punto.DireccionEstablecimiento;
+            point.IsDefault = punto.IsDefault;
         }
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         if (isNewEmpresa && !await dbContext.CuentasContables.AnyAsync(current => current.EmpresaId == persistedEntity.Id, cancellationToken))
         {

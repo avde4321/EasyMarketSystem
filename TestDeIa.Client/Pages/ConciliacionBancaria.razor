@@ -2,6 +2,8 @@
 @using TestDeIa.Shared.Security
 @attribute [Authorize(Policy = SecurityPolicyNames.ConfiguracionAccess)]
 
+<ProcessingOverlay IsVisible="@(isBusy)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Conciliación bancaria</PageTitle>
 
 <section class="module-page reconciliation-page">

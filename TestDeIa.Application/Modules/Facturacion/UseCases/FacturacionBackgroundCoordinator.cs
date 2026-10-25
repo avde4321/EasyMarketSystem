@@ -47,6 +47,7 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
         foreach (var facturaId in pendingIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            tenantContextAccessor.IsSystemContext = true;
 
             var factura = await facturacionRepository.TryClaimFacturaAsync(
                 facturaId,
@@ -69,7 +70,8 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
     {
         try
         {
-            tenantContextAccessor.IsSystemContext = false;
+            // El worker no tiene JWT de usuario; las búsquedas usan el Id y EmpresaId del comprobante reclamado.
+            tenantContextAccessor.IsSystemContext = true;
             tenantContextAccessor.EmpresaId = factura.EmpresaId;
 
             await facturacionRepository.MarkFacturaAsReceivedAsync(
@@ -145,13 +147,14 @@ public sealed class FacturacionBackgroundCoordinator : IFacturacionBackgroundCoo
             tenantContextAccessor.IsSystemContext = true;
             await facturacionRepository.MarkFacturaAsErrorAsync(
                 factura.Id,
-                $"{exception.GetType().Name}: {exception.Message}",
+                $"{exception.GetType().Name}: {exception.GetBaseException().Message}",
                 null,
                 cancellationToken);
         }
         finally
         {
             tenantContextAccessor.EmpresaId = null;
+            tenantContextAccessor.UserId = null;
             tenantContextAccessor.IsSystemContext = false;
         }
     }

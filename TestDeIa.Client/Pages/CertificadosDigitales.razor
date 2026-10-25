@@ -4,6 +4,8 @@
 @inject EmpresaApiClient EmpresaApiClient
 @inject TestDeIa.Client.Services.PopupNotificationService Popup
 
+<ProcessingOverlay IsVisible="@(isProcessing)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Certificados digitales</PageTitle>
 
 <section class="module-page certificados-page">

@@ -18,7 +18,7 @@ public sealed class FacturaSriEventoEntityConfiguration : IEntityTypeConfigurati
             .IsRequired();
 
         builder.Property(evento => evento.Mensaje)
-            .HasMaxLength(400)
+            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.HasOne(evento => evento.Factura)

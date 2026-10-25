@@ -53,6 +53,8 @@
     </div>
 }
 
+<ProcessingOverlay IsVisible="@isBusy" Title="Generando cobro digital" />
+
 @code {
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Guid? FacturaId { get; set; }

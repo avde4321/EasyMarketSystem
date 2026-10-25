@@ -33,11 +33,12 @@ public sealed class SriSoapClient
         byte[] xmlBytes,
         CancellationToken cancellationToken = default)
     {
+        ValidateEnvironment(ambienteSri, xmlBytes);
         var endpoint = urlResolverService.Resolve(ambienteSri).RecepcionUrl;
 
         var body = new XElement(
             RecepcionNamespace + "validarComprobante",
-            new XElement(RecepcionNamespace + "xml", Convert.ToBase64String(xmlBytes)));
+            new XElement("xml", Convert.ToBase64String(xmlBytes)));
 
         var responseContent = await SendSoapAsync(endpoint, body, cancellationToken);
         return responseParser.ParseRecepcion(responseContent);
@@ -48,11 +49,12 @@ public sealed class SriSoapClient
         string claveAcceso,
         CancellationToken cancellationToken = default)
     {
+        ValidateAccessKeyEnvironment(ambienteSri, claveAcceso);
         var endpoint = urlResolverService.Resolve(ambienteSri).AutorizacionUrl;
 
         var body = new XElement(
             AutorizacionNamespace + "autorizacionComprobante",
-            new XElement(AutorizacionNamespace + "claveAccesoComprobante", claveAcceso));
+            new XElement("claveAccesoComprobante", claveAcceso));
 
         var responseContent = await SendSoapAsync(endpoint, body, cancellationToken);
         return responseParser.ParseAutorizacion(responseContent);
@@ -77,6 +79,26 @@ public sealed class SriSoapClient
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
         return await SendWithRetryAsync(endpoint, request, cancellationToken);
+    }
+
+    public static void ValidateEnvironment(string ambienteSri, byte[] xmlBytes)
+    {
+        using var stream = new MemoryStream(xmlBytes);
+        using var reader = System.Xml.XmlReader.Create(stream, new System.Xml.XmlReaderSettings
+        { DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null });
+        var document = XDocument.Load(reader);
+        var tributaria = document.Root?.Element("infoTributaria")
+            ?? throw new InvalidOperationException("El XML no contiene infoTributaria para comprobar su ambiente.");
+        if (tributaria.Element("ambiente")?.Value != ambienteSri)
+            throw new InvalidOperationException("El ambiente del XML no coincide con el ambiente del envío. No se envió el comprobante.");
+        ValidateAccessKeyEnvironment(ambienteSri, tributaria.Element("claveAcceso")?.Value ?? string.Empty);
+    }
+
+    private static void ValidateAccessKeyEnvironment(string ambienteSri, string claveAcceso)
+    {
+        if (ambienteSri is not ("1" or "2") || claveAcceso.Length != 49 || !claveAcceso.All(char.IsDigit) ||
+            claveAcceso[23].ToString() != ambienteSri)
+            throw new InvalidOperationException("La clave de acceso y el ambiente del envío no coinciden o no son válidos. No se consultó ni envió al SRI.");
     }
 
     private async Task<string> SendWithRetryAsync(string endpoint, HttpRequestMessage request, CancellationToken cancellationToken)

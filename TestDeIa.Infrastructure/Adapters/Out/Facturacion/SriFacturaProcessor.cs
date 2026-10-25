@@ -72,7 +72,8 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
         }
 
         if (factura.Estado == FacturaEstado.PENDIENTE &&
-            !string.IsNullOrWhiteSpace(factura.XmlFirmado))
+            !string.IsNullOrWhiteSpace(factura.XmlFirmado) &&
+            XDocument.Parse(factura.XmlFirmado).Descendants(XName.Get("Signature", "http://www.w3.org/2000/09/xmldsig#")).Any())
         {
             return await ContinuePendingAuthorizationAsync(factura, cancellationToken);
         }
@@ -95,10 +96,12 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
             return BuildRejectedResult(factura, exception.Message, null);
         }
 
+        string? signedXmlForRetry = null;
         try
         {
             var certificado = SriCertificateSelector.Resolve(empresa);
             var xmlFirmado = signer.Sign(factura.XmlGenerado, certificado.Contenido, certificado.Clave);
+            signedXmlForRetry = xmlFirmado;
             var xmlFirmadoBytes = Encoding.UTF8.GetBytes(xmlFirmado);
             var recepcionResponse = await soapClient.ValidarComprobanteAsync(factura.AmbienteSri, xmlFirmadoBytes, cancellationToken);
 
@@ -203,7 +206,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
             LogSriError(factura, exception, "Timeout comunicandose con el SRI.");
             return BuildPendingNetworkResult(
                 factura,
-                factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
+                signedXmlForRetry ?? factura.XmlFirmado ?? throw new InvalidOperationException("No hay XML firmado para reintentar el envío."),
                 $"Timeout comunicandose con el SRI: {exception.Message}");
         }
         catch (HttpRequestException exception)
@@ -211,7 +214,7 @@ public sealed class SriFacturaProcessor : ISriFacturaProcessor
             LogSriError(factura, exception, "Error de red comunicandose con el SRI.");
             return BuildPendingNetworkResult(
                 factura,
-                factura.XmlFirmado ?? factura.XmlGenerado ?? string.Empty,
+                signedXmlForRetry ?? factura.XmlFirmado ?? throw new InvalidOperationException("No hay XML firmado para reintentar el envío."),
                 $"Error de red comunicandose con el SRI: {exception.Message}");
         }
         catch (CryptographicException exception)

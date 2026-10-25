@@ -11,6 +11,8 @@
 @inject PopupNotificationService PopupNotificationService
 @inject IJSRuntime JsRuntime
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Cierre de periodo fiscal</PageTitle>
 
 <section class="module-page cierre-periodo-page">

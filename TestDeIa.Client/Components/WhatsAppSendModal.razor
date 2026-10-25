@@ -46,6 +46,8 @@
     </div>
 }
 
+<ProcessingOverlay IsVisible="@isSending" Title="Enviando por WhatsApp" />
+
 @code {
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Guid? DocumentoId { get; set; }

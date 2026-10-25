@@ -90,7 +90,23 @@
                    OnConfirm="ConvertirCompraAsync" />
 }
 
+<ProcessingOverlay IsVisible="@isProcessing" Title="Procesando XML de compras" Message="Espera hasta que termine la carga o conversión de documentos." />
+
 @code {
+    private bool isProcessing;
+    private Task OnFilesSelectedAsync(InputFileChangeEventArgs args) => RunOperationAsync(() => ImportFilesAsync(args));
+    private Task ConvertirCompraAsync(TestDeIa.Shared.Requests.XmlSri.ConvertirXmlACompraRequest request) => RunOperationAsync(() => ConvertirCompraCoreAsync(request));
+    private async Task RunOperationAsync(Func<Task> operation)
+    {
+        if (isProcessing) return;
+        isProcessing = true;
+        try { await operation(); }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            await PopupNotificationService.ShowErrorAsync("No se pudo completar el proceso XML. Revisa el archivo y la conexión e intenta nuevamente.");
+        }
+        finally { isProcessing = false; }
+    }
     private const int take = 10;
     private PagedResultResponse<FacturaCompraXmlLogResponse> logs = new() { Take = take };
     private IReadOnlyCollection<BodegaResponse> bodegas = Array.Empty<BodegaResponse>();
@@ -113,7 +129,7 @@
         await LoadAsync();
     }
 
-    private async Task OnFilesSelectedAsync(InputFileChangeEventArgs args)
+    private async Task ImportFilesAsync(InputFileChangeEventArgs args)
     {
         var payloads = new List<BrowserFilePayload>();
         foreach (var file in args.GetMultipleFiles(100))
@@ -150,7 +166,7 @@
         selectedParsedXml = null;
     }
 
-    private async Task ConvertirCompraAsync(TestDeIa.Shared.Requests.XmlSri.ConvertirXmlACompraRequest request)
+    private async Task ConvertirCompraCoreAsync(TestDeIa.Shared.Requests.XmlSri.ConvertirXmlACompraRequest request)
     {
         if (selectedLog is null)
         {

@@ -1,6 +1,8 @@
 @page "/empresa"
 @attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Empresa</PageTitle>
 
 <section class="module-page empresa-page">

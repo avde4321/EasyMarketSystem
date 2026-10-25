@@ -112,7 +112,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasMaxLength(80);
 
         builder.Property(factura => factura.MensajeEstado)
-            .HasMaxLength(400);
+            .HasColumnType("nvarchar(max)");
 
         builder.Property(factura => factura.XmlGenerado)
             .HasColumnType("nvarchar(max)");

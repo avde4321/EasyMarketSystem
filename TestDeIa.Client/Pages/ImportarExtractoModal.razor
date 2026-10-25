@@ -80,6 +80,8 @@
     </div>
 }
 
+<ProcessingOverlay IsVisible="@(isImporting)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 @code {
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public CuentaBancariaDto? Cuenta { get; set; }
@@ -112,24 +114,29 @@
 
     private async Task ImportAsync()
     {
-        if (Cuenta is null || selectedFile is null)
+        if (isImporting || Cuenta is null || selectedFile is null)
         {
             return;
         }
 
         isImporting = true;
         errorMessage = null;
-        await using var stream = selectedFile.OpenReadStream(30_000_000);
-        var result = await TesoreriaApiClient.ImportarExtractoAsync(Cuenta.Id, stream, selectedFile.Name, Path.GetExtension(selectedFile.Name));
-        isImporting = false;
-
-        if (!result.Succeeded)
+        try
         {
-            errorMessage = result.ErrorMessage;
-            return;
+            await using var stream = selectedFile.OpenReadStream(30_000_000);
+            var result = await TesoreriaApiClient.ImportarExtractoAsync(Cuenta.Id, stream, selectedFile.Name, Path.GetExtension(selectedFile.Name));
+            if (!result.Succeeded)
+            {
+                errorMessage = result.ErrorMessage;
+                return;
+            }
+            await OnImported.InvokeAsync();
         }
-
-        await OnImported.InvokeAsync();
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            errorMessage = "No se pudo importar el extracto. Revisa el archivo y la conexión e intenta nuevamente.";
+        }
+        finally { isImporting = false; }
     }
 
     private static IReadOnlyCollection<PreviewRow> BuildPreview(string text)

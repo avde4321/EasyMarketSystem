@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Shared.Requests.Facturacion;
 using TestDeIa.Shared.Security;
@@ -12,6 +15,36 @@ namespace TestDeIa.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class FacturacionController : ControllerBase
 {
+    [HttpGet("facturas/{id:guid}/procesamiento")]
+    [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
+    public async Task<IActionResult> GetProcesamiento(Guid id, [FromServices] TestDeIaDbContext db, CancellationToken cancellationToken)
+    {
+        var factura = await db.Facturas.AsNoTracking().Where(f => f.Id == id)
+            .Select(f => new { f.Id, f.Establecimiento, f.PuntoEmision, f.Secuencial, Estado = f.Estado.ToString(),
+                f.MensajeEstado, f.RetryCount, f.ProcessingStartedAt, f.NextRetryAt, f.ClaveAcceso, f.NumeroAutorizacion }).SingleOrDefaultAsync(cancellationToken);
+        return factura is null ? NotFound() : Ok(factura);
+    }
+
+    [HttpPost("facturas/{id:guid}/reprocesar")]
+    [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+    [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
+    public async Task<IActionResult> Reprocesar(Guid id, [FromServices] TestDeIaDbContext db,
+        [FromServices] IFacturacionBackgroundCoordinator coordinator, CancellationToken cancellationToken)
+    {
+        var factura = await db.Facturas.AsNoTracking().SingleOrDefaultAsync(f => f.Id == id, cancellationToken);
+        if (factura is null) return NotFound();
+        if (factura.Estado is not (FacturaEstado.NO_FIRMADO or FacturaEstado.PENDIENTE) || factura.NumeroAutorizacion != null)
+            return Conflict(new { message = "Solo se pueden reprocesar facturas sin firmar o pendientes de autorización. No se modifica un documento autorizado o rechazado." });
+        if (factura.ProcessingStartedAt > DateTimeOffset.UtcNow.AddMinutes(-2))
+            return Conflict(new { message = "El documento ya está siendo procesado. Espera a que termine." });
+        await db.Facturas.Where(f => f.Id == id).ExecuteUpdateAsync(s => s.SetProperty(f => f.NextRetryAt, (DateTimeOffset?)null), cancellationToken);
+        var tenant = HttpContext.RequestServices.GetRequiredService<TestDeIa.Application.Common.ITenantContextAccessor>();
+        var originalUserId = tenant.UserId;
+        try { await coordinator.ProcessFacturaAsync(id, $"manual-{Guid.NewGuid():N}", cancellationToken); }
+        finally { tenant.EmpresaId = factura.EmpresaId; tenant.UserId = originalUserId; tenant.IsSystemContext = false; }
+        return await GetProcesamiento(id, db, cancellationToken);
+    }
+
     private readonly IFacturacionUseCase facturacionUseCase;
     private readonly IComisionesUseCase comisionesUseCase;
     private readonly INotaCreditoService notaCreditoService;

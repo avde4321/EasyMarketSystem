@@ -1,6 +1,8 @@
 @page "/catalogos"
 @attribute [Authorize(Policy = SecurityPolicyNames.CatalogosAdministrar)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Catalogos</PageTitle>
 
 <section class="module-page">

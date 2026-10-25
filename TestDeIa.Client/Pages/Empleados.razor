@@ -1,6 +1,8 @@
 @page "/empleados"
 @attribute [Authorize(Policy = SecurityPolicyNames.EmpleadosView)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Empleados</PageTitle>
 
 <section class="module-page">

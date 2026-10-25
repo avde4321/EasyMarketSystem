@@ -2,6 +2,8 @@
 @attribute [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
 @implements IAsyncDisposable
 
+<ProcessingOverlay IsVisible="@(isGeneratingNotaCredito || isLoadingNotaCreditoOrigen || busyFacturaId.HasValue)" Title="Procesando comprobante" Message="Espera hasta que termine la generación o descarga del documento." />
+
 <PageTitle>Monitor de Comprobantes</PageTitle>
 
 <ErrorBoundary>
@@ -53,7 +55,7 @@
         </div>
         <div class="monitor-summary">
             <span class="summary-chip">Total: @totalCount</span>
-            <span class="summary-chip summary-pending">Pendientes: @facturas.Count(factura => factura.Estado.Equals("Pendiente", StringComparison.OrdinalIgnoreCase))</span>
+            <span class="summary-chip summary-pending">Pendientes (página): @facturas.Count(factura => new[] { "PENDIENTE", "GENERADO", "NO_FIRMADO", "FIRMADO", "EN_PROCESO", "EN PROCESO" }.Contains(factura.Estado.ToUpperInvariant()))</span>
             <span class="summary-chip summary-success">Autorizadas: @facturas.Count(factura => factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase))</span>
             <span class="summary-chip">Notas crédito: @facturas.Count(factura => factura.TipoDocumentoId == "04")</span>
         </div>
@@ -108,9 +110,23 @@
                                 </td>
                                 <td data-label="Emision">@FormatDate(factura.FechaEmision)</td>
                                 <td data-label="Autorizacion">@(factura.FechaAutorizacion.HasValue ? FormatDate(factura.FechaAutorizacion.Value) : "-")</td>
-                                <td data-label="Mensaje">@factura.MensajeEstado</td>
+                                <td data-label="Mensaje">
+                                    <button class="table-action message-eye-button" type="button"
+                                            title="Ver mensaje del comprobante" aria-label="Ver mensaje del comprobante"
+                                            disabled="@string.IsNullOrWhiteSpace(factura.MensajeEstado)"
+                                            @onclick="() => mensajeSeleccionado = factura">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    </button>
+                                </td>
                                 <td data-label="Documentos">
                                     <div class="table-actions">
+                                        @if (factura.TipoDocumentoId == "01" && string.IsNullOrWhiteSpace(factura.NumeroAutorizacion))
+                                        {
+                                            <a class="table-action" href="@($"/facturacion/reprocesar/{factura.Id}")">Reprocesar</a>
+                                        }
                                         <button class="table-action"
                                                 @onclick="() => DownloadXmlGeneradoAsync(factura)"
                                                 disabled="@IsBusyFor(factura.Id)">
@@ -154,6 +170,25 @@
             </footer>
         }
     </section>
+
+    @if (mensajeSeleccionado is not null)
+    {
+        <div class="modal-backdrop" @onkeydown="CerrarMensajeConTeclado">
+            <section class="modal-card sri-message-modal" role="dialog" aria-modal="true" aria-labelledby="sriMessageTitle">
+                <header class="modal-header">
+                    <div>
+                        <h2 id="sriMessageTitle">Mensaje del comprobante</h2>
+                        <p>@mensajeSeleccionado.NumeroComprobante · @mensajeSeleccionado.Estado</p>
+                    </div>
+                    <button class="icon-button" type="button" aria-label="Cerrar mensaje" @onclick="() => mensajeSeleccionado = null">x</button>
+                </header>
+                <div class="sri-message-content">@mensajeSeleccionado.MensajeEstado</div>
+                <footer class="modal-actions">
+                    <button class="primary-action" type="button" autofocus @onclick="() => mensajeSeleccionado = null">Cerrar</button>
+                </footer>
+            </section>
+        </div>
+    }
 
     @if (showNotaCreditoModal)
     {

@@ -1,6 +1,8 @@
 @page "/compras/cuentas-por-pagar"
 @attribute [Authorize(Policy = SecurityPolicyNames.ComprasCuentasPorPagar)]
 
+<ProcessingOverlay IsVisible="@(isSaving)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Cuentas por pagar</PageTitle>
 
 <section class="module-page cxp-page">

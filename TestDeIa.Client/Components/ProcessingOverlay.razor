@@ -1,0 +1,29 @@
+@if (IsVisible)
+{
+    <div class="processing-overlay">
+        <section class="processing-dialog" role="dialog" aria-modal="true" aria-label="@Title"
+                 aria-busy="true" tabindex="-1" @ref="dialog"
+                 @onkeydown:preventDefault="true" @onkeydown:stopPropagation="true">
+            <div class="processing-spinner" aria-hidden="true"></div>
+            <h2>@Title</h2>
+            <p role="status" aria-live="polite">@Message</p>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "Procesando";
+    [Parameter] public string Message { get; set; } = "Espera un momento hasta que termine el proceso.";
+    private ElementReference dialog;
+    private bool wasVisible;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible && !wasVisible)
+        {
+            wasVisible = true;
+            await dialog.FocusAsync(preventScroll: true);
+        }
+        else if (!IsVisible) wasVisible = false;
+    }
+}

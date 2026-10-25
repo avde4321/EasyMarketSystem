@@ -132,6 +132,8 @@
                    LinkXml=""
                    OnClose="CloseWhatsAppModal" />
 
+<ProcessingOverlay IsVisible="@(isProcessing)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 @code {
     private const int take = 5;
     private PagedResultResponse<ProformaResponse> proformas = new() { Take = take };
