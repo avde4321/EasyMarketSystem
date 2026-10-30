@@ -69,6 +69,7 @@ public sealed class ReporteriaGerencialController(
         return Ok(await consolidacionContableService.ObtenerResumenDiarioAsync(empresaId, (fecha ?? DateTime.Today).Date, cancellationToken));
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.KardexAvanzado)]
     [HttpGet("kardex-valorizado")]
     [Authorize(Policy = SecurityPolicyNames.ReporteriaVentas)]
     public async Task<IActionResult> GetKardexValorizado(

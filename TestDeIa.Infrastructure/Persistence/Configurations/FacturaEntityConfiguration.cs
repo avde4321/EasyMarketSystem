@@ -137,7 +137,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.InventarioAplicado)
             .HasDefaultValue(false);
 
-        builder.HasIndex(factura => new { factura.EmpresaId, factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.AmbienteSri, factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
             .IsUnique();
 
         builder.HasOne<BodegaEntity>()

@@ -8,10 +8,19 @@ using TestDeIa.Shared.Security;
 namespace TestDeIa.Api.Controllers;
 
 [ApiController]
+[TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
 [Authorize]
 [Route("api/retenciones")]
 public sealed class RetencionesController(IRetencionService retencionService) : ControllerBase
 {
+    [HttpPut("{id:guid}/parte-relacionada")]
+    [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    public async Task<IActionResult> ActualizarParteRelacionada(Guid id, [FromBody] bool value, CancellationToken cancellationToken)
+    {
+        try { await retencionService.ActualizarParteRelacionadaAsync(id, value, cancellationToken); return NoContent(); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
+
     [HttpGet]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
     public async Task<IActionResult> GetPaged(
@@ -43,7 +52,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
         {
             return Ok(await retencionService.CreateAsync(request, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -57,7 +66,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
         {
             return Ok(await retencionService.CrearRetencionDesdeCompraAsync(compraId, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -72,7 +81,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
         {
             return Accepted(await retencionService.ProcesarRetencionSRIAsync(id, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -87,7 +96,7 @@ public sealed class RetencionesController(IRetencionService retencionService) : 
         {
             return Accepted(await retencionService.ProcesarRetencionSRIAsync(id, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

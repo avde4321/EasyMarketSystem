@@ -5,6 +5,7 @@ public sealed class EmpresaPuntoEmisionEntity
     public Guid Id { get; set; }
     public Guid EmpresaEmisoraId { get; set; }
     public Guid? BodegaId { get; set; }
+    public string NombreCaja { get; set; } = "Caja General";
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;
     public string? DireccionEstablecimiento { get; set; }

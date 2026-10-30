@@ -42,6 +42,7 @@ public sealed class CompraBackgroundCoordinator : ICompraBackgroundCoordinator
         foreach (var compraId in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            tenantContextAccessor.IsSystemContext = true;
 
             var compra = await compraRepository.TryClaimLiquidacionAsync(compraId, workerId, now, cancellationToken);
             if (compra is null)
@@ -57,7 +58,7 @@ public sealed class CompraBackgroundCoordinator : ICompraBackgroundCoordinator
     {
         try
         {
-            tenantContextAccessor.IsSystemContext = false;
+            tenantContextAccessor.IsSystemContext = true;
             tenantContextAccessor.EmpresaId = compra.EmpresaId;
 
             var result = await sriCompraProcessor.ProcessAsync(compra, cancellationToken);

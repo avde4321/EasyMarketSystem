@@ -63,7 +63,7 @@ public sealed class SecurityController : ControllerBase
 
     [HttpGet("users")]
     [HttpGet("usuarios")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> GetUsers([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
@@ -72,7 +72,7 @@ public sealed class SecurityController : ControllerBase
     }
 
     [HttpGet("roles")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> GetRoles(CancellationToken cancellationToken)
     {
@@ -80,7 +80,7 @@ public sealed class SecurityController : ControllerBase
     }
 
     [HttpGet("auditoria")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> GetAuditoria([FromQuery] string? term, [FromQuery] int skip = 0, [FromQuery] int take = 10, CancellationToken cancellationToken = default)
     {
@@ -89,7 +89,7 @@ public sealed class SecurityController : ControllerBase
     }
 
     [HttpPost("users")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> CreateUser([FromBody] SecurityUserRequest request, CancellationToken cancellationToken)
     {
@@ -98,14 +98,14 @@ public sealed class SecurityController : ControllerBase
             var user = await securityManagementUseCase.CreateUserAsync(request, cancellationToken);
             return Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
     [HttpPut("users/{id:guid}")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] SecurityUserRequest request, CancellationToken cancellationToken)
     {
@@ -114,14 +114,14 @@ public sealed class SecurityController : ControllerBase
             var user = await securityManagementUseCase.UpdateUserAsync(id, request, cancellationToken);
             return user is null ? NotFound() : Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
     [HttpPost("users/{id:guid}/reset-password")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
     {
@@ -135,14 +135,14 @@ public sealed class SecurityController : ControllerBase
 
             return user is null ? NotFound() : Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
     [HttpPut("usuarios/{id:guid}/perfil")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> UpdatePerfil(Guid id, [FromBody] UpdateUserPerfilRequest request, CancellationToken cancellationToken)
     {
@@ -156,14 +156,14 @@ public sealed class SecurityController : ControllerBase
 
             return user is null ? NotFound() : Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
     [HttpPost("usuarios/{id:guid}/estado")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> UpdateEstado(Guid id, [FromBody] UpdateUserEstadoRequest request, CancellationToken cancellationToken)
     {
@@ -177,14 +177,14 @@ public sealed class SecurityController : ControllerBase
 
             return user is null ? NotFound() : Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
     [HttpPost("users/{id:guid}/unlock")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     [Authorize(Policy = SecurityPolicyNames.UsuariosAdministrar)]
     public async Task<IActionResult> UnlockUser(Guid id, CancellationToken cancellationToken)
     {
@@ -197,7 +197,7 @@ public sealed class SecurityController : ControllerBase
 
             return user is null ? NotFound() : Ok(user);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

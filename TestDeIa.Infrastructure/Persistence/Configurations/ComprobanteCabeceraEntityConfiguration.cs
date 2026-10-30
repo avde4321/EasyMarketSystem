@@ -46,7 +46,7 @@ public sealed class ComprobanteCabeceraEntityConfiguration : IEntityTypeConfigur
             .HasForeignKey(entity => entity.ComprobanteModificadoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(entity => new { entity.EmpresaId, entity.TipoDocumentoId, entity.Establecimiento, entity.PuntoEmision, entity.Secuencial })
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.AmbienteSri, entity.TipoDocumentoId, entity.Establecimiento, entity.PuntoEmision, entity.Secuencial })
             .IsUnique();
         builder.HasIndex(entity => new { entity.EmpresaId, entity.ClaveAcceso }).IsUnique();
         builder.HasIndex(entity => new { entity.EmpresaId, entity.Estado });

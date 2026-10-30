@@ -69,6 +69,12 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+        services.AddOptions<DeploymentSettingsOptions>()
+            .Bind(configuration.GetSection(DeploymentSettingsOptions.SectionName))
+            .Validate(x => string.Equals(x.Mode, "SaaS", StringComparison.OrdinalIgnoreCase) || x.IsOnPremise,
+                "DeploymentSettings:Mode debe ser SaaS u OnPremise.")
+            .Validate(x => x.OnPremiseEmpresaId != Guid.Empty, "OnPremiseEmpresaId no puede ser Guid.Empty.")
+            .ValidateOnStart();
         services.Configure<SriSoapOptions>(configuration.GetSection(SriSoapOptions.SectionName));
         services.Configure<IntegracionesOptions>(configuration.GetSection(IntegracionesOptions.SectionName));
         services.Configure<DocumentoStorageOptions>(configuration.GetSection(DocumentoStorageOptions.SectionName));
@@ -98,10 +104,15 @@ public static class DependencyInjection
         services.AddScoped<IProveedorRepository, EfProveedorRepository>();
         services.AddScoped<IEmpleadoRepository, EfEmpleadoRepository>();
         services.AddScoped<IEmpresaRepository, EfEmpresaRepository>();
+        services.AddScoped<IApplicationTransactionRunner, ApplicationTransactionRunner>();
+        services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ITenantOnboardingService, TestDeIa.Infrastructure.Adapters.Out.Saas.TenantOnboardingService>();
+        services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ISaasBillingService, TestDeIa.Infrastructure.Adapters.Out.Saas.SaasBillingService>();
+        services.AddScoped<TestDeIa.Application.Modules.Empresa.Ports.In.INumeracionService, NumeracionService>();
         services.AddScoped<ICertificadoDigitalEmpresaRepository, EfCertificadoDigitalEmpresaRepository>();
         services.AddSingleton<CatalogoNiifSeed>();
         services.AddScoped<GeoEcuadorSeed>();
         services.AddScoped<DbInitializer>();
+        services.AddScoped<SaasSuperAdminBootstrapper>();
         services.AddScoped<IFinancieroReportesRepository, EfFinancieroReportesRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
         services.AddScoped<IReporteVentasRepository, EfReporteVentasRepository>();
@@ -138,6 +149,10 @@ public static class DependencyInjection
         services.AddSingleton<SriNotaCreditoXmlSchemaValidator>();
         services.AddSingleton<SriLiquidacionCompraXmlValidator>();
         services.AddSingleton<SriXadesBesSigner>();
+        services.AddScoped<SriDocumentSubmissionService>();
+        services.AddScoped<TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService>();
+        services.AddSingleton<SriDocumentSchemaValidator>();
+        services.AddSingleton<TestDeIa.Infrastructure.Adapters.Out.Retenciones.RetencionXmlGenerator>();
         services.AddHttpClient<SriSoapClient>((serviceProvider, client) =>
         {
             var soapOptions = serviceProvider.GetRequiredService<IOptions<SriSoapOptions>>().Value;

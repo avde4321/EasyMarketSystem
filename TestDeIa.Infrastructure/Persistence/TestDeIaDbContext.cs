@@ -28,6 +28,8 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<SecurityAuditLogEntity> SecurityAuditLogs => Set<SecurityAuditLogEntity>();
     public DbSet<SaasPlanEntity> SaasPlanes => Set<SaasPlanEntity>();
     public DbSet<SaasSuscripcionEntity> SaasSuscripciones => Set<SaasSuscripcionEntity>();
+    public DbSet<SaasPagoRegistroEntity> SaasPagoRegistros => Set<SaasPagoRegistroEntity>();
+    public DbSet<SaasFacturaCupoEntity> SaasFacturaCupos => Set<SaasFacturaCupoEntity>();
 
     public DbSet<SecurityUserRoleEntity> SecurityUserRoles => Set<SecurityUserRoleEntity>();
 
@@ -97,6 +99,12 @@ public sealed class TestDeIaDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TestDeIaDbContext).Assembly);
+        modelBuilder.Entity<SaasPagoRegistroEntity>()
+            .HasQueryFilter(x => tenantContextAccessor.IsSystemContext || x.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<SaasFacturaCupoEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<NumeracionHistorialEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
 
         modelBuilder.Entity<PersonaEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);

@@ -2,6 +2,7 @@ namespace TestDeIa.Shared.Requests.Retenciones;
 
 public sealed class ComprobanteRetencionRequest
 {
+    public bool ParteRelacionada { get; set; }
     public Guid? CompraId { get; set; }
 
     public Guid ProveedorId { get; set; }

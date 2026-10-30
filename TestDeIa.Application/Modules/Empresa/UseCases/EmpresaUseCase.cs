@@ -104,7 +104,8 @@ public sealed class EmpresaUseCase : IEmpresaUseCase
             puntosEmision,
             request.IsActive,
             current?.CreatedAt ?? DateTimeOffset.UtcNow,
-            current is null ? null : DateTimeOffset.UtcNow);
+            current is null ? null : DateTimeOffset.UtcNow)
+        { PlanInicialId = current is null ? request.PlanInicialId : null };
 
         var saved = await empresaRepository.SaveAsync(empresa, cancellationToken);
 

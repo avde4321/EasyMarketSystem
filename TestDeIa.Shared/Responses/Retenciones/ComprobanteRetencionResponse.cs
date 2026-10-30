@@ -9,6 +9,7 @@ public sealed class ComprobanteRetencionResponse
     public Guid? CompraId { get; set; }
 
     public Guid ProveedorId { get; set; }
+    public bool ParteRelacionada { get; set; }
 
     public string ProveedorNombre { get; set; } = string.Empty;
 

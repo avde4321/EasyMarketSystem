@@ -108,3 +108,31 @@
     background: #fff1f1;
     color: #9c2f2f;
 }
+
+.portal-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.portal-header > div { flex: 1; min-width: min(100%, 260px); }
+.selected-plan { border-color: #159b95 !important; box-shadow: 0 0 0 2px #159b9526; }
+.plan-card { display: flex; flex-direction: column; }
+.plan-action { margin-top: auto; }
+.pending-payment { padding: 1.3rem; border: 1px solid #efd89d; border-radius: 1.2rem; background: #fff8e6; margin: 1.3rem 0; }
+.pending-badge { display: inline-block; padding: .4rem .75rem; border-radius: 2rem; background: #ffedba; color: #815b12; font-weight: 700; }
+.pending-detail { display: grid; gap: .4rem; padding-top: .8rem; margin-top: .8rem; border-top: 1px solid #efd89d; overflow-wrap: anywhere; }
+.subscription-active { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1.2rem; border-radius: 1rem; background: #e4f7ee; color: #18644f; }
+.payment-methods { border-top: 1px solid #d9e8f2; padding-top: 1.5rem; }
+.method-buttons { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+.small-note, .payment-methods small { font-size: .88rem; color: #627991; }
+.billing-modal { width: min(680px, 94vw); max-height: 90vh; overflow-y: auto; }
+.billing-modal fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
+.billing-modal .form-field { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.billing-modal .modal-actions { display: flex; flex-wrap: wrap; gap: .8rem; justify-content: flex-end; }
+.billing-modal ::deep .form-control { width: 100%; }
+.billing-modal ::deep .validation-message, .billing-modal ::deep .validation-errors { color: #a03039; }
+.subscription-actions a, .subscription-active a { text-decoration: none; }
+button:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 640px) {
+    .subscription-shell { padding: .5rem; }
+    .subscription-card { padding: 1rem; }
+    .subscription-actions { flex-wrap: wrap; }
+    .plans-grid { grid-template-columns: 1fr; }
+    .method-buttons > *, .subscription-actions > * { flex: 1 1 100%; text-align: center; }
+}

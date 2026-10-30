@@ -15,7 +15,8 @@ public sealed class CompraEntityConfiguration : IEntityTypeConfiguration<CompraE
         builder.Property(compra => compra.EmpresaId)
             .IsRequired();
 
-        builder.HasIndex(compra => new { compra.EmpresaId, compra.TipoDocumentoCodigo, compra.Establecimiento, compra.PuntoEmision, compra.Secuencial })
+        builder.Property(compra => compra.AmbienteSri).HasMaxLength(1).HasDefaultValue("1").IsRequired();
+        builder.HasIndex(compra => new { compra.EmpresaId, compra.AmbienteSri, compra.TipoDocumentoCodigo, compra.Establecimiento, compra.PuntoEmision, compra.Secuencial })
             .IsUnique();
         builder.HasIndex(compra => new { compra.EmpresaId, compra.ProveedorId, compra.EstadoCompra });
         builder.HasIndex(compra => new { compra.EmpresaId, compra.ProveedorId, compra.FechaEmision });

@@ -6,6 +6,7 @@ using TestDeIa.Shared.Security;
 namespace TestDeIa.Api.Controllers;
 
 [ApiController]
+[TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
 [Authorize(Policy = SecurityPolicyNames.CatalogosAdministrar)]
 [Route("api/sri/catalogos")]
 public sealed class SriCatalogosController(ISriStateEngineService sriStateEngineService) : ControllerBase

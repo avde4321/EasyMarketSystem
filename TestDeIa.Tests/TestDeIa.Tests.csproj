@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- Prueba el cliente HTTP puro sin ejecutar el runtime WebAssembly. -->
+    <Compile Include="..\TestDeIa.Client\Services\Saas\PublicTenantApiClient.cs" Link="Client\PublicTenantApiClient.cs" />
+    <Compile Include="..\TestDeIa.Client\Services\Saas\SaasBillingApiClient.cs" Link="Client\SaasBillingApiClient.cs" />
   </ItemGroup>
 
   <ItemGroup>

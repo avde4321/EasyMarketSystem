@@ -44,6 +44,8 @@ public static class ClientServiceRegistration
             provider.GetRequiredService<TokenAuthenticationStateProvider>());
         services.AddScoped<AuthenticationHeaderHandler>();
         services.AddScoped<SubscriptionResponseHandler>();
+        services.AddHttpClient("PublicApi", client => client.BaseAddress = new Uri(apiOptions.BaseUrl));
+        services.AddScoped(provider => new PublicTenantApiClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PublicApi")));
         services.AddHttpClient("Api", client =>
         {
             client.BaseAddress = new Uri(apiOptions.BaseUrl);
@@ -82,6 +84,7 @@ public static class ClientServiceRegistration
         services.AddScoped<TesoreriaApiClient>();
         services.AddScoped<SriCatalogosApiClient>();
         services.AddScoped<SaasApiClient>();
+        services.AddScoped<SaasBillingApiClient>();
 
         return services;
     }

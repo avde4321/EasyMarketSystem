@@ -15,6 +15,7 @@ namespace TestDeIa.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class FacturacionController : ControllerBase
 {
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("facturas/{id:guid}/procesamiento")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
     public async Task<IActionResult> GetProcesamiento(Guid id, [FromServices] TestDeIaDbContext db, CancellationToken cancellationToken)
@@ -25,6 +26,7 @@ public sealed class FacturacionController : ControllerBase
         return factura is null ? NotFound() : Ok(factura);
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpPost("facturas/{id:guid}/reprocesar")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
@@ -93,6 +95,7 @@ public sealed class FacturacionController : ControllerBase
         return Ok(operadores);
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpPost("facturas")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
@@ -103,12 +106,13 @@ public sealed class FacturacionController : ControllerBase
             var response = await facturacionUseCase.EmitirFacturaAsync(request, cancellationToken);
             return Accepted(response);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("monitor")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
     public async Task<IActionResult> GetMonitor(
@@ -127,19 +131,20 @@ public sealed class FacturacionController : ControllerBase
     }
 
     [HttpGet("comisiones/liquidacion")]
-    [Authorize(Roles = SecurityRoleNames.Administrador)]
+    [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
     public async Task<IActionResult> GetLiquidacionComisiones([FromQuery] DateOnly desde, [FromQuery] DateOnly hasta, [FromQuery] Guid? operadorId = null, CancellationToken cancellationToken = default)
     {
         try
         {
             return Ok(await comisionesUseCase.GetLiquidacionAsync(desde, hasta, operadorId, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpPost("notas-credito")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
     [EnableRateLimiting(SecurityRateLimitPolicyNames.IntegracionMasiva)]
@@ -150,12 +155,13 @@ public sealed class FacturacionController : ControllerBase
             var response = await notaCreditoService.CrearNotaCredito(request, cancellationToken);
             return Accepted(response);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("facturas/{facturaId:guid}/nota-credito-origen")]
     [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
     public async Task<IActionResult> GetNotaCreditoOrigen(Guid facturaId, CancellationToken cancellationToken)
@@ -164,7 +170,7 @@ public sealed class FacturacionController : ControllerBase
         {
             return Ok(await notaCreditoService.GetFacturaOrigenAsync(facturaId, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

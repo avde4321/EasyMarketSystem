@@ -474,7 +474,7 @@
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
-                                <AuthorizeView Roles="@SecurityRoleNames.Administrador">
+                                <AuthorizeView Roles="@SecurityRoleNames.AdministradoresEmpresa">
                                     <Authorized>
                                         <NavLink class="nav-sublink" href="facturacion/comisiones" title="Liquidacion de comisiones">
                                             <span class="nav-icon nav-icon-sub" aria-hidden="true">
@@ -580,6 +580,10 @@
                                                 </svg>
                                             </span>
                                             <span class="nav-text">Empresa</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="empresa/numeracion" title="Secuenciales de facturación">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">#</span>
+                                            <span class="nav-text">Secuenciales de facturación</span>
                                         </NavLink>
                                         <NavLink class="nav-sublink" href="empresa/certificados" title="Certificados digitales">
                                             <span class="nav-icon nav-icon-sub" aria-hidden="true">

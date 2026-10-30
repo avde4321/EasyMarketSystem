@@ -22,7 +22,7 @@ public sealed class SaaSQuotaExceptionMiddleware(RequestDelegate next, ILogger<S
             var problem = new ProblemDetails
             {
                 Status = StatusCodes.Status403Forbidden,
-                Title = "Límite del plan SaaS alcanzado",
+                Title = "Operación no permitida por el plan SaaS",
                 Detail = exception.Message,
                 Type = "https://easymarket.local/problems/saas-quota-exceeded",
                 Instance = context.Request.Path

@@ -27,6 +27,20 @@ public sealed class SecurityRoleEntityConfiguration : IEntityTypeConfiguration<S
         builder.HasData(
             new SecurityRoleEntity
             {
+                Id = SecuritySeedIds.SuperAdministradorRoleId,
+                Name = SecurityRoleNames.SuperAdministrador,
+                NormalizedName = SecurityRoleNames.SuperAdministrador.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.AdministradorEmpresaRoleId,
+                Name = SecurityRoleNames.AdministradorEmpresa,
+                NormalizedName = SecurityRoleNames.AdministradorEmpresa.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
                 Id = SecuritySeedIds.AdministradorRoleId,
                 Name = SecurityRoleNames.Administrador,
                 NormalizedName = SecurityRoleNames.Administrador.ToUpperInvariant(),

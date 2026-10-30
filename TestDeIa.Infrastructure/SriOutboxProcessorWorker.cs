@@ -64,12 +64,14 @@ public sealed class SriOutboxProcessorWorker(
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(current =>
-                current.Estado == SriOutboxEstados.Pendiente ||
+                (!current.NextRetryAt.HasValue || current.NextRetryAt <= now) &&
+                (current.Estado == SriOutboxEstados.Pendiente ||
+                (current.Estado == SriOutboxEstados.EnProceso && (current.ProcessingStartedAt == null || current.ProcessingStartedAt <= now.AddMinutes(-10))) ||
                 current.Estado == SriOutboxEstados.Generado ||
                 current.Estado == SriOutboxEstados.Firmado ||
                 (current.Estado == SriOutboxEstados.Error &&
                  current.Intentos < options.MaxIntentos &&
-                 (!current.NextRetryAt.HasValue || current.NextRetryAt <= now)))
+                 (!current.NextRetryAt.HasValue || current.NextRetryAt <= now))))
             .OrderBy(current => current.CreatedAt)
             .Take(batchSize)
             .Select(current => current.Id)
@@ -77,6 +79,7 @@ public sealed class SriOutboxProcessorWorker(
 
         foreach (var candidateId in candidates)
         {
+            dbContext.ChangeTracker.Clear();
             await TryProcessItemAsync(dbContext, processor, candidateId, stoppingToken);
         }
     }
@@ -92,7 +95,9 @@ public sealed class SriOutboxProcessorWorker(
             .IgnoreQueryFilters()
             .Where(current =>
                 current.Id == candidateId &&
+                (!current.NextRetryAt.HasValue || current.NextRetryAt <= now) &&
                 (current.Estado == SriOutboxEstados.Pendiente ||
+                 (current.Estado == SriOutboxEstados.EnProceso && (current.ProcessingStartedAt == null || current.ProcessingStartedAt <= now.AddMinutes(-10))) ||
                  current.Estado == SriOutboxEstados.Generado ||
                  current.Estado == SriOutboxEstados.Firmado ||
                  (current.Estado == SriOutboxEstados.Error &&
@@ -117,6 +122,7 @@ public sealed class SriOutboxProcessorWorker(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            dbContext.ChangeTracker.Clear();
             var context = await dbContext.ColaProcesamientoSRI
                 .IgnoreQueryFilters()
                 .AsNoTracking()

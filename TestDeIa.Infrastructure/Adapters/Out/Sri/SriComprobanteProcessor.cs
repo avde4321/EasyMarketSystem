@@ -6,6 +6,8 @@ using TestDeIa.Application.Modules.Sri.Ports.In;
 using TestDeIa.Application.Modules.Sri.Ports.Out;
 using TestDeIa.Domain.Modules.Sri;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Infrastructure.Adapters.Out.Facturacion;
+using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence.Entities;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Sri;
@@ -14,6 +16,9 @@ public sealed class SriComprobanteProcessor(
     TestDeIaDbContext dbContext,
     IDocumentoStorageService documentoStorageService,
     ISriStateEngineService sriStateEngineService,
+    SriXadesBesSigner signer,
+    SriDocumentSubmissionService submission,
+    SriNotaCreditoXmlSchemaValidator schemaValidator,
     ILogger<SriComprobanteProcessor> logger) : ISriComprobanteProcessor
 {
     public async Task<SriOutboxProcessingResult> ProcessAsync(
@@ -30,36 +35,94 @@ public sealed class SriComprobanteProcessor(
                 cancellationToken)
             ?? throw new InvalidOperationException("No se encontro el registro de outbox SRI tomado por este worker.");
 
-        await PersistExistingXmlArtifactsAsync(item, cancellationToken);
-
-        var message = "Registro outbox procesado sin reenviar al SRI. Se conservaron artefactos existentes como DocumentoAdjunto cuando estuvieron disponibles.";
-        await sriStateEngineService.ApplyTransitionAsync(new SriTransitionRequest
+        if (item.TipoDocumentoId == "01")
         {
-            EmpresaId = item.EmpresaId,
-            ComprobanteId = item.ComprobanteId,
-            TipoDocumentoId = item.TipoDocumentoId,
-            EstadoNuevoCodigo = SriEstadosComprobante.Autorizado,
-            MensajeRespuesta = message,
-            WorkerNode = workerId
-        }, cancellationToken);
+            // Compatibilidad: la factura pertenece a su coordinador propio, aquí solo se archiva.
+            var factura = await dbContext.Facturas.IgnoreQueryFilters().AsNoTracking()
+                .SingleOrDefaultAsync(x => x.EmpresaId == item.EmpresaId && x.Id == item.ComprobanteId, cancellationToken)
+                ?? throw new InvalidOperationException("No existe la factura de esta empresa.");
+            await PersistExistingXmlArtifactsAsync(item, cancellationToken);
+            var complete = factura.Estado == FacturaEstado.AUTORIZADO && !string.IsNullOrWhiteSpace(factura.NumeroAutorizacion);
+            item.Estado = complete ? SriOutboxEstados.Autorizado : SriOutboxEstados.Pendiente;
+            item.Mensaje = complete ? "Artefactos archivados de factura ya autorizada por su procesador." : "La factura continúa en su procesador específico; no se altera su estado.";
+            item.NextRetryAt = complete ? null : DateTimeOffset.UtcNow.AddMinutes(1);
+            item.ProcessingNode = null;
+            item.ProcessingStartedAt = null;
+            return new SriOutboxProcessingResult { Succeeded = complete, Message = item.Mensaje };
+        }
+        if (item.TipoDocumentoId != "04")
+            throw new InvalidOperationException("Este procesador admite notas de crédito (04). Los demás documentos tienen su procesador propio.");
+        await using var lease = await SriProcessingLease.AcquireAsync(dbContext, item.EmpresaId, item.ComprobanteId, cancellationToken);
 
-        item.Intentos = 0;
-        item.NextRetryAt = null;
+        var document = await dbContext.ComprobanteCabecera.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.EmpresaId == item.EmpresaId && x.Id == item.ComprobanteId && x.TipoDocumentoId == "04", cancellationToken)
+            ?? throw new InvalidOperationException("No se encontró la nota de crédito de la empresa.");
+        var empresa = await dbContext.EmpresasEmisoras.IgnoreQueryFilters().AsNoTracking().Include(x => x.CertificadosDigitales)
+            .SingleOrDefaultAsync(x => x.Id == item.EmpresaId && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("No existe una empresa activa para procesar la nota de crédito.");
+
+        if (document.Estado == FacturaEstado.AUTORIZADO && !string.IsNullOrWhiteSpace(document.NumeroAutorizacion))
+        {
+            item.Estado = SriOutboxEstados.Autorizado;
+            item.ProcessingNode = null;
+            item.ProcessingStartedAt = null;
+            return new SriOutboxProcessingResult { Succeeded = true, Message = "Documento ya autorizado; no se reenvió." };
+        }
+        if (string.IsNullOrWhiteSpace(document.XmlGenerado))
+            throw new InvalidOperationException("La nota de crédito no tiene XML base.");
+
+        string message;
+        string finalState;
+        if (empresa.ModoDesarrollo)
+        {
+            document.NumeroAutorizacion = document.ClaveAcceso;
+            document.FechaAutorizacion = DateTimeOffset.UtcNow;
+            message = "Nota de crédito autorizada por simulación interna de desarrollo. No enviada al SRI.";
+            finalState = SriEstadosComprobante.Autorizado;
+        }
+        else
+        {
+            schemaValidator.Validate(document.XmlGenerado);
+            var retry = SriDocumentSubmissionService.HasSignature(document.XmlFirmado);
+            if (!retry)
+            {
+                var certificate = SriCertificateSelector.Resolve(empresa);
+                document.XmlFirmado = signer.Sign(document.XmlGenerado, certificate.Contenido, certificate.Clave);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            await PersistExistingXmlArtifactsAsync(item, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            var result = await submission.SubmitAsync(ClaveAccesoService.GetAmbienteCode(document.AmbienteSri),
+                document.ClaveAcceso, document.XmlFirmado!, retry, cancellationToken);
+            message = result.Mensaje;
+            finalState = result.Estado;
+            if (result.Estado == SriEstadosComprobante.Autorizado)
+            {
+                document.NumeroAutorizacion = result.NumeroAutorizacion;
+                document.FechaAutorizacion = result.FechaAutorizacion;
+                await SaveIfMissingAsync(item.EmpresaId, "SRI", "ComprobanteCabecera", document.Id,
+                    "XML_AUTORIZADO", $"04-{document.Establecimiento}-{document.PuntoEmision}-{document.Secuencial:D9}-autorizado.xml",
+                    result.XmlAutorizado, cancellationToken);
+            }
+        }
+        if (finalState != SriEstadosComprobante.EnProceso)
+            await sriStateEngineService.ApplyTransitionAsync(new SriTransitionRequest
+            {
+                EmpresaId = item.EmpresaId, ComprobanteId = item.ComprobanteId, TipoDocumentoId = item.TipoDocumentoId,
+                EstadoNuevoCodigo = finalState, MensajeRespuesta = message, WorkerNode = workerId
+            }, cancellationToken);
+        item.Estado = finalState;
+        item.Mensaje = message;
+        item.UltimoError = finalState is "DEVUELTA" or "NO_AUTORIZADO" ? message : null;
+        item.NextRetryAt = finalState == SriEstadosComprobante.EnProceso ? DateTimeOffset.UtcNow.AddSeconds(30) : null;
         item.ProcessingNode = null;
         item.ProcessingStartedAt = null;
-
-        logger.LogInformation(
-            "Outbox SRI procesado en modo seguro. Cola={ColaId}; Empresa={EmpresaId}; TipoDocumento={TipoDocumento}; Comprobante={ComprobanteId}.",
-            item.Id,
-            item.EmpresaId,
-            item.TipoDocumentoId,
-            item.ComprobanteId);
-
-        return new SriOutboxProcessingResult
-        {
-            Succeeded = true,
-            Message = message
-        };
+        document.UpdatedAt = DateTimeOffset.UtcNow;
+        if (finalState == SriEstadosComprobante.EnProceso) document.Estado = FacturaEstado.PENDIENTE;
+        logger.LogInformation("Nota de crédito procesada. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, DocumentoId: {DocumentoId}, Estado: {Estado}",
+            item.EmpresaId, null, document.Id, finalState);
+        return new SriOutboxProcessingResult { Succeeded = finalState == SriEstadosComprobante.Autorizado,
+            Devuelto = finalState is "DEVUELTA" or "NO_AUTORIZADO", Message = message };
     }
 
     private async Task PersistExistingXmlArtifactsAsync(ColaProcesamientoSriEntity item, CancellationToken cancellationToken)

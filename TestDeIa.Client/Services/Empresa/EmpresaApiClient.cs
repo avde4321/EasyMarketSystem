@@ -10,6 +10,20 @@ public sealed class EmpresaApiClient
 {
     private readonly HttpClient httpClient;
 
+    public async Task<IReadOnlyCollection<NumeracionResponse>> GetNumeracionAsync(string ambiente) =>
+        await httpClient.GetFromJsonAsync<NumeracionResponse[]>($"api/empresa/numeracion?ambiente={Uri.EscapeDataString(ambiente)}") ?? [];
+
+    public async Task<IReadOnlyCollection<NumeracionHistorialResponse>> GetNumeracionHistorialAsync() =>
+        await httpClient.GetFromJsonAsync<NumeracionHistorialResponse[]>("api/empresa/numeracion/historial") ?? [];
+
+    public async Task<string?> SaveNumeracionAsync(NumeracionRequest request)
+    {
+        using var response = await httpClient.PutAsJsonAsync("api/empresa/numeracion", request);
+        if (response.IsSuccessStatusCode) return null;
+        using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.TryGetProperty("detail", out var detail) ? detail.GetString() : "No se pudo guardar la numeración. Revise los datos y su acceso.";
+    }
+
     public EmpresaApiClient(HttpClient httpClient)
     {
         this.httpClient = httpClient;
@@ -80,10 +94,10 @@ public sealed class EmpresaApiClient
             return (true, null, await response.Content.ReadFromJsonAsync<EmpresaResponse>());
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden)
         {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Message ?? "No se pudo guardar la empresa.", null);
+            return (false, error?.Detail ?? error?.Message ?? "No se pudo guardar la empresa.", null);
         }
 
         return (false, "No se pudo guardar la empresa.", null);
@@ -92,5 +106,6 @@ public sealed class EmpresaApiClient
     private sealed class ApiError
     {
         public string? Message { get; set; }
+        public string? Detail { get; set; }
     }
 }

@@ -36,6 +36,10 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     ON [dbo].[FacturaDetalles] ([ProductoId], [FacturaId]);
                 END;
 
+                """);
+
+            // SQL Server debe compilar el backfill después de que existan las columnas (instalación nueva).
+            migrationBuilder.Sql("""
                 UPDATE detalle
                 SET
                     CostoHistoricoTotal = ISNULL(kardex.CostoTotal, 0),

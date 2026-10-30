@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Saas.Ports.In;
 
@@ -6,7 +7,8 @@ namespace TestDeIa.Api.Middleware;
 
 public sealed class RequireActiveSubscriptionMiddleware(
     RequestDelegate next,
-    ILogger<RequireActiveSubscriptionMiddleware> logger)
+    ILogger<RequireActiveSubscriptionMiddleware> logger,
+    IOptions<DeploymentSettingsOptions>? deployment = null)
 {
     private static readonly PathString[] ExemptPrefixes =
     [
@@ -29,7 +31,7 @@ public sealed class RequireActiveSubscriptionMiddleware(
         ITenantContextAccessor tenantContextAccessor,
         ISaaSQuotaValidationService quotaValidationService)
     {
-        if (ShouldSkip(context))
+        if (!(deployment?.Value ?? new DeploymentSettingsOptions()).SubscriptionEnabled || ShouldSkip(context))
         {
             await next(context);
             return;
@@ -71,6 +73,12 @@ public sealed class RequireActiveSubscriptionMiddleware(
 
     private static bool ShouldSkip(HttpContext context)
     {
+        if (HttpMethods.IsGet(context.Request.Method) && context.Request.Path.Equals("/api/v1/saas/billing/portal", StringComparison.OrdinalIgnoreCase)) return true;
+        // Se permite pagar/confirmar aun con suscripción vencida; la autorización del endpoint sigue activa.
+        if (HttpMethods.IsPost(context.Request.Method) &&
+            (context.Request.Path.Equals("/api/v1/saas/billing/register-transfer", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/api/v1/saas/billing/confirm-payment", StringComparison.OrdinalIgnoreCase)))
+            return true;
         if (HttpMethods.IsGet(context.Request.Method) && context.Request.Path.StartsWithSegments("/api/catalogos"))
         {
             return true;

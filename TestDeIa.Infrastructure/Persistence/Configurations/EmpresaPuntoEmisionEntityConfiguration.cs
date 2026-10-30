@@ -11,6 +11,7 @@ public sealed class EmpresaPuntoEmisionEntityConfiguration : IEntityTypeConfigur
         builder.ToTable("EmpresaPuntosEmision");
 
         builder.HasKey(punto => punto.Id);
+        builder.Property(punto => punto.NombreCaja).HasMaxLength(100).HasDefaultValue("Caja General").IsRequired();
 
         builder.Property(punto => punto.Establecimiento)
             .HasMaxLength(3)

@@ -19,17 +19,26 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     private readonly IPersonaRepository personaRepository;
     private readonly IPasswordHashService passwordHashService;
     private readonly ICatalogoRepository catalogoRepository;
+    private readonly IApplicationTransactionRunner transactionRunner;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota;
+    private readonly ITenantContextAccessor tenant;
 
     public SecurityManagementUseCase(
         ISecurityUserRepository securityUserRepository,
         IPersonaRepository personaRepository,
         IPasswordHashService passwordHashService,
-        ICatalogoRepository catalogoRepository)
+        ICatalogoRepository catalogoRepository,
+        IApplicationTransactionRunner transactionRunner,
+        TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota,
+        ITenantContextAccessor tenant)
     {
         this.securityUserRepository = securityUserRepository;
         this.personaRepository = personaRepository;
         this.passwordHashService = passwordHashService;
         this.catalogoRepository = catalogoRepository;
+        this.transactionRunner = transactionRunner;
+        this.quota = quota;
+        this.tenant = tenant;
     }
 
     public async Task<IReadOnlyCollection<SecurityUserResponse>> GetUsersAsync(CancellationToken cancellationToken = default)
@@ -91,7 +100,13 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     }
 
     public async Task<SecurityUserResponse> CreateUserAsync(SecurityUserRequest request, CancellationToken cancellationToken = default)
+        => await transactionRunner.ExecuteAsync(() => CreateUserCoreAsync(request, cancellationToken), cancellationToken);
+
+    private async Task<SecurityUserResponse> CreateUserCoreAsync(SecurityUserRequest request, CancellationToken cancellationToken)
     {
+        var empresaId = tenant.EmpresaId ?? throw new InvalidOperationException("Seleccione una empresa para crear el usuario.");
+        await quota.BloquearCuotaAsync(empresaId, cancellationToken);
+        await quota.CanCrearUsuarioAsync(empresaId, cancellationToken);
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion del usuario no coincide con el catalogo parametrizado.");
@@ -148,6 +163,9 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
     }
 
     public async Task<SecurityUserResponse?> UpdateUserAsync(Guid id, SecurityUserRequest request, CancellationToken cancellationToken = default)
+        => await transactionRunner.ExecuteAsync(() => UpdateUserCoreAsync(id, request, cancellationToken), cancellationToken);
+
+    private async Task<SecurityUserResponse?> UpdateUserCoreAsync(Guid id, SecurityUserRequest request, CancellationToken cancellationToken)
     {
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
@@ -160,6 +178,8 @@ public sealed class SecurityManagementUseCase : ISecurityManagementUseCase
         {
             return null;
         }
+        foreach (var empresaId in current.EmpresasAcceso.Select(x => x.EmpresaId).Append(current.EmpresaId).Distinct().Order())
+            await quota.BloquearCuotaAsync(empresaId, cancellationToken);
 
         if (await securityUserRepository.ExistsByUserNameAsync(request.UserName.Trim(), id, cancellationToken))
         {

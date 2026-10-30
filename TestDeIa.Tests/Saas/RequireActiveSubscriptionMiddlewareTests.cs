@@ -80,6 +80,7 @@ public sealed class RequireActiveSubscriptionMiddlewareTests
 
     private sealed class BlockingQuotaValidationService : ISaaSQuotaValidationService
     {
+        public Task EnsureModuleAsync(Guid empresaId, TestDeIa.Domain.Modules.Saas.Enums.SaasModule module, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task EnsureActiveSubscriptionAsync(Guid empresaId, CancellationToken cancellationToken = default)
         {
             throw new SubscriptionRequiredException("Su empresa no cuenta con un plan activo o su periodo de suscripcion ha expirado.");
@@ -91,6 +92,9 @@ public sealed class RequireActiveSubscriptionMiddlewareTests
 
         public Task CanCrearSucursalAsync(Guid empresaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task IncrementarFacturasEmitidasMesActualAsync(Guid empresaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task BloquearCuotaAsync(Guid empresaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ReservarCupoFacturaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ConfirmarFacturaAutorizadaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task LiberarCupoFacturaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

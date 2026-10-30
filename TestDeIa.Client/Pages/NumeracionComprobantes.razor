@@ -1,0 +1,101 @@
+@page "/empresa/numeracion"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@inject EmpresaApiClient Api
+@inject TestDeIa.Client.Services.PopupNotificationService Notifications
+
+<PageTitle>Secuenciales de facturación</PageTitle>
+<ProcessingOverlay IsVisible="busy" Title="Actualizando secuenciales" Message="Espera hasta que termine la operación." />
+<section class="module-page">
+    <header class="module-header">
+        <div><h1>Secuenciales de facturación</h1><p>Configura la continuidad al migrar de proveedor para la empresa activa.</p></div>
+        <a class="ghost-button" href="empresa">Mis empresas</a>
+    </header>
+    <div class="filter-card">
+        <label>Ambiente SRI
+            <select class="input-control" @bind="ambiente" @bind:after="LoadAsync" disabled="@busy">
+                <option value="1">Pruebas (1)</option><option value="2">Producción (2)</option>
+            </select>
+        </label>
+        <button class="ghost-button" @onclick="LoadAsync" disabled="@(loading || busy)">Actualizar</button>
+    </div>
+    <p class="notice">Ingresa el último número utilizado, no el siguiente. Confírmalo con tu proveedor anterior y detén su emisión en este mismo punto antes de continuar aquí. Esta configuración no consulta el historial del SRI.</p>
+    @if (!string.IsNullOrEmpty(error)) { <div class="alert-message" role="alert">@error</div> }
+    @if (loading) { <p role="status">Cargando secuenciales…</p> }
+    else
+    {
+        <div class="table-card"><table class="data-table">
+            <thead><tr><th>Punto de emisión</th><th>Documento</th><th>Último reservado / utilizado</th><th>Próximo a emitir</th><th>Acción</th></tr></thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr><td>@row.Establecimiento-@row.PuntoEmision</td><td>@DocumentName(row.CodigoDocumento)</td><td>@row.UltimoSecuencial.ToString("D9")</td><td>@(row.ProximoSecuencial > 999999999 ? "Agotado" : row.ProximoSecuencial.ToString("D9"))</td><td><button class="ghost-button" @onclick="() => Edit(row)">Configurar</button></td></tr>
+                }
+                @if (rows.Count == 0) { <tr><td colspan="5">No hay puntos de emisión. Créelos primero en Mis empresas.</td></tr> }
+            </tbody>
+        </table></div>
+        <h2>Últimos 50 cambios de configuración</h2>
+        <div class="table-card"><table class="data-table">
+            <thead><tr><th>Fecha</th><th>Serie / Documento</th><th>Ambiente</th><th>Anterior → Nuevo</th><th>Motivo / Usuario</th></tr></thead>
+            <tbody>@foreach (var h in history) { <tr><td>@h.Fecha.ToOffset(TimeSpan.FromHours(-5)).ToString("dd/MM/yyyy HH:mm")</td><td>@h.Serie / @DocumentName(h.CodigoDocumento)</td><td>@(h.AmbienteSri == "2" ? "Producción" : "Pruebas")</td><td>@h.Anterior.ToString("D9") → @h.Nuevo.ToString("D9")</td><td>@h.Motivo <small>@h.UsuarioId</small></td></tr> }</tbody>
+        </table></div>
+    }
+</section>
+@if (editing is not null)
+{
+    <div class="modal-backdrop"><div class="modal-card numeracion-modal" role="dialog" aria-modal="true" aria-labelledby="numeracion-title">
+        <div class="modal-header"><h2 id="numeracion-title">Configurar secuencial</h2><button type="button" class="ghost-button" @onclick="Close" disabled="@busy" aria-label="Cerrar">×</button></div>
+        <p>@DocumentName(editing.CodigoDocumento) · @(editing.AmbienteSri == "2" ? "PRODUCCIÓN" : "PRUEBAS") · @selectedSerie</p>
+        <EditForm Model="editing" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator /><ValidationSummary />
+            <label>Último secuencial utilizado<InputNumber class="input-control" @bind-Value="editing.UltimoSecuencial" min="0" max="999999998" disabled="@busy" /></label>
+            <p>El próximo documento será: <strong>@selectedSerie-@((editing.UltimoSecuencial + 1).ToString("D9"))</strong></p>
+            <label>Motivo del cambio<InputTextArea class="input-control" @bind-Value="editing.Motivo" maxlength="500" disabled="@busy" /></label>
+            <p>No se permite retroceder números. Los documentos existentes y sus claves no se modifican.</p>
+            @if (!string.IsNullOrEmpty(saveError)) { <div class="alert-message" role="alert">@saveError</div> }
+            <div class="modal-actions"><button type="button" class="ghost-button" @onclick="Close" disabled="@busy">Cancelar</button><button type="submit" class="primary-action" disabled="@busy">Confirmar secuencial</button></div>
+        </EditForm>
+    </div></div>
+}
+
+@code {
+    private string ambiente = "1", selectedSerie = "";
+    private string? error, saveError;
+    private bool busy, loading;
+    private NumeracionRequest? editing;
+    private IReadOnlyCollection<NumeracionResponse> rows = [];
+    private IReadOnlyCollection<NumeracionHistorialResponse> history = [];
+    protected override async Task OnInitializedAsync()
+    {
+        try { var empresa = await Api.GetCurrentAsync(); ambiente = empresa?.AmbienteSri == "2" ? "2" : "1"; }
+        catch (HttpRequestException) { }
+        await LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
+        loading = true; error = null;
+        try { rows = await Api.GetNumeracionAsync(ambiente); history = await Api.GetNumeracionHistorialAsync(); }
+        catch (HttpRequestException) { rows = []; error = "No se pudieron cargar los secuenciales. Verifica la empresa activa y tu acceso."; }
+        finally { loading = false; }
+    }
+    private void Edit(NumeracionResponse row)
+    {
+        saveError = null; selectedSerie = $"{row.Establecimiento}-{row.PuntoEmision}";
+        editing = new NumeracionRequest { PuntoEmisionId = row.PuntoEmisionId, AmbienteSri = row.AmbienteSri, CodigoDocumento = row.CodigoDocumento, UltimoSecuencial = row.UltimoSecuencial, ValorEsperado = row.UltimoSecuencial };
+    }
+    private void Close() { if (!busy) editing = null; }
+    private async Task SaveAsync()
+    {
+        if (busy || editing is null) return;
+        busy = true;
+        try
+        {
+            saveError = await Api.SaveNumeracionAsync(editing);
+            if (saveError is not null) return;
+            editing = null; await LoadAsync();
+            await Notifications.ShowSuccessAsync("Secuencial configurado correctamente.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException) { saveError = "No se pudo confirmar el cambio. Actualiza la consulta antes de reintentar."; }
+        finally { busy = false; }
+    }
+    private static string DocumentName(string code) => code switch { "01" => "Factura (01)", "03" => "Liquidación de compra (03)", "04" => "Nota de crédito (04)", "07" => "Retención (07)", _ => code };
+}

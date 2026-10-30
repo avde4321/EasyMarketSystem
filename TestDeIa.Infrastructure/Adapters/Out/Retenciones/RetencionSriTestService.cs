@@ -13,6 +13,7 @@ public sealed class RetencionSriTestService(
     TestDeIaDbContext dbContext,
     SriXadesBesSigner signer,
     SriSoapClient soapClient,
+    RetencionXmlGenerator xmlGenerator,
     ILogger<RetencionSriTestService> logger) : IRetencionSriTestService
 {
     public async Task<RetencionSriTestResultResponse> ValidarXmlRetencionAsync(
@@ -29,7 +30,14 @@ public sealed class RetencionSriTestService(
             return Failed("XML Retencion SRI", "La retencion no existe o no pertenece a la empresa activa.");
         }
 
-        var xml = BuildDiagnosticXml(retencion);
+        var empresa = await dbContext.EmpresasEmisoras.AsNoTracking().SingleOrDefaultAsync(x => x.Id == retencion.EmpresaId, cancellationToken);
+        var proveedor = await dbContext.Proveedores.AsNoTracking().Include(x => x.Persona).SingleOrDefaultAsync(x => x.PersonaId == retencion.ProveedorId, cancellationToken);
+        var compra = await dbContext.Compras.AsNoTracking().Include(x => x.Detalles).SingleOrDefaultAsync(x => x.Id == retencion.CompraId && x.EmpresaId == retencion.EmpresaId, cancellationToken);
+        if (empresa is null || proveedor is null || compra is null || string.IsNullOrWhiteSpace(retencion.ClaveAcceso))
+            return Failed("XML Retención SRI", "Faltan datos reales de empresa, proveedor, compra o clave de acceso para validar el XML.");
+        string xml;
+        try { xml = xmlGenerator.Build(retencion, empresa, proveedor, compra); }
+        catch (InvalidOperationException ex) { return Failed("XML Retención SRI", ex.Message); }
         var document = XDocument.Parse(xml);
         var errores = new List<string>();
 
@@ -54,7 +62,7 @@ public sealed class RetencionSriTestService(
             Succeeded = ok,
             Estado = ok ? "VALIDO" : "INVALIDO",
             ClaveAcceso = retencion.ClaveAcceso,
-            Mensaje = ok ? "XML diagnostico compatible con estructura base SRI v2.0.0." : "XML diagnostico con observaciones.",
+            Mensaje = ok ? "XML real validado contra el XSD SRI v2.0.0." : "XML con observaciones.",
             PayloadResumen = Trim(xml, 900),
             Errores = errores
         };
@@ -171,45 +179,6 @@ public sealed class RetencionSriTestService(
         }
     }
 
-    private static string BuildDiagnosticXml(Persistence.Entities.ComprobanteRetencionEntity retencion)
-    {
-        var clave = string.IsNullOrWhiteSpace(retencion.ClaveAcceso)
-            ? new string('0', 49)
-            : retencion.ClaveAcceso;
-        var builder = new StringBuilder();
-        builder.AppendLine("""<?xml version="1.0" encoding="UTF-8"?>""");
-        builder.AppendLine("""<comprobanteRetencion id="comprobante" version="2.0.0">""");
-        builder.AppendLine("  <infoTributaria>");
-        builder.AppendLine($"    <ambiente>{(byte)retencion.AmbienteSRI}</ambiente>");
-        builder.AppendLine("    <tipoEmision>1</tipoEmision>");
-        builder.AppendLine("    <codDoc>07</codDoc>");
-        builder.AppendLine($"    <estab>{retencion.Establecimiento}</estab>");
-        builder.AppendLine($"    <ptoEmi>{retencion.PuntoEmision}</ptoEmi>");
-        builder.AppendLine($"    <secuencial>{retencion.Secuencial}</secuencial>");
-        builder.AppendLine($"    <claveAcceso>{clave}</claveAcceso>");
-        builder.AppendLine("  </infoTributaria>");
-        builder.AppendLine("  <docsSustento>");
-        foreach (var detail in retencion.Detalles)
-        {
-            builder.AppendLine("    <docSustento>");
-            builder.AppendLine($"      <codDocSustento>{detail.CodDocSustento}</codDocSustento>");
-            builder.AppendLine($"      <numDocSustento>{detail.NumDocSustento.Replace("-", string.Empty, StringComparison.Ordinal)}</numDocSustento>");
-            builder.AppendLine("      <retenciones>");
-            builder.AppendLine("        <retencion>");
-            builder.AppendLine($"          <codigo>{detail.CodigoImpuesto}</codigo>");
-            builder.AppendLine($"          <codigoRetencion>{detail.CodigoRetencionSRI}</codigoRetencion>");
-            builder.AppendLine($"          <baseImponible>{detail.BaseImponible:0.00}</baseImponible>");
-            builder.AppendLine($"          <porcentajeRetener>{detail.PorcentajeRetencion:0.00}</porcentajeRetener>");
-            builder.AppendLine($"          <valorRetenido>{detail.ValorRetenido:0.00}</valorRetenido>");
-            builder.AppendLine("        </retencion>");
-            builder.AppendLine("      </retenciones>");
-            builder.AppendLine("    </docSustento>");
-        }
-
-        builder.AppendLine("  </docsSustento>");
-        builder.AppendLine("</comprobanteRetencion>");
-        return builder.ToString();
-    }
 
     private static RetencionSriTestResultResponse Failed(string testName, string message)
     {

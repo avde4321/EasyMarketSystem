@@ -61,6 +61,7 @@ public sealed class EmpresaEmisora
     }
 
     public Guid Id { get; }
+    public int? PlanInicialId { get; init; }
     public Guid OwnerUserId { get; }
     public string RazonSocial { get; }
     public string? NombreComercial { get; }

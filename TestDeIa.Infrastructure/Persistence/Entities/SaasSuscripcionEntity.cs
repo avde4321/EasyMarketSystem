@@ -19,6 +19,7 @@ public sealed class SaasSuscripcionEntity : ITenantEntity
     public int FacturasEmitidasMesActual { get; set; }
 
     public DateTime? ContadorFacturasPeriodo { get; set; }
+    public DateTimeOffset? FechaReinicioCupo { get; set; }
 
     public SaasPlanEntity Plan { get; set; } = default!;
 

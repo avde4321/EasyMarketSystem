@@ -323,9 +323,12 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         var clienteTipoIdentificacion = MapClienteTipoIdentificacionSri(cliente.Persona.TipoIdentificacion);
         var formaPagoCodigo = MapFormaPagoSriCodigo(request.FormaPago);
         var formaPago = SriCatalogCodes.GetFormaPagoName(formaPagoCodigo);
+        var facturaId = Guid.NewGuid();
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await quotaValidationService.ReservarCupoFacturaAsync(empresa.Id, facturaId, cancellationToken);
         var secuencial = await ReserveNextSecuencialAsync(
             empresa.Id,
+            empresa.AmbienteSri,
             "01",
             puntoEmision.Establecimiento,
             puntoEmision.PuntoEmision,
@@ -334,7 +337,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
         var factura = new FacturaEntity
         {
-            Id = Guid.NewGuid(),
+            Id = facturaId,
             EmpresaId = empresa.Id,
             EmpresaEmisoraId = empresa.Id,
             BodegaId = operationalBodegaId,
@@ -521,6 +524,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             });
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            await quotaValidationService.ConfirmarFacturaAutorizadaAsync(empresa.Id, facturaId, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             return new FacturaEmissionResponse
@@ -795,6 +799,10 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             return;
         }
 
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.ReservarCupoFacturaAsync(factura.EmpresaId, factura.Id, cancellationToken);
+
         factura.MensajeEstado = mensaje;
         factura.UpdatedAt = DateTimeOffset.UtcNow;
         dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
@@ -807,7 +815,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await quotaValidationService.IncrementarFacturasEmitidasMesActualAsync(factura.EmpresaId, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task MarkFacturaAsAuthorizedAsync(
@@ -819,12 +827,27 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default)
     {
+        var empresa = await dbContext.Facturas.AsNoTracking().Where(x => x.Id == facturaId).Select(x => (Guid?)x.EmpresaId).SingleOrDefaultAsync(cancellationToken);
+        if (!empresa.HasValue) return;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.BloquearCuotaAsync(empresa.Value, cancellationToken);
+        await MarkFacturaAsAuthorizedCoreAsync(facturaId, claveAcceso, numeroAutorizacion, xmlFirmado, mensaje, fechaRespuesta, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task MarkFacturaAsAuthorizedCoreAsync(Guid facturaId, string claveAcceso, string? numeroAutorizacion,
+        string xmlFirmado, string mensaje, DateTimeOffset fechaRespuesta, CancellationToken cancellationToken)
+    {
         var factura = await dbContext.Set<FacturaEntity>()
             .Include(current => current.Detalles)
             .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
 
-        if (factura is null || factura.Estado == FacturaEstado.AUTORIZADO)
+        if (factura is null) return;
+        await dbContext.Entry(factura).ReloadAsync(cancellationToken);
+        if (factura.Estado == FacturaEstado.AUTORIZADO)
         {
+            await quotaValidationService.ConfirmarFacturaAutorizadaAsync(factura.EmpresaId, factura.Id, cancellationToken);
             return;
         }
 
@@ -853,6 +876,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await quotaValidationService.ConfirmarFacturaAutorizadaAsync(factura.EmpresaId, factura.Id, cancellationToken);
     }
 
     public async Task MarkFacturaAsSignedPendingAsync(
@@ -905,6 +929,18 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default)
     {
+        var empresa = await dbContext.Facturas.AsNoTracking().Where(x => x.Id == facturaId).Select(x => (Guid?)x.EmpresaId).SingleOrDefaultAsync(cancellationToken);
+        if (!empresa.HasValue) return;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.BloquearCuotaAsync(empresa.Value, cancellationToken);
+        await MarkFacturaAsRejectedCoreAsync(facturaId, mensaje, auditoriaJson, xmlFirmado, fechaRespuesta, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task MarkFacturaAsRejectedCoreAsync(Guid facturaId, string mensaje, string? auditoriaJson,
+        string? xmlFirmado, DateTimeOffset fechaRespuesta, CancellationToken cancellationToken)
+    {
         var factura = await dbContext.Set<FacturaEntity>()
             .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
 
@@ -912,7 +948,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         {
             return;
         }
-
+        await dbContext.Entry(factura).ReloadAsync(cancellationToken);
+        if (factura.Estado == FacturaEstado.AUTORIZADO) return;
         factura.Estado = FacturaEstado.RECHAZADO;
         factura.XmlFirmado = xmlFirmado;
         factura.MensajeEstado = mensaje;
@@ -931,6 +968,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await quotaValidationService.LiberarCupoFacturaAsync(factura.EmpresaId, factura.Id, cancellationToken);
     }
 
     public async Task MarkFacturaAsUnsignedAsync(
@@ -1357,44 +1395,15 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
 
     private async Task<long> ReserveNextSecuencialAsync(
         Guid empresaId,
+        string ambiente,
         string codigoDocumento,
         string establecimiento,
         string puntoEmision,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var record = await dbContext.FacturaSecuenciales
-            .FirstOrDefaultAsync(current =>
-                current.EmpresaId == empresaId &&
-                current.CodigoDocumento == codigoDocumento &&
-                current.Establecimiento == establecimiento &&
-                current.PuntoEmision == puntoEmision,
-                cancellationToken);
-
-        if (record is null)
-        {
-            record = new FacturaSecuencialEntity
-            {
-                Id = Guid.NewGuid(),
-                EmpresaId = empresaId,
-                CodigoDocumento = codigoDocumento,
-                Establecimiento = establecimiento,
-                PuntoEmision = puntoEmision,
-                UltimoSecuencial = 1,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-
-            dbContext.FacturaSecuenciales.Add(record);
-        }
-        else
-        {
-            record.UltimoSecuencial += 1;
-            record.UpdatedAt = now;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return record.UltimoSecuencial;
+        return await SriNumeracionAllocator.ReserveAsync(dbContext, empresaId,
+            ClaveAccesoService.GetAmbienteCode(ambiente), codigoDocumento, establecimiento, puntoEmision, cancellationToken);
     }
 
     private async Task<Guid> ResolvePrincipalBodegaIdAsync(CancellationToken cancellationToken)

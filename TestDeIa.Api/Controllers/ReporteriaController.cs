@@ -32,6 +32,7 @@ public sealed class ReporteriaController : ControllerBase
         this.dbContext = dbContext;
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("facturas/{facturaId:guid}/ride")]
     public async Task<IActionResult> GetRide(Guid facturaId, CancellationToken cancellationToken)
     {
@@ -48,6 +49,7 @@ public sealed class ReporteriaController : ControllerBase
         return File(pdfBytes, "application/pdf", fileName);
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("comprobantes/{comprobanteId:guid}/ride")]
     public async Task<IActionResult> GetComprobanteRide(Guid comprobanteId, CancellationToken cancellationToken)
     {
@@ -69,6 +71,7 @@ public sealed class ReporteriaController : ControllerBase
         return File(pdfBytes, "application/pdf", $"RIDE-{comprobante.NumeroComprobante}.pdf");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("comprobantes/{comprobanteId:guid}/xml-generado")]
     public async Task<IActionResult> GetComprobanteXmlGenerado(Guid comprobanteId, CancellationToken cancellationToken)
     {
@@ -90,6 +93,7 @@ public sealed class ReporteriaController : ControllerBase
             $"COMPROBANTE-{comprobante.NumeroComprobante}-xml-generado.xml");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("comprobantes/{comprobanteId:guid}/xml-firmado")]
     public async Task<IActionResult> GetComprobanteXmlFirmado(Guid comprobanteId, CancellationToken cancellationToken)
     {
@@ -111,6 +115,7 @@ public sealed class ReporteriaController : ControllerBase
             $"COMPROBANTE-{comprobante.NumeroComprobante}-xml-firmado.xml");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("facturas/{facturaId:guid}/xml-generado")]
     public async Task<IActionResult> GetXmlGenerado(Guid facturaId, CancellationToken cancellationToken)
     {
@@ -132,6 +137,7 @@ public sealed class ReporteriaController : ControllerBase
             $"FACTURA-{factura.NumeroComprobante}-xml-generado.xml");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("facturas/{facturaId:guid}/xml-firmado")]
     public async Task<IActionResult> GetXmlFirmado(Guid facturaId, CancellationToken cancellationToken)
     {
@@ -190,6 +196,7 @@ public sealed class ReporteriaController : ControllerBase
         return File(pdfBytes, "application/pdf", $"PROFORMA-{proforma.Secuencial}.pdf");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("retenciones/{retencionId:guid}/ride")]
     public async Task<IActionResult> GetRetencionRide(Guid retencionId, CancellationToken cancellationToken)
     {
@@ -227,8 +234,9 @@ public sealed class ReporteriaController : ControllerBase
         return File(pdfBytes, "application/pdf", $"RETENCION-{numero}.pdf");
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpGet("retenciones/{retencionId:guid}/xml-generado")]
-    public async Task<IActionResult> GetRetencionXmlGenerado(Guid retencionId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetRetencionXmlGenerado(Guid retencionId, [FromServices] TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService artifacts, CancellationToken cancellationToken)
     {
         var retencion = await dbContext.ComprobantesRetencion
             .AsNoTracking()
@@ -240,46 +248,12 @@ public sealed class ReporteriaController : ControllerBase
             return NotFound();
         }
 
-        var xml = BuildRetencionPreviewXml(retencion);
+        var xml = await artifacts.ReadAsync(retencion.EmpresaId, "ComprobanteRetencion", retencion.Id, "XML_AUTORIZADO", cancellationToken)
+            ?? await artifacts.ReadAsync(retencion.EmpresaId, "ComprobanteRetencion", retencion.Id, "XML_FIRMADO", cancellationToken)
+            ?? await artifacts.ReadAsync(retencion.EmpresaId, "ComprobanteRetencion", retencion.Id, "XML_GENERADO", cancellationToken);
+        if (xml is null) return Problem(statusCode: 409, detail: "La retención todavía no tiene un XML procesado. Ejecute el procesamiento SRI antes de descargarlo.");
         var numero = $"{retencion.Establecimiento}-{retencion.PuntoEmision}-{retencion.Secuencial}";
         return File(Encoding.UTF8.GetBytes(xml), "application/xml", $"RETENCION-{numero}-xml-generado.xml");
     }
 
-    private static string BuildRetencionPreviewXml(Infrastructure.Persistence.Entities.ComprobanteRetencionEntity retencion)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine("""<?xml version="1.0" encoding="UTF-8"?>""");
-        builder.AppendLine("""<comprobanteRetencion id="comprobante" version="2.0.0">""");
-        builder.AppendLine("  <infoTributaria>");
-        builder.AppendLine($"    <ambiente>{(byte)retencion.AmbienteSRI}</ambiente>");
-        builder.AppendLine("    <tipoEmision>1</tipoEmision>");
-        builder.AppendLine("    <codDoc>07</codDoc>");
-        builder.AppendLine($"    <estab>{retencion.Establecimiento}</estab>");
-        builder.AppendLine($"    <ptoEmi>{retencion.PuntoEmision}</ptoEmi>");
-        builder.AppendLine($"    <secuencial>{retencion.Secuencial}</secuencial>");
-        builder.AppendLine($"    <claveAcceso>{retencion.ClaveAcceso}</claveAcceso>");
-        builder.AppendLine("  </infoTributaria>");
-        builder.AppendLine("  <docsSustento>");
-        foreach (var detalle in retencion.Detalles)
-        {
-            builder.AppendLine("    <docSustento>");
-            builder.AppendLine($"      <codSustento>{detalle.CodDocSustento}</codSustento>");
-            builder.AppendLine($"      <numDocSustento>{detalle.NumDocSustento}</numDocSustento>");
-            builder.AppendLine($"      <fechaEmisionDocSustento>{detalle.FechaEmisionDocSustento:dd/MM/yyyy}</fechaEmisionDocSustento>");
-            builder.AppendLine("      <retenciones>");
-            builder.AppendLine("        <retencion>");
-            builder.AppendLine($"          <codigo>{detalle.CodigoImpuesto}</codigo>");
-            builder.AppendLine($"          <codigoRetencion>{detalle.CodigoRetencionSRI}</codigoRetencion>");
-            builder.AppendLine($"          <baseImponible>{detalle.BaseImponible:0.00}</baseImponible>");
-            builder.AppendLine($"          <porcentajeRetener>{detalle.PorcentajeRetencion:0.00}</porcentajeRetener>");
-            builder.AppendLine($"          <valorRetenido>{detalle.ValorRetenido:0.00}</valorRetenido>");
-            builder.AppendLine("        </retencion>");
-            builder.AppendLine("      </retenciones>");
-            builder.AppendLine("    </docSustento>");
-        }
-
-        builder.AppendLine("  </docsSustento>");
-        builder.AppendLine("</comprobanteRetencion>");
-        return builder.ToString();
-    }
 }

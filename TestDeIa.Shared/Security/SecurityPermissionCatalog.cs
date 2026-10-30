@@ -30,7 +30,9 @@ public static class SecurityPermissionCatalog
     public static readonly IReadOnlyDictionary<string, IReadOnlyCollection<string>> RoleMappings =
         new Dictionary<string, IReadOnlyCollection<string>>(StringComparer.OrdinalIgnoreCase)
         {
+            [SecurityRoleNames.SuperAdministrador] = Definitions.Select(current => current.Id).ToArray(),
             [SecurityRoleNames.Administrador] = Definitions.Select(current => current.Id).ToArray(),
+            [SecurityRoleNames.AdministradorEmpresa] = Definitions.Where(current => current.Id != SecurityPermissions.CatalogosAdministrar).Select(current => current.Id).ToArray(),
             [SecurityRoleNames.Gerente] = Definitions.Select(current => current.Id).ToArray(),
             [SecurityRoleNames.Cajero] =
             [

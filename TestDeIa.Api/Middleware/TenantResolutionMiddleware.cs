@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TestDeIa.Application.Common;
 using TestDeIa.Infrastructure.Persistence;
 
@@ -9,10 +10,12 @@ public sealed class TenantResolutionMiddleware
 {
     private const string EmpresaHeader = "X-Empresa-Id";
     private readonly RequestDelegate next;
+    private readonly DeploymentSettingsOptions deployment;
 
-    public TenantResolutionMiddleware(RequestDelegate next)
+    public TenantResolutionMiddleware(RequestDelegate next, IOptions<DeploymentSettingsOptions>? deployment = null)
     {
         this.next = next;
+        this.deployment = deployment?.Value ?? new DeploymentSettingsOptions();
     }
 
     public async Task InvokeAsync(HttpContext context, ITenantContextAccessor tenantContextAccessor, TestDeIaDbContext dbContext)
@@ -39,11 +42,30 @@ public sealed class TenantResolutionMiddleware
             }
 
             var requestedEmpresaId = tenantResolution.EmpresaId ?? ResolveDefaultEmpresaId(context);
+            if (deployment.IsOnPremise && tenantContextAccessor.UserId.HasValue)
+            {
+                var companies = dbContext.EmpresasEmisoras.IgnoreQueryFilters().AsNoTracking().Where(x => x.IsActive);
+                if (deployment.OnPremiseEmpresaId.HasValue)
+                    companies = companies.Where(x => x.Id == deployment.OnPremiseEmpresaId.Value);
+                var ids = await companies.Select(x => x.Id).Take(2).ToListAsync(context.RequestAborted);
+                if (ids.Count != 1)
+                {
+                    context.Response.StatusCode = StatusCodes.Status409Conflict;
+                    await context.Response.WriteAsJsonAsync(new { message = "Configure una única empresa local activa o DeploymentSettings:OnPremiseEmpresaId." }, context.RequestAborted);
+                    return;
+                }
+                if (tenantResolution.EmpresaId.HasValue && tenantResolution.EmpresaId.Value != ids[0])
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new { message = "La empresa solicitada no corresponde a esta instalación local." }, context.RequestAborted);
+                    return;
+                }
+                requestedEmpresaId = ids[0];
+            }
             if (requestedEmpresaId.HasValue && tenantContextAccessor.UserId.HasValue)
             {
-                tenantContextAccessor.IsSystemContext = true;
-
                 var hasAccess = await dbContext.SecurityUserEmpresas
+                    .IgnoreQueryFilters()
                     .AsNoTracking()
                     .AnyAsync(
                         current => current.SecurityUserId == tenantContextAccessor.UserId.Value && current.EmpresaId == requestedEmpresaId.Value,

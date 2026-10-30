@@ -1,5 +1,5 @@
 @page "/usuarios"
-@attribute [Authorize(Roles = SecurityRoleNames.Administrador)]
+@attribute [Authorize(Roles = SecurityRoleNames.AdministradoresEmpresa)]
 
 <ProcessingOverlay IsVisible="@(isSaving || isSavingProfile)" Title="Procesando" Message="Espera hasta que termine la operación." />
 

@@ -22,11 +22,27 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddSingleton<SimpleRidePdfRenderer>();
 builder.Services.AddOpenApi();
+if (args.Contains("--bootstrap-superadmin", StringComparer.OrdinalIgnoreCase))
+{
+    // Modo de instalación local: no arranca Kestrel ni ningún BackgroundService/SRI.
+    builder.Services.AddApiComposition(builder.Configuration);
+    await using var installer = builder.Build();
+    await using var installScope = installer.Services.CreateAsyncScope();
+    await installScope.ServiceProvider.GetRequiredService<TestDeIaDbContext>().Database.MigrateAsync();
+    await installScope.ServiceProvider.GetRequiredService<SaasSuperAdminBootstrapper>().EnsureAsync(force: true,
+        retirarCajeroId: builder.Configuration.GetValue<Guid?>("Saas:SuperAdminBootstrap:RetirarCajeroId"));
+    return;
+}
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("sqlserver");
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(SecurityRateLimitPolicyNames.PublicRegistration, context =>
+        RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5, Window = TimeSpan.FromHours(1), QueueLimit = 0, AutoReplenishment = true
+        }));
     options.AddFixedWindowLimiter(SecurityRateLimitPolicyNames.Login, limiter =>
     {
         limiter.PermitLimit = builder.Configuration.GetValue("Security:RateLimiting:LoginPermitLimit", 5);
@@ -157,6 +173,10 @@ builder.Services.AddApiComposition(builder.Configuration);
 var app = builder.Build();
 
 await app.UseDatabaseInitializationAsync();
+await using (var bootstrapScope = app.Services.CreateAsyncScope())
+{
+    await bootstrapScope.ServiceProvider.GetRequiredService<SaasSuperAdminBootstrapper>().EnsureAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {

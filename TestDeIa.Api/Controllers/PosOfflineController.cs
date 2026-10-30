@@ -18,6 +18,7 @@ public sealed class PosOfflineController(IOfflineSyncService offlineSyncService)
         return Ok(await offlineSyncService.ObtenerCatalogoPosOfflineAsync(bodegaId, cancellationToken));
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpPost("sincronizar")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> Sincronizar([FromBody] IReadOnlyCollection<VentaOfflineQueueDto> ventas, CancellationToken cancellationToken)

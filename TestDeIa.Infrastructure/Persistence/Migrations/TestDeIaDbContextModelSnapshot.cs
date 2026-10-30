@@ -1317,6 +1317,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AmbienteSri")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)")
+                        .HasDefaultValue("1");
+
                     b.Property<Guid>("BodegaId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1475,7 +1482,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "ProveedorId", "FechaEmision");
 
-                    b.HasIndex("EmpresaId", "TipoDocumentoCodigo", "Establecimiento", "PuntoEmision", "Secuencial")
+                    b.HasIndex("EmpresaId", "AmbienteSri", "TipoDocumentoCodigo", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
                     b.ToTable("Compras", (string)null);
@@ -1642,7 +1649,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "Estado", "CreatedAt");
 
-                    b.HasIndex("EmpresaId", "TipoDocumentoId", "Establecimiento", "PuntoEmision", "Secuencial")
+                    b.HasIndex("EmpresaId", "AmbienteSri", "TipoDocumentoId", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
                     b.ToTable("ComprobanteCabecera", (string)null);
@@ -1811,6 +1818,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(49)
                         .HasColumnType("nvarchar(49)");
 
+                    b.Property<bool>("ParteRelacionada")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<Guid>("ProveedorId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1847,7 +1859,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "ProveedorId", "FechaEmision");
 
-                    b.HasIndex("EmpresaId", "Establecimiento", "PuntoEmision", "Secuencial")
+                    b.HasIndex("EmpresaId", "AmbienteSRI", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
                     b.ToTable("ComprobantesRetencion", (string)null);
@@ -2461,6 +2473,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");
 
+                    b.Property<string>("NombreCaja")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasDefaultValue("Caja General");
+
                     b.Property<string>("PuntoEmision")
                         .IsRequired()
                         .HasMaxLength(3)
@@ -3038,7 +3057,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "Estado", "CreatedAt");
 
-                    b.HasIndex("EmpresaId", "Establecimiento", "PuntoEmision", "Secuencial")
+                    b.HasIndex("EmpresaId", "AmbienteSri", "Establecimiento", "PuntoEmision", "Secuencial")
                         .IsUnique();
 
                     b.ToTable("Facturas", (string)null);
@@ -3105,6 +3124,13 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AmbienteSri")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)")
+                        .HasDefaultValue("1");
+
                     b.Property<string>("CodigoDocumento")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -3134,7 +3160,7 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmpresaId", "CodigoDocumento", "Establecimiento", "PuntoEmision")
+                    b.HasIndex("EmpresaId", "AmbienteSri", "CodigoDocumento", "Establecimiento", "PuntoEmision")
                         .IsUnique();
 
                     b.ToTable("FacturaSecuenciales", (string)null);
@@ -3517,6 +3543,54 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasIndex("EmpresaId", "EstadoConciliacion", "Fecha");
 
                     b.ToTable("MovimientosTesoreria", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.NumeracionHistorialEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AmbienteSri")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<long>("Anterior")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CodigoDocumento")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("Fecha")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("Nuevo")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Serie")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId", "Fecha");
+
+                    b.ToTable("NumeracionHistorial", (string)null);
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PagoCxPEntity", b =>
@@ -4104,6 +4178,139 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.ToTable("Proveedores", (string)null);
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasFacturaCupoEntity", b =>
+                {
+                    b.Property<Guid>("FacturaId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)");
+
+                    b.Property<DateTimeOffset?>("FechaConfirmacion")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("FechaReserva")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTime?>("PeriodoAutorizacion")
+                        .HasColumnType("date");
+
+                    b.HasKey("FacturaId");
+
+                    b.HasIndex("EmpresaId", "Estado", "PeriodoAutorizacion");
+
+                    b.ToTable("SaasFacturaCupos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SaasFacturaCupos_Estado", "[Estado] IN ('RESERVADO','CONFIRMADO','LIBERADO')");
+                        });
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasInicializacionEntity", b =>
+                {
+                    b.Property<string>("Clave")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTimeOffset>("FechaCreacion")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Clave");
+
+                    b.ToTable("SaasInicializaciones", (string)null);
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasPagoRegistroEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ComprobanteReferencia")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ConfirmadoPorUsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EstadoPago")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)");
+
+                    b.Property<DateTime?>("FechaConfirmacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaPago")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("FechaPagoInformada")
+                        .HasColumnType("date");
+
+                    b.Property<string>("MetodoPago")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ObservacionesConfirmacion")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("RegistradoPorUsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("SaasPlanId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaasPlanId");
+
+                    b.HasIndex("EmpresaId", "EstadoPago", "FechaPago");
+
+                    b.HasIndex("EmpresaId", "MetodoPago", "ComprobanteReferencia")
+                        .IsUnique();
+
+                    b.ToTable("SaasPagoRegistros", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SaasPagoRegistros_Estado", "[EstadoPago] IN ('Pendiente','Aprobado','Rechazado')");
+
+                            t.HasCheckConstraint("CK_SaasPagoRegistros_Metodo", "[MetodoPago] IN ('TarjetaPasarela','TransferenciaBancaria')");
+
+                            t.HasCheckConstraint("CK_SaasPagoRegistros_Monto", "[Monto] > 0");
+                        });
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasPlanEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -4208,6 +4415,9 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("FechaInicio")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTimeOffset?>("FechaReinicioCupo")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTime>("FechaVencimiento")
                         .HasColumnType("datetime2");
@@ -4470,6 +4680,111 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasData(
                         new
                         {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "dashboard.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "personas.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "clientes.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "empleados.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "proveedores.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "inventario.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "inventario.productos"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "inventario.ajustar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "inventario.bodegas"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "compras.registrar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "compras.liquidaciones"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "compras.cuentas-por-pagar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "compras.estudio-mercado"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "pos.facturar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "facturacion.monitor"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "empresa.configurar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "catalogos.administrar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "seguridad.usuarios"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "financiero.iva"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "caja.operar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            PermisoId = "reporteria.ventas"
+                        },
+                        new
+                        {
                             RoleId = new Guid("22222222-2222-2222-2222-222222222222"),
                             PermisoId = "dashboard.ver"
                         },
@@ -4571,6 +4886,106 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         new
                         {
                             RoleId = new Guid("22222222-2222-2222-2222-222222222222"),
+                            PermisoId = "reporteria.ventas"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "dashboard.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "personas.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "clientes.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "empleados.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "proveedores.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "inventario.ver"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "inventario.productos"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "inventario.ajustar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "inventario.bodegas"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "compras.registrar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "compras.liquidaciones"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "compras.cuentas-por-pagar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "compras.estudio-mercado"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "pos.facturar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "facturacion.monitor"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "empresa.configurar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "seguridad.usuarios"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "financiero.iva"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
+                            PermisoId = "caja.operar"
+                        },
+                        new
+                        {
+                            RoleId = new Guid("99999999-9999-4999-8999-999999999999"),
                             PermisoId = "reporteria.ventas"
                         },
                         new
@@ -4824,6 +5239,20 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.HasData(
                         new
                         {
+                            Id = new Guid("19d227e4-c5c9-4b18-9525-d0bdcfe7f917"),
+                            IsActive = true,
+                            Name = "SuperAdministrador",
+                            NormalizedName = "SUPERADMINISTRADOR"
+                        },
+                        new
+                        {
+                            Id = new Guid("99999999-9999-4999-8999-999999999999"),
+                            IsActive = true,
+                            Name = "AdministradorEmpresa",
+                            NormalizedName = "ADMINISTRADOREMPRESA"
+                        },
+                        new
+                        {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
                             IsActive = true,
                             Name = "Administrador",
@@ -4941,8 +5370,8 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("NormalizedUserName")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -4960,10 +5389,16 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("UserName")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedUserName")
+                        .IsUnique();
 
                     b.HasIndex("PersonaId")
                         .IsUnique();
@@ -5966,6 +6401,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("FacturaVenta");
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.NumeracionHistorialEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.PagoCxPEntity", b =>
                 {
                     b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.CuentaContableEntity", "CuentaContableSalida")
@@ -6061,6 +6505,34 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Persona");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasFacturaCupoEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasPagoRegistroEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.SaasPlanEntity", "Plan")
+                        .WithMany()
+                        .HasForeignKey("SaasPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Empresa");
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.SaasSuscripcionEntity", b =>

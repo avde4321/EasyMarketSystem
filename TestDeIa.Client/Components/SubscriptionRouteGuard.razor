@@ -21,6 +21,7 @@ else
         var authenticated = (await Authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
         if (!authenticated || path.Equals("empresa", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("subscription-expired", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("register-tenant", StringComparison.OrdinalIgnoreCase) || path.Equals("registro", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("login", StringComparison.OrdinalIgnoreCase) || path.Equals("logout", StringComparison.OrdinalIgnoreCase))
         {
             allowed = true;

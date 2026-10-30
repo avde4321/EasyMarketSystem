@@ -39,7 +39,7 @@ public sealed class ProformasController(IProformaService proformaService) : Cont
         {
             return Ok(await proformaService.CreateAsync(request, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -54,7 +54,7 @@ public sealed class ProformasController(IProformaService proformaService) : Cont
             var proforma = await proformaService.UpdateAsync(id, request, cancellationToken);
             return proforma is null ? NotFound() : Ok(proforma);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -68,12 +68,13 @@ public sealed class ProformasController(IProformaService proformaService) : Cont
         {
             return await proformaService.AnularAsync(id, cancellationToken) ? NoContent() : NotFound();
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
     [HttpPost("{id:guid}/convertir-a-factura")]
     [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
     public async Task<IActionResult> ConvertirAFactura(
@@ -86,7 +87,7 @@ public sealed class ProformasController(IProformaService proformaService) : Cont
             request.ProformaId = id;
             return Accepted(await proformaService.ConvertirProformaAFacturaAsync(request, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

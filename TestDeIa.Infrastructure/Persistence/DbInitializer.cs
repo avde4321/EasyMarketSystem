@@ -162,6 +162,8 @@ public sealed class DbInitializer(
     {
         var roles = new[]
         {
+            new { Id = SecuritySeedIds.SuperAdministradorRoleId, Name = SecurityRoleNames.SuperAdministrador },
+            new { Id = SecuritySeedIds.AdministradorEmpresaRoleId, Name = SecurityRoleNames.AdministradorEmpresa },
             new { Id = SecuritySeedIds.AdministradorRoleId, Name = SecurityRoleNames.Administrador },
             new { Id = SecuritySeedIds.GerenteRoleId, Name = SecurityRoleNames.Gerente },
             new { Id = SecuritySeedIds.CajeroRoleId, Name = SecurityRoleNames.Cajero },
@@ -190,6 +192,7 @@ public sealed class DbInitializer(
                 continue;
             }
 
+            if (role.Name == SecurityRoleNames.SuperAdministrador) continue; // No reactivar el rol reservado si fue deshabilitado.
             entity.Name = role.Name;
             entity.NormalizedName = normalizedName;
             entity.IsActive = true;
@@ -227,6 +230,8 @@ public sealed class DbInitializer(
     {
         var roleIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase)
         {
+            [SecurityRoleNames.SuperAdministrador] = SecuritySeedIds.SuperAdministradorRoleId,
+            [SecurityRoleNames.AdministradorEmpresa] = SecuritySeedIds.AdministradorEmpresaRoleId,
             [SecurityRoleNames.Administrador] = SecuritySeedIds.AdministradorRoleId,
             [SecurityRoleNames.Gerente] = SecuritySeedIds.GerenteRoleId,
             [SecurityRoleNames.Cajero] = SecuritySeedIds.CajeroRoleId,

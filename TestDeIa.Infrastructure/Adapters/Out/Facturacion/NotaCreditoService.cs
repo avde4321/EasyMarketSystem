@@ -18,11 +18,14 @@ public sealed class NotaCreditoService : INotaCreditoService
 
     private readonly TestDeIaDbContext dbContext;
     private readonly NotaCreditoXmlGenerator xmlGenerator;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota;
 
-    public NotaCreditoService(TestDeIaDbContext dbContext, NotaCreditoXmlGenerator xmlGenerator)
+    public NotaCreditoService(TestDeIaDbContext dbContext, NotaCreditoXmlGenerator xmlGenerator,
+        TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota)
     {
         this.dbContext = dbContext;
         this.xmlGenerator = xmlGenerator;
+        this.quota = quota;
     }
 
     public async Task<NotaCreditoOrigenResponseDto> GetFacturaOrigenAsync(Guid facturaId, CancellationToken cancellationToken = default)
@@ -100,6 +103,7 @@ public sealed class NotaCreditoService : INotaCreditoService
             .Include(current => current.Detalles)
             .FirstOrDefaultAsync(current => current.Id == dto.FacturaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la factura origen para generar la nota de credito.");
+        await quota.EnsureModuleAsync(factura.EmpresaId, TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
 
         if (factura.Estado != FacturaEstado.AUTORIZADO)
         {
@@ -144,6 +148,7 @@ public sealed class NotaCreditoService : INotaCreditoService
         var now = DateTimeOffset.UtcNow;
         var secuencial = await ReserveNextSecuencialAsync(
             factura.EmpresaId,
+            factura.AmbienteSri,
             factura.Establecimiento,
             factura.PuntoEmision,
             now,
@@ -347,36 +352,13 @@ public sealed class NotaCreditoService : INotaCreditoService
 
     private async Task<long> ReserveNextSecuencialAsync(
         Guid empresaId,
+        string ambiente,
         string establecimiento,
         string puntoEmision,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var secuencial = await dbContext.FacturaSecuenciales
-            .FirstOrDefaultAsync(current =>
-                current.EmpresaId == empresaId &&
-                current.CodigoDocumento == TipoDocumentoNotaCredito &&
-                current.Establecimiento == establecimiento &&
-                current.PuntoEmision == puntoEmision,
-                cancellationToken);
-
-        if (secuencial is null)
-        {
-            secuencial = new FacturaSecuencialEntity
-            {
-                Id = Guid.NewGuid(),
-                EmpresaId = empresaId,
-                CodigoDocumento = TipoDocumentoNotaCredito,
-                Establecimiento = establecimiento,
-                PuntoEmision = puntoEmision,
-                UltimoSecuencial = 0,
-                CreatedAt = now
-            };
-            dbContext.FacturaSecuenciales.Add(secuencial);
-        }
-
-        secuencial.UltimoSecuencial++;
-        secuencial.UpdatedAt = now;
-        return secuencial.UltimoSecuencial;
+        return await SriNumeracionAllocator.ReserveAsync(dbContext, empresaId,
+            ClaveAccesoService.GetAmbienteCode(ambiente), TipoDocumentoNotaCredito, establecimiento, puntoEmision, cancellationToken);
     }
 }

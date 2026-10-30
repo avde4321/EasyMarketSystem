@@ -195,6 +195,8 @@ public sealed class SriStateEngineService(
 
             if (factura is not null)
             {
+                if (facturaEstado == FacturaEstado.AUTORIZADO && factura.Estado != FacturaEstado.AUTORIZADO)
+                    throw new InvalidOperationException("La autorización de facturas debe pasar por su repositorio transaccional y confirmar el cupo SaaS.");
                 factura.Estado = facturaEstado.Value;
                 factura.MensajeEstado = request.MensajeRespuesta;
                 factura.UpdatedAt = DateTimeOffset.UtcNow;

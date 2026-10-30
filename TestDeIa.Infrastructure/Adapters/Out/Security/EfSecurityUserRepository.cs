@@ -13,11 +13,14 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
 {
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota;
 
-    public EfSecurityUserRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
+    public EfSecurityUserRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor,
+        TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService? quota = null)
     {
         this.dbContext = dbContext;
         this.tenantContextAccessor = tenantContextAccessor;
+        this.quota = quota ?? new TestDeIa.Infrastructure.Adapters.Out.Saas.SaaSQuotaValidationService(dbContext);
     }
 
     public async Task<SecurityUser?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
@@ -80,6 +83,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
     {
         var roles = await dbContext.SecurityRoles
             .AsNoTracking()
+            .Where(x => x.Name != SecurityRoleNames.SuperAdministrador)
             .Include(current => current.RolePermissions)
             .OrderBy(current => current.Name)
             .ToListAsync(cancellationToken);
@@ -145,7 +149,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
     public Task<bool> ExistsByUserNameAsync(string userName, Guid? excludedId = null, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim().ToUpperInvariant();
-        return dbContext.SecurityUsers.AnyAsync(
+        return dbContext.SecurityUsers.IgnoreQueryFilters().AsNoTracking().AnyAsync(
             current => current.NormalizedUserName == normalizedUserName &&
                        (!excludedId.HasValue || current.Id != excludedId.Value),
             cancellationToken);
@@ -171,6 +175,10 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
 
     public async Task<SecurityUser> CreateAsync(SecurityUser user, CancellationToken cancellationToken = default)
     {
+        await using var tx = dbContext.Database.CurrentTransaction is null ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        var empresaId = ResolveEmpresaId(user.EmpresaId);
+        await quota.BloquearCuotaAsync(empresaId, cancellationToken);
+        await quota.CanCrearUsuarioAsync(empresaId, cancellationToken);
         var roleEntities = await ResolveRolesAsync(user.Roles, cancellationToken);
 
         var entity = new Persistence.Entities.SecurityUserEntity
@@ -206,12 +214,15 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         });
 
         dbContext.SecurityUsers.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveCredentialsAsync(cancellationToken);
+        if (tx is not null) await tx.CommitAsync(cancellationToken);
         return await GetByIdAsync(entity.Id, cancellationToken) ?? user;
     }
 
     public async Task<SecurityUser?> UpdateAsync(SecurityUser user, CancellationToken cancellationToken = default)
     {
+        await EnsureNotProtectedAsync(user.Id, cancellationToken);
+        await using var tx = dbContext.Database.CurrentTransaction is null ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var entity = await dbContext.SecurityUsers
             .Include(current => current.UserRoles)
             .Include(current => current.EmpresasAcceso)
@@ -220,6 +231,21 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         if (entity is null)
         {
             return null;
+        }
+
+        var existingCompanies = entity.EmpresasAcceso.Select(x => x.EmpresaId).ToHashSet();
+        var requestedCompanies = user.EmpresasAcceso.Count == 0 ? new[] { ResolveEmpresaId(user.EmpresaId) }
+            : user.EmpresasAcceso.Select(x => x.EmpresaId).Distinct().ToArray();
+        foreach (var empresaId in requestedCompanies.Order())
+        {
+            await quota.BloquearCuotaAsync(empresaId, cancellationToken);
+            if (!existingCompanies.Contains(empresaId))
+            {
+                if (!tenantContextAccessor.IsSystemContext && !await dbContext.SecurityUserEmpresas.IgnoreQueryFilters()
+                    .AnyAsync(x => x.EmpresaId == empresaId && x.SecurityUserId == tenantContextAccessor.UserId, cancellationToken))
+                    throw new UnauthorizedAccessException("No puedes asignar acceso a una empresa ajena.");
+                await quota.CanCrearUsuarioAsync(empresaId, cancellationToken);
+            }
         }
 
         var roleEntities = await ResolveRolesAsync(user.Roles, cancellationToken);
@@ -262,7 +288,8 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveCredentialsAsync(cancellationToken);
+        if (tx is not null) await tx.CommitAsync(cancellationToken);
         return await GetByIdAsync(entity.Id, cancellationToken);
     }
 
@@ -491,13 +518,15 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .Include(current => current.EmpresasAcceso)
             .ThenInclude(link => link.Empresa);
 
-        return ignoreQueryFilters ? query.IgnoreQueryFilters() : query;
+        return ignoreQueryFilters ? query.IgnoreQueryFilters() : query.Where(x => !x.UserRoles.Any(r => r.Role.Name == SecurityRoleNames.SuperAdministrador));
     }
 
     private async Task<IReadOnlyCollection<Persistence.Entities.SecurityRoleEntity>> ResolveRolesAsync(
         IReadOnlyCollection<string> roleNames,
         CancellationToken cancellationToken)
     {
+        if (roleNames.Any(x => string.Equals(x.Trim(), SecurityRoleNames.SuperAdministrador, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("El superadministrador solo puede crearse mediante la inicialización segura de plataforma.");
         var normalizedNames = roleNames
             .Select(role => role.Trim().ToUpperInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -507,6 +536,18 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .Where(role => normalizedNames.Contains(role.NormalizedName) && role.IsActive)
             .ToListAsync(cancellationToken);
 
+        var restrictedRoleIds = await dbContext.Set<SecurityRolPermisoEntity>().AsNoTracking()
+            .Where(x => x.PermisoId == TestDeIa.Shared.Security.SecurityPermissions.CatalogosAdministrar)
+            .Select(x => x.RoleId).ToArrayAsync(cancellationToken);
+        if (roles.Any(x => restrictedRoleIds.Contains(x.Id)) && !tenantContextAccessor.IsSystemContext)
+        {
+            var actor = tenantContextAccessor.UserId;
+            var canGrantPlatformRole = actor.HasValue && await dbContext.Set<SecurityUserRoleEntity>().AsNoTracking()
+                .AnyAsync(x => x.UserId == actor.Value && restrictedRoleIds.Contains(x.RoleId), cancellationToken);
+            if (!canGrantPlatformRole)
+                throw new InvalidOperationException("Un administrador de empresa no puede asignar roles de administración global.");
+        }
+
         if (roles.Count != normalizedNames.Length)
         {
             throw new InvalidOperationException("No se pudieron resolver todos los roles del usuario.");
@@ -515,8 +556,19 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         return roles;
     }
 
+    private async Task SaveCredentialsAsync(CancellationToken cancellationToken)
+    {
+        try { await dbContext.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sql
+            && sql.Number is 2601 or 2627 && sql.Message.Contains("IX_SecurityUsers_", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("El usuario, correo o persona ya está registrado. Revisa los datos ingresados.", ex);
+        }
+    }
+
     private async Task<SecurityUserEntity?> LoadUserForMutationAsync(Guid userId, CancellationToken cancellationToken)
     {
+        await EnsureNotProtectedAsync(userId, cancellationToken);
         return await dbContext.SecurityUsers
             .IgnoreQueryFilters()
             .Include(current => current.UserRoles)
@@ -530,6 +582,13 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .Include(current => current.Persona)
             .ThenInclude(persona => persona.Empleado)
             .FirstOrDefaultAsync(current => current.Id == userId, cancellationToken);
+    }
+
+    private async Task EnsureNotProtectedAsync(Guid userId, CancellationToken ct)
+    {
+        if (await dbContext.SecurityUserRoles.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.UserId == userId && x.Role.Name == SecurityRoleNames.SuperAdministrador, ct))
+            throw new InvalidOperationException("La cuenta de superadministrador no puede editarse, bloquearse ni restablecerse desde la administración de una empresa.");
     }
 
     private static SecurityAuditLogEntity BuildAudit(

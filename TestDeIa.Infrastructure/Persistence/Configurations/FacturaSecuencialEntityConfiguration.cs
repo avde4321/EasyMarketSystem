@@ -30,7 +30,8 @@ public sealed class FacturaSecuencialEntityConfiguration : IEntityTypeConfigurat
         builder.Property(entity => entity.UltimoSecuencial)
             .IsRequired();
 
-        builder.HasIndex(entity => new { entity.EmpresaId, entity.CodigoDocumento, entity.Establecimiento, entity.PuntoEmision })
+        builder.Property(entity => entity.AmbienteSri).HasMaxLength(1).IsRequired().HasDefaultValue("1");
+        builder.HasIndex(entity => new { entity.EmpresaId, entity.AmbienteSri, entity.CodigoDocumento, entity.Establecimiento, entity.PuntoEmision })
             .IsUnique();
     }
 }

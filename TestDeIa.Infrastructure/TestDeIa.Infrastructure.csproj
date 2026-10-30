@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriLiquidacionV100.xsd" LogicalName="TestDeIa.Infrastructure.SriLiquidacionV100.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriLiquidacionV110.xsd" LogicalName="TestDeIa.Infrastructure.SriLiquidacionV110.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriRetencionV200.xsd" LogicalName="TestDeIa.Infrastructure.SriRetencionV200.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\xmldsig-core-schema.xsd" LogicalName="TestDeIa.Infrastructure.xmldsig-core-schema.xsd" />
     <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriFacturaV110.xsd">
       <LogicalName>TestDeIa.Infrastructure.SriFacturaV110.xsd</LogicalName>
     </EmbeddedResource>

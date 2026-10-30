@@ -101,10 +101,10 @@ public sealed class SecurityApiClient
             return (true, null);
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden)
         {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Message ?? "No se pudo completar la operacion.");
+            return (false, error?.Detail ?? error?.Message ?? "No se pudo completar la operacion.");
         }
 
         return (false, "No se pudo completar la operacion.");
@@ -113,5 +113,6 @@ public sealed class SecurityApiClient
     private sealed class ApiError
     {
         public string? Message { get; set; }
+        public string? Detail { get; set; }
     }
 }

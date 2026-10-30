@@ -84,6 +84,11 @@
             <span class="eyebrow">Detalle retencion</span>
             <h2>@selectedRetencion.Establecimiento-@selectedRetencion.PuntoEmision-@selectedRetencion.Secuencial</h2>
             <p>@selectedRetencion.MensajeErrorSRI</p>
+            <label><input type="checkbox" @bind="selectedRetencion.ParteRelacionada" disabled="@(selectedRetencion.EstadoSRI != 0 || isProcessing)" /> Proveedor es parte relacionada</label>
+            @if (selectedRetencion.EstadoSRI == 0)
+            {
+                <button class="ghost-button" @onclick="SaveFiscalAsync" disabled="@isProcessing">Guardar datos fiscales</button>
+            }
 
             <table class="data-table">
                 <thead>
@@ -118,6 +123,18 @@
 
 @code {
     private const int take = 5;
+    private async Task SaveFiscalAsync()
+    {
+        if (isProcessing || selectedRetencion is null) return;
+        isProcessing = true;
+        try
+        {
+            var error = await RetencionesApiClient.ActualizarParteRelacionadaAsync(selectedRetencion.Id, selectedRetencion.ParteRelacionada);
+            if (error is not null) await PopupNotificationService.ShowErrorAsync(error);
+            else { await PopupNotificationService.ShowSuccessAsync("Datos fiscales guardados."); await LoadAsync(); }
+        }
+        finally { isProcessing = false; }
+    }
     private PagedResultResponse<ComprobanteRetencionResponse> retenciones = new() { Take = take };
     private string? searchTerm;
     private int skip;

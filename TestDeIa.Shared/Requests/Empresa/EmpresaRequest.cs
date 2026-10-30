@@ -4,6 +4,8 @@ namespace TestDeIa.Shared.Requests.Empresa;
 
 public sealed class EmpresaRequest
 {
+    [Range(1, int.MaxValue)]
+    public int? PlanInicialId { get; set; }
     [Required(ErrorMessage = "La razon social es obligatoria.")]
     [StringLength(300, ErrorMessage = "La razon social no puede superar 300 caracteres.")]
     public string RazonSocial { get; set; } = string.Empty;

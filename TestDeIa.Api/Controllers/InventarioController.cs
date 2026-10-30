@@ -115,6 +115,7 @@ public sealed class InventarioController : ControllerBase
         }
     }
 
+    [TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.KardexAvanzado)]
     [HttpGet("productos/{id:guid}/kardex")]
     [Authorize(Policy = SecurityPolicyNames.InventarioView)]
     public async Task<IActionResult> GetKardex(Guid id, [FromQuery] Guid? bodegaId = null, CancellationToken cancellationToken = default)

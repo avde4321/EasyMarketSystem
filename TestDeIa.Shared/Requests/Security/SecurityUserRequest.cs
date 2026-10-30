@@ -31,7 +31,7 @@ public sealed class SecurityUserRequest
     public string? Direccion { get; set; }
 
     [Required(ErrorMessage = "El usuario es obligatorio.")]
-    [StringLength(80, ErrorMessage = "El usuario no puede superar 80 caracteres.")]
+    [StringLength(180, ErrorMessage = "El usuario no puede superar 180 caracteres.")]
     public string UserName { get; set; } = string.Empty;
 
     [StringLength(80, ErrorMessage = "La clave no puede superar 80 caracteres.")]

@@ -16,11 +16,11 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
 
         builder.Property(user => user.UserName)
-            .HasMaxLength(80)
+            .HasMaxLength(180)
             .IsRequired();
 
         builder.Property(user => user.NormalizedUserName)
-            .HasMaxLength(80)
+            .HasMaxLength(180)
             .IsRequired();
 
         builder.Property(user => user.DisplayName)
@@ -50,6 +50,10 @@ public sealed class SecurityUserEntityConfiguration : IEntityTypeConfiguration<S
 
         builder.HasIndex(user => new { user.EmpresaId, user.NormalizedEmail })
             .IsUnique();
+
+        // El login se resuelve globalmente antes de seleccionar una empresa.
+        builder.HasIndex(user => user.NormalizedUserName).IsUnique();
+        builder.HasIndex(user => user.NormalizedEmail).IsUnique();
 
         builder.HasIndex(user => new { user.EmpresaId, user.PersonaId })
             .IsUnique();

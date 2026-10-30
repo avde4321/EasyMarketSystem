@@ -11,6 +11,7 @@ using TestDeIa.Shared.Security;
 namespace TestDeIa.Api.Controllers;
 
 [ApiController]
+[TestDeIa.Api.Security.RequirePlanModule(TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri)]
 [Authorize]
 [Route("api/xml-compras")]
 public sealed class XmlComprasController(
@@ -77,7 +78,7 @@ public sealed class XmlComprasController(
             request.FacturaCompraXmlLogId = id;
             return Ok(await xmlSriParserService.ConvertirXmlACompraAsync(request, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -91,7 +92,7 @@ public sealed class XmlComprasController(
         {
             return Ok(await xmlSriParserService.GetParsedAsync(id, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -106,7 +107,7 @@ public sealed class XmlComprasController(
             var xml = await xmlSriParserService.GetXmlOriginalAsync(id, cancellationToken);
             return File(Encoding.UTF8.GetBytes(xml), "application/xml", $"XML-COMPRA-{id:N}.xml");
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

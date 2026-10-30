@@ -17,12 +17,18 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
     private readonly TestDeIaDbContext dbContext;
     private readonly ITenantContextAccessor tenantContextAccessor;
     private readonly CatalogoNiifSeed catalogoNiifSeed;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ITenantOnboardingService onboarding;
 
-    public EfEmpresaRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor, CatalogoNiifSeed catalogoNiifSeed)
+    public EfEmpresaRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor, CatalogoNiifSeed catalogoNiifSeed,
+        TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService? quota = null,
+        TestDeIa.Application.Modules.Saas.Ports.In.ITenantOnboardingService? onboarding = null)
     {
         this.dbContext = dbContext;
         this.tenantContextAccessor = tenantContextAccessor;
         this.catalogoNiifSeed = catalogoNiifSeed;
+        this.quota = quota ?? new TestDeIa.Infrastructure.Adapters.Out.Saas.SaaSQuotaValidationService(dbContext);
+        this.onboarding = onboarding ?? new TestDeIa.Infrastructure.Adapters.Out.Saas.TenantOnboardingService(dbContext, this.quota, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
     }
 
     public async Task<EmpresaEmisora?> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -121,6 +127,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        await quota.BloquearCuotaAsync(empresa.Id, cancellationToken);
 
         var entity = await dbContext.EmpresasEmisoras
             .FirstOrDefaultAsync(current => current.Id == empresa.Id, cancellationToken);
@@ -221,6 +228,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             throw new InvalidOperationException("El RUC ya está registrado. Revisa la empresa existente o contacta al administrador.", exception);
         }
 
+        if (isNewEmpresa)
+            await onboarding.AsignarSuscripcionInicialAsync(persistedEntity.Id, persistedEntity.OwnerUserId, empresa.PlanInicialId, cancellationToken);
+
         var existingPoints = await dbContext.EmpresaPuntosEmision
             .IgnoreQueryFilters()
             .Where(current => current.EmpresaEmisoraId == persistedEntity.Id)
@@ -242,6 +252,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             var point = existingPoints.FirstOrDefault(current => current.Id == punto.Id);
             if (point is null)
             {
+                await quota.CanCrearSucursalAsync(persistedEntity.Id, cancellationToken);
                 if (await dbContext.EmpresaPuntosEmision.IgnoreQueryFilters()
                     .AnyAsync(current => current.Id == punto.Id && current.EmpresaEmisoraId != persistedEntity.Id, cancellationToken))
                     throw new InvalidOperationException("El punto de emisión no pertenece a esta empresa.");

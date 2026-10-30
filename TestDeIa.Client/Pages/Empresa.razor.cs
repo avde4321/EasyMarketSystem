@@ -14,6 +14,8 @@ public partial class Empresa
 {
     [Inject]
     private EmpresaApiClient EmpresaApiClient { get; set; } = default!;
+    [Inject] private TestDeIa.Client.Services.Saas.SaasApiClient SaasApiClient { get; set; } = default!;
+    private IReadOnlyCollection<TestDeIa.Shared.Responses.Saas.SaasPlanResponse> planesIniciales = [];
 
     [Inject]
     private CatalogosApiClient CatalogosApiClient { get; set; } = default!;
@@ -60,6 +62,7 @@ public partial class Empresa
         try
         {
             await LoadCatalogosAsync();
+            planesIniciales = await SaasApiClient.GetPlansAsync();
             await LoadAsync(resetPaging: true);
         }
         catch (HttpRequestException)

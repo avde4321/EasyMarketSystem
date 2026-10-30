@@ -129,7 +129,7 @@ public partial class FacturacionPos : IDisposable
 
         var authenticationState = await AuthenticationStateTask;
         var user = authenticationState.User;
-        canEditServicePrice = user.Identity?.IsAuthenticated == true && user.IsInRole(SecurityRoleNames.Administrador);
+        canEditServicePrice = user.Identity?.IsAuthenticated == true && (user.IsInRole(SecurityRoleNames.Administrador) || user.IsInRole(SecurityRoleNames.AdministradorEmpresa));
         administradorOperadorPredeterminado = canEditServicePrice &&
             Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId) ? userId : null;
     }

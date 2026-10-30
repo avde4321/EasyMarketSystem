@@ -11,6 +11,7 @@ public sealed class ComprobanteRetencionEntityConfiguration : IEntityTypeConfigu
         builder.ToTable("ComprobantesRetencion");
 
         builder.HasKey(retencion => retencion.Id);
+        builder.Property(retencion => retencion.ParteRelacionada).HasDefaultValue(false);
 
         builder.Property(retencion => retencion.EmpresaId)
             .IsRequired();
@@ -50,7 +51,7 @@ public sealed class ComprobanteRetencionEntityConfiguration : IEntityTypeConfigu
 
         builder.Property(retencion => retencion.TotalRetenido).HasPrecision(18, 4);
 
-        builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.Establecimiento, retencion.PuntoEmision, retencion.Secuencial })
+        builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.AmbienteSRI, retencion.Establecimiento, retencion.PuntoEmision, retencion.Secuencial })
             .IsUnique();
 
         builder.HasIndex(retencion => new { retencion.EmpresaId, retencion.ClaveAcceso })

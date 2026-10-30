@@ -9,5 +9,11 @@ public enum SecurityAuditEventType
     BloqueoUsuario = 5,
     DesbloqueoUsuario = 6,
     CambioPerfil = 7,
-    CambioEstado = 8
+    CambioEstado = 8,
+    SuscripcionInicial = 9,
+    PagoSaasRegistrado = 10,
+    PagoSaasAprobado = 11,
+    PagoSaasRechazado = 12,
+    SuperAdminInicializado = 13,
+    CuentaRetiradaParaSudo = 14
 }

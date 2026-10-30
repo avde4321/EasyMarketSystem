@@ -14,19 +14,26 @@ public sealed class SriCompraProcessor : ISriCompraProcessor
     private readonly TestDeIaDbContext dbContext;
     private readonly SriLiquidacionCompraXmlValidator validator;
     private readonly SriXadesBesSigner signer;
+    private readonly SriDocumentSubmissionService submission;
+    private readonly TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService artifacts;
 
     public SriCompraProcessor(
         TestDeIaDbContext dbContext,
         SriLiquidacionCompraXmlValidator validator,
-        SriXadesBesSigner signer)
+        SriXadesBesSigner signer,
+        SriDocumentSubmissionService submission,
+        TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService artifacts)
     {
         this.dbContext = dbContext;
         this.validator = validator;
         this.signer = signer;
+        this.submission = submission;
+        this.artifacts = artifacts;
     }
 
     public async Task<SriCompraProcessingResult> ProcessAsync(Compra compra, CancellationToken cancellationToken = default)
     {
+        await using var lease = await SriProcessingLease.AcquireAsync(dbContext, compra.EmpresaId, compra.Id, cancellationToken);
         var empresa = await dbContext.EmpresasEmisoras
             .AsNoTracking()
             .Include(current => current.CertificadosDigitales)
@@ -66,19 +73,39 @@ public sealed class SriCompraProcessor : ISriCompraProcessor
             return BuildRejected(compra, exception.Message);
         }
 
+        var xmlFirmado = compra.XmlFirmado;
         try
         {
-            var certificado = SriCertificateSelector.Resolve(empresa);
-            var xmlFirmado = signer.Sign(compra.XmlGenerado, certificado.Contenido, certificado.Clave);
+            var retry = SriDocumentSubmissionService.HasSignature(xmlFirmado);
+            if (!retry)
+            {
+                var certificado = SriCertificateSelector.Resolve(empresa);
+                xmlFirmado = signer.Sign(compra.XmlGenerado, certificado.Contenido, certificado.Clave);
+                var persisted = await dbContext.Compras.SingleAsync(x => x.EmpresaId == compra.EmpresaId && x.Id == compra.Id, cancellationToken);
+                persisted.XmlFirmado = xmlFirmado;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            await artifacts.SaveAsync(compra.EmpresaId, "COMPRAS", "Compra", compra.Id, "XML_GENERADO", $"03-{compra.Id}-generado.xml", compra.XmlGenerado, cancellationToken);
+            await artifacts.SaveAsync(compra.EmpresaId, "COMPRAS", "Compra", compra.Id, "XML_FIRMADO", $"03-{compra.Id}-firmado.xml", xmlFirmado, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            var ambiente = compra.ClaveAccesoGenerada.Substring(23, 1);
+            var result = await submission.SubmitAsync(ambiente, compra.ClaveAccesoGenerada, xmlFirmado!, retry, cancellationToken);
+            await artifacts.SaveAsync(compra.EmpresaId, "COMPRAS", "Compra", compra.Id, "XML_AUTORIZADO", $"03-{compra.Id}-autorizado.xml", result.XmlAutorizado, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
             return new SriCompraProcessingResult
             {
-                EstadoFinal = FacturaEstado.PENDIENTE,
+                EstadoFinal = result.Estado == "AUTORIZADO" ? FacturaEstado.AUTORIZADO : result.Estado is "DEVUELTA" or "NO_AUTORIZADO" ? FacturaEstado.RECHAZADO : FacturaEstado.PENDIENTE,
+                NumeroAutorizacion = result.NumeroAutorizacion,
                 ClaveAcceso = compra.ClaveAccesoGenerada,
                 XmlGenerado = compra.XmlGenerado,
                 XmlFirmado = xmlFirmado,
-                Mensaje = "XML firmado correctamente bajo XAdES-BES. La liquidacion queda pendiente de transmision/autorizacion.",
-                FechaRespuesta = DateTimeOffset.UtcNow
+                Mensaje = result.Mensaje,
+                FechaRespuesta = result.FechaAutorizacion ?? DateTimeOffset.UtcNow
             };
+        }
+        catch (Exception exception) when ((exception is HttpRequestException or TaskCanceledException) && !cancellationToken.IsCancellationRequested)
+        {
+            return new SriCompraProcessingResult { EstadoFinal = FacturaEstado.PENDIENTE, ClaveAcceso = compra.ClaveAccesoGenerada, XmlGenerado = compra.XmlGenerado, XmlFirmado = xmlFirmado, Mensaje = "Comunicación SRI pendiente: " + exception.Message };
         }
         catch (CryptographicException exception)
         {

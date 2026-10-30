@@ -86,7 +86,7 @@ public sealed class EmpresaController : ControllerBase
             var empresa = await empresaUseCase.SaveAsync(id, request, cancellationToken);
             return Ok(empresa);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

@@ -12,6 +12,7 @@
             <p>Administra múltiples RUCs, firmas .p12/.pfx y parámetros tributarios por empresa.</p>
         </div>
         <div class="header-actions empresa-header-actions">
+            <a class="ghost-button" href="empresa/numeracion">Secuenciales de facturación</a>
             <button class="primary-action" type="button" @onclick="StartCreate">Nueva empresa</button>
         </div>
     </header>
@@ -186,6 +187,17 @@
                             </header>
 
                             <div class="form-grid empresa-grid">
+                                @if (!selectedEmpresaId.HasValue)
+                                {
+                                    <div class="form-field full">
+                                        <label>Plan para la prueba inicial de 15 días</label>
+                                        <InputSelect class="form-control" @bind-Value="empresaRequest.PlanInicialId">
+                                            <option value="">Plan predeterminado</option>
+                                            @foreach (var plan in planesIniciales) { <option value="@plan.Id">@plan.Nombre — @plan.LimiteUsuarios usuarios / @plan.LimiteSucursales puntos (0 = ilimitado)</option> }
+                                        </InputSelect>
+                                        <small>Se activa una prueba por 15 días. Esta selección no registra un pago ni una renovación.</small>
+                                    </div>
+                                }
                                 <div class="form-field full">
                                     <label>Razón social</label>
                                     <InputText class="form-control" @bind-Value="empresaRequest.RazonSocial" />

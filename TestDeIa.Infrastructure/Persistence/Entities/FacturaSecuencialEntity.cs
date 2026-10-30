@@ -4,6 +4,7 @@ public sealed class FacturaSecuencialEntity : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }
+    public string AmbienteSri { get; set; } = "1";
     public string CodigoDocumento { get; set; } = string.Empty;
     public string Establecimiento { get; set; } = string.Empty;
     public string PuntoEmision { get; set; } = string.Empty;

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 using TestDeIa.Application.Modules.Compras.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
 using TestDeIa.Application.Modules.ActivosFijos.UseCases;
@@ -17,12 +18,15 @@ public sealed class EfCompraRepository : ICompraRepository
     private readonly TestDeIaDbContext dbContext;
     private readonly IInventarioRepository inventarioRepository;
     private readonly ActivoFijoService activoFijoService;
+    private readonly TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota;
 
-    public EfCompraRepository(TestDeIaDbContext dbContext, IInventarioRepository inventarioRepository, ActivoFijoService activoFijoService)
+    public EfCompraRepository(TestDeIaDbContext dbContext, IInventarioRepository inventarioRepository, ActivoFijoService activoFijoService,
+        TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota)
     {
         this.dbContext = dbContext;
         this.inventarioRepository = inventarioRepository;
         this.activoFijoService = activoFijoService;
+        this.quota = quota;
     }
 
     public async Task<Compra> CreateAsync(Compra compra, CancellationToken cancellationToken = default)
@@ -37,18 +41,19 @@ public sealed class EfCompraRepository : ICompraRepository
 
         if (compra.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra)
         {
+            await quota.EnsureModuleAsync(compra.EmpresaId, TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
+            var empresa = await dbContext.EmpresasEmisoras
+                .Include(current => current.PuntosEmision)
+                .FirstOrDefaultAsync(current => current.Id == compra.EmpresaId && current.IsActive, cancellationToken)
+                ?? throw new InvalidOperationException("No existe una empresa activa para emitir la liquidacion.");
             secuencial = await ReserveNextSecuencialAsync(
                 compra.EmpresaId,
+                empresa.AmbienteSri,
                 compra.TipoDocumentoCodigo,
                 compra.Establecimiento,
                 compra.PuntoEmision,
                 compra.CreatedAt,
                 cancellationToken);
-
-            var empresa = await dbContext.EmpresasEmisoras
-                .Include(current => current.PuntosEmision)
-                .FirstOrDefaultAsync(current => current.Id == compra.EmpresaId && current.IsActive, cancellationToken)
-                ?? throw new InvalidOperationException("No existe una empresa activa para emitir la liquidacion.");
 
             var proveedor = await dbContext.Proveedores
                 .Include(current => current.Persona)
@@ -64,6 +69,8 @@ public sealed class EfCompraRepository : ICompraRepository
         }
 
         var entity = BuildEntity(compra, secuencial, claveAccesoGenerada, xmlGenerado, mensajeEstado, estadoSri);
+        if (compra.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra && claveAccesoGenerada?.Length == 49)
+            entity.AmbienteSri = claveAccesoGenerada.Substring(23, 1);
         dbContext.Compras.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -151,9 +158,9 @@ public sealed class EfCompraRepository : ICompraRepository
             .Where(current =>
                 current.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra &&
                 current.EstadoSri == FacturaEstado.PENDIENTE &&
-                current.XmlFirmado == null &&
                 current.ClaveAccesoGenerada != null &&
-                (current.NextRetryAt == null || current.NextRetryAt <= now))
+                (current.NextRetryAt == null || current.NextRetryAt <= now) &&
+                (current.ProcessingStartedAt == null || current.ProcessingStartedAt <= now.AddMinutes(-10)))
             .OrderBy(current => current.CreatedAt)
             .Select(current => current.Id)
             .Take(batchSize)
@@ -167,9 +174,8 @@ public sealed class EfCompraRepository : ICompraRepository
                 current.Id == compraId &&
                 current.TipoDocumentoCodigo == CompraDocumentTypes.LiquidacionCompra &&
                 current.EstadoSri == FacturaEstado.PENDIENTE &&
-                current.XmlFirmado == null &&
                 (current.NextRetryAt == null || current.NextRetryAt <= now) &&
-                (current.ProcessingStartedAt == null || current.ProcessingStartedAt <= now.AddMinutes(-2)))
+                (current.ProcessingStartedAt == null || current.ProcessingStartedAt <= now.AddMinutes(-10)))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(current => current.ProcessingNode, workerId)
                 .SetProperty(current => current.ProcessingStartedAt, now)
@@ -204,7 +210,7 @@ public sealed class EfCompraRepository : ICompraRepository
             FacturaEstado.AUTORIZADO,
             claveAcceso,
             numeroAutorizacion,
-            xmlFirmado,
+            null,
             xmlFirmado,
             mensaje,
             null,
@@ -228,7 +234,7 @@ public sealed class EfCompraRepository : ICompraRepository
             null,
             xmlFirmado,
             mensaje,
-            null,
+            DateTimeOffset.UtcNow.AddSeconds(30),
             fechaRespuesta,
             cancellationToken);
     }
@@ -415,43 +421,16 @@ public sealed class EfCompraRepository : ICompraRepository
 
     private async Task<string> ReserveNextSecuencialAsync(
         Guid empresaId,
+        string ambiente,
         string codigoDocumento,
         string establecimiento,
         string puntoEmision,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var record = await dbContext.FacturaSecuenciales
-            .FirstOrDefaultAsync(current =>
-                current.EmpresaId == empresaId &&
-                current.CodigoDocumento == codigoDocumento &&
-                current.Establecimiento == establecimiento &&
-                current.PuntoEmision == puntoEmision,
-                cancellationToken);
-
-        if (record is null)
-        {
-            record = new FacturaSecuencialEntity
-            {
-                Id = Guid.NewGuid(),
-                EmpresaId = empresaId,
-                CodigoDocumento = codigoDocumento,
-                Establecimiento = establecimiento,
-                PuntoEmision = puntoEmision,
-                UltimoSecuencial = 1,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-            dbContext.FacturaSecuenciales.Add(record);
-        }
-        else
-        {
-            record.UltimoSecuencial += 1;
-            record.UpdatedAt = now;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return record.UltimoSecuencial.ToString("000000000");
+        var next = await TestDeIa.Infrastructure.Adapters.Out.Facturacion.SriNumeracionAllocator.ReserveAsync(
+            dbContext, empresaId, ClaveAccesoService.GetAmbienteCode(ambiente), codigoDocumento, establecimiento, puntoEmision, cancellationToken);
+        return next.ToString("000000000");
     }
 
     private static Compra Map(CompraEntity entity)

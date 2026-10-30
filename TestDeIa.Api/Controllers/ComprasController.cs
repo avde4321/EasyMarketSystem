@@ -39,7 +39,7 @@ public sealed class ComprasController : ControllerBase
             var compra = await compraUseCase.RegistrarAsync(request, cancellationToken);
             return Ok(compra);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -53,7 +53,7 @@ public sealed class ComprasController : ControllerBase
         {
             return Ok(await estudioMercadoUseCase.GenerarAsync(mes, anio, cancellationToken));
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }
@@ -98,7 +98,7 @@ public sealed class ComprasController : ControllerBase
 
             return Ok(reporte);
         }
-        catch (InvalidOperationException exception)
+        catch (InvalidOperationException exception) when (exception is not TestDeIa.Application.Common.SaaSQuotaExceededException)
         {
             return Conflict(new { message = exception.Message });
         }

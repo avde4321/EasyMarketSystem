@@ -6,6 +6,7 @@ namespace TestDeIa.Application.Modules.Retenciones.Ports.In;
 
 public interface IRetencionService
 {
+    Task ActualizarParteRelacionadaAsync(Guid id, bool parteRelacionada, CancellationToken cancellationToken = default);
     Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(
         string? term,
         DateTimeOffset fechaDesde,

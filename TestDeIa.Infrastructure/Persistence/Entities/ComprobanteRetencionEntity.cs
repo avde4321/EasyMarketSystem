@@ -11,6 +11,7 @@ public sealed class ComprobanteRetencionEntity : ITenantEntity
     public Guid? CompraId { get; set; }
 
     public Guid ProveedorId { get; set; }
+    public bool ParteRelacionada { get; set; }
 
     public string Establecimiento { get; set; } = string.Empty;
 

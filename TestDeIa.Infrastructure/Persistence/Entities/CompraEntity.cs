@@ -4,6 +4,7 @@ namespace TestDeIa.Infrastructure.Persistence.Entities;
 
 public sealed class CompraEntity : ITenantEntity
 {
+    public string AmbienteSri { get; set; } = "1";
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }
     public Guid ProveedorId { get; set; }

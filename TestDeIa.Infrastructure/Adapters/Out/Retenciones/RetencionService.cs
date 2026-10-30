@@ -23,9 +23,24 @@ public sealed class RetencionService(
     ICurrentUserAccessor currentUserAccessor,
     ClaveAccesoService claveAccesoService,
     SriXadesBesSigner signer,
-    SriSoapClient soapClient,
-    ILogger<RetencionService> logger) : IRetencionService
+    SriDocumentSubmissionService submission,
+    RetencionXmlGenerator xmlGenerator,
+    TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService artifacts,
+    ILogger<RetencionService> logger,
+    TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota) : IRetencionService
 {
+    public async Task ActualizarParteRelacionadaAsync(Guid id, bool parteRelacionada, CancellationToken cancellationToken = default)
+    {
+        await using var lease = await SriProcessingLease.AcquireAsync(dbContext, ResolveEmpresaId(), id, cancellationToken);
+        var retencion = await dbContext.ComprobantesRetencion.SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("No existe la retención en la empresa activa.");
+        if (retencion.EstadoSRI != EstadoSriRetencion.Borrador || await dbContext.DocumentosAdjuntos.AnyAsync(x => x.EmpresaId == retencion.EmpresaId && x.EntidadId == id && x.TipoAdjunto == "XML_FIRMADO", cancellationToken))
+            throw new InvalidOperationException("Solo puede editar los datos fiscales antes de firmar el documento.");
+        retencion.ParteRelacionada = parteRelacionada;
+        retencion.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(
         string? term,
         DateTimeOffset fechaDesde,
@@ -63,6 +78,7 @@ public sealed class RetencionService(
                 EmpresaId = current.EmpresaId,
                 CompraId = current.CompraId,
                 ProveedorId = current.ProveedorId,
+                ParteRelacionada = current.ParteRelacionada,
                 Establecimiento = current.Establecimiento,
                 PuntoEmision = current.PuntoEmision,
                 Secuencial = current.Secuencial,
@@ -102,9 +118,14 @@ public sealed class RetencionService(
         CancellationToken cancellationToken = default)
     {
         var empresaId = ResolveEmpresaId();
+        await quota.EnsureModuleAsync(empresaId, TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
         ValidateRequest(request);
 
         await EnsureProveedorAsync(empresaId, request.ProveedorId, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var reservado = await GenerateNextSecuencialAsync(empresaId, request.Establecimiento, request.PuntoEmision, ((int)ParseAmbiente(request.AmbienteSRI)).ToString(), cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.Secuencial) && NormalizeNumeric(request.Secuencial, 9, "secuencial", padLeft: true) != reservado)
+            throw new InvalidOperationException("El secuencial debe coincidir con la numeración configurada. Ajuste el contador en Configuración.");
 
         var now = DateTimeOffset.UtcNow;
         var entity = new ComprobanteRetencionEntity
@@ -113,11 +134,10 @@ public sealed class RetencionService(
             EmpresaId = empresaId,
             CompraId = request.CompraId,
             ProveedorId = request.ProveedorId,
+            ParteRelacionada = request.ParteRelacionada,
             Establecimiento = NormalizeNumeric(request.Establecimiento, 3, "establecimiento"),
             PuntoEmision = NormalizeNumeric(request.PuntoEmision, 3, "punto de emision"),
-            Secuencial = string.IsNullOrWhiteSpace(request.Secuencial)
-                ? await GenerateNextSecuencialAsync(empresaId, request.Establecimiento, request.PuntoEmision, cancellationToken)
-                : NormalizeNumeric(request.Secuencial, 9, "secuencial", padLeft: true),
+            Secuencial = reservado,
             ClaveAcceso = NormalizeOptional(request.ClaveAcceso),
             FechaEmision = new DateTimeOffset(request.FechaEmision.Date, TimeSpan.Zero),
             AmbienteSRI = ParseAmbiente(request.AmbienteSRI),
@@ -139,6 +159,7 @@ public sealed class RetencionService(
 
         dbContext.ComprobantesRetencion.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return Map(entity);
     }
 
@@ -146,6 +167,7 @@ public sealed class RetencionService(
         Guid compraId,
         CancellationToken cancellationToken = default)
     {
+        await quota.EnsureModuleAsync(ResolveEmpresaId(), TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
         var compra = await dbContext.Compras
             .Include(current => current.Detalles)
             .Include(current => current.Proveedor)
@@ -159,7 +181,8 @@ public sealed class RetencionService(
             ?? throw new InvalidOperationException("No se encontro la empresa emisora activa.");
 
         var now = DateTimeOffset.UtcNow;
-        var secuencial = await GenerateNextSecuencialAsync(compra.EmpresaId, empresa.Establecimiento, empresa.PuntoEmision, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var secuencial = await GenerateNextSecuencialAsync(compra.EmpresaId, empresa.Establecimiento, empresa.PuntoEmision, ClaveAccesoService.GetAmbienteCode(empresa.AmbienteSri), cancellationToken);
         var retencion = new ComprobanteRetencionEntity
         {
             Id = Guid.NewGuid(),
@@ -192,6 +215,7 @@ public sealed class RetencionService(
         retencion.TotalRetenido = Round(retencion.TotalRetenido);
         dbContext.ComprobantesRetencion.Add(retencion);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         logger.LogInformation(
             "Retencion {RetencionId} generada desde compra {CompraId}. EmpresaId={EmpresaId}, TotalRetenido={TotalRetenido}.",
             retencion.Id,
@@ -204,6 +228,13 @@ public sealed class RetencionService(
     public async Task<ComprobanteRetencionResponse> ProcesarRetencionSRIAsync(
         Guid id,
         CancellationToken cancellationToken = default)
+    {
+        await quota.EnsureModuleAsync(ResolveEmpresaId(), TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
+        await using var lease = await SriProcessingLease.AcquireAsync(dbContext, ResolveEmpresaId(), id, cancellationToken);
+        return await ProcesarRetencionCoreAsync(id, cancellationToken);
+    }
+
+    private async Task<ComprobanteRetencionResponse> ProcesarRetencionCoreAsync(Guid id, CancellationToken cancellationToken)
     {
         var retencion = await dbContext.ComprobantesRetencion
             .Include(current => current.Detalles)
@@ -235,13 +266,8 @@ public sealed class RetencionService(
                 string.IsNullOrWhiteSpace(empresa.TipoEmision) ? "1" : empresa.TipoEmision);
         }
 
-        var xmlGenerado = BuildXml(retencion, empresa, proveedor);
-        logger.LogInformation(
-            "XML de retencion generado. RetencionId={RetencionId}, ClaveAcceso={ClaveAcceso}, Ambiente={Ambiente}.",
-            retencion.Id,
-            retencion.ClaveAcceso,
-            retencion.AmbienteSRI);
-
+        if (retencion.EstadoSRI == EstadoSriRetencion.Autorizado && !string.IsNullOrWhiteSpace(retencion.NumeroAutorizacion))
+            return Map(retencion);
         if (empresa.ModoDesarrollo)
         {
             retencion.EstadoSRI = EstadoSriRetencion.Autorizado;
@@ -257,53 +283,39 @@ public sealed class RetencionService(
             return Map(retencion);
         }
 
-        var (certificadoContenido, certificadoClave) = TestDeIa.Infrastructure.Adapters.Out.Facturacion.SriCertificateSelector.Resolve(empresa);
-        var xmlFirmado = signer.Sign(xmlGenerado, certificadoContenido, certificadoClave);
-        logger.LogInformation("XML de retencion firmado localmente. RetencionId={RetencionId}.", retencion.Id);
-
+        var compra = retencion.CompraId.HasValue
+            ? await dbContext.Compras.AsNoTracking().Include(x => x.Detalles).SingleOrDefaultAsync(x => x.EmpresaId == retencion.EmpresaId && x.Id == retencion.CompraId, cancellationToken)
+            : null;
+        if (compra is null)
+            throw new InvalidOperationException("Vincule una compra con totales, impuestos y forma de pago para emitir una retención ATS 2.0.0. No se inventarán datos del sustento.");
+        var xmlGenerado = xmlGenerator.Build(retencion, empresa, proveedor, compra);
+        var xmlFirmado = await artifacts.ReadAsync(retencion.EmpresaId, "ComprobanteRetencion", retencion.Id, "XML_FIRMADO", cancellationToken);
+        var retry = SriDocumentSubmissionService.HasSignature(xmlFirmado);
+        if (!retry)
+        {
+            var certificado = SriCertificateSelector.Resolve(empresa);
+            xmlFirmado = signer.Sign(xmlGenerado, certificado.Contenido, certificado.Clave);
+            await artifacts.SaveAsync(retencion.EmpresaId, "SRI", "ComprobanteRetencion", retencion.Id, "XML_GENERADO", $"07-{retencion.Id}-generado.xml", xmlGenerado, cancellationToken);
+            await artifacts.SaveAsync(retencion.EmpresaId, "SRI", "ComprobanteRetencion", retencion.Id, "XML_FIRMADO", $"07-{retencion.Id}-firmado.xml", xmlFirmado, cancellationToken);
+            retencion.EstadoSRI = EstadoSriRetencion.Firmado;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
         try
         {
-            retencion.EstadoSRI = EstadoSriRetencion.Firmado;
-            var recepcion = await soapClient.ValidarComprobanteAsync(((byte)retencion.AmbienteSRI).ToString(), Encoding.UTF8.GetBytes(xmlFirmado), cancellationToken);
-            logger.LogInformation(
-                "Respuesta de recepcion SRI para retencion {RetencionId}: {Estado}.",
-                retencion.Id,
-                recepcion.Estado);
-            if (!string.Equals(recepcion.Estado, "RECIBIDA", StringComparison.OrdinalIgnoreCase))
-            {
-                retencion.EstadoSRI = EstadoSriRetencion.NoAutorizado;
-                retencion.MensajeErrorSRI = JoinMensajes(recepcion.Mensajes, $"Retencion devuelta por SRI. Estado: {recepcion.Estado}");
-                retencion.UpdatedAt = DateTimeOffset.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
-                return Map(retencion);
-            }
-
-            retencion.EstadoSRI = EstadoSriRetencion.Enviado;
-            var autorizacion = await soapClient.ConsultarAutorizacionAsync(((byte)retencion.AmbienteSRI).ToString(), retencion.ClaveAcceso, cancellationToken);
-            logger.LogInformation(
-                "Respuesta de autorizacion SRI para retencion {RetencionId}: {Estado}.",
-                retencion.Id,
-                autorizacion.Estado);
-            if (string.Equals(autorizacion.Estado, "AUTORIZADO", StringComparison.OrdinalIgnoreCase))
-            {
-                retencion.EstadoSRI = EstadoSriRetencion.Autorizado;
-                retencion.NumeroAutorizacion = autorizacion.NumeroAutorizacion ?? retencion.ClaveAcceso;
-                retencion.FechaAutorizacion = autorizacion.FechaAutorizacion ?? DateTimeOffset.UtcNow;
-                retencion.MensajeErrorSRI = null;
-            }
-            else
-            {
-                retencion.EstadoSRI = EstadoSriRetencion.NoAutorizado;
-                retencion.MensajeErrorSRI = JoinMensajes(autorizacion.Mensajes, $"Retencion no autorizada por SRI. Estado: {autorizacion.Estado}");
-            }
+            var result = await submission.SubmitAsync(((byte)retencion.AmbienteSRI).ToString(), retencion.ClaveAcceso!, xmlFirmado!, retry, cancellationToken);
+            retencion.EstadoSRI = result.Estado == "AUTORIZADO" ? EstadoSriRetencion.Autorizado
+                : result.Estado is "DEVUELTA" or "NO_AUTORIZADO" ? EstadoSriRetencion.NoAutorizado : EstadoSriRetencion.Enviado;
+            retencion.NumeroAutorizacion = result.NumeroAutorizacion;
+            retencion.FechaAutorizacion = result.FechaAutorizacion;
+            retencion.MensajeErrorSRI = result.Estado == "AUTORIZADO" ? null : result.Mensaje;
+            await artifacts.SaveAsync(retencion.EmpresaId, "SRI", "ComprobanteRetencion", retencion.Id, "XML_AUTORIZADO", $"07-{retencion.Id}-autorizado.xml", result.XmlAutorizado, cancellationToken);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        catch (Exception exception) when ((exception is HttpRequestException or TaskCanceledException) && !cancellationToken.IsCancellationRequested)
         {
             retencion.EstadoSRI = EstadoSriRetencion.Enviado;
-            retencion.MensajeErrorSRI = $"No fue posible completar el procesamiento SRI: {exception.Message}";
-            logger.LogWarning(exception, "Procesamiento SRI de retencion {RetencionId} quedo en contingencia.", retencion.Id);
+            retencion.MensajeErrorSRI = "Comunicación SRI pendiente: " + exception.Message;
+            logger.LogWarning(exception, "Retención pendiente. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, RetencionId: {RetencionId}", retencion.EmpresaId, tenantContextAccessor.UserId, retencion.Id);
         }
-
         retencion.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(retencion);
@@ -327,21 +339,12 @@ public sealed class RetencionService(
         Guid empresaId,
         string establecimiento,
         string puntoEmision,
+        string ambiente,
         CancellationToken cancellationToken)
     {
         var estab = NormalizeNumeric(establecimiento, 3, "establecimiento");
         var pto = NormalizeNumeric(puntoEmision, 3, "punto de emision");
-        var lastSecuencial = await dbContext.ComprobantesRetencion
-            .IgnoreQueryFilters()
-            .Where(current => current.EmpresaId == empresaId && current.Establecimiento == estab && current.PuntoEmision == pto)
-            .OrderByDescending(current => current.Secuencial)
-            .Select(current => current.Secuencial)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var next = long.TryParse(lastSecuencial, out var last)
-            ? last + 1
-            : 1;
-
+        var next = await TestDeIa.Infrastructure.Adapters.Out.Facturacion.SriNumeracionAllocator.ReserveAsync(dbContext, empresaId, ambiente, "07", estab, pto, cancellationToken);
         return next.ToString("000000000");
     }
 
@@ -413,99 +416,6 @@ public sealed class RetencionService(
         };
     }
 
-    private static string BuildXml(
-        ComprobanteRetencionEntity retencion,
-        EmpresaEmisoraEntity empresa,
-        ProveedorEntity proveedor)
-    {
-        XNamespace ns = "";
-        var documento = new XDocument(
-            new XDeclaration("1.0", "UTF-8", null),
-            new XElement(ns + "comprobanteRetencion",
-                new XAttribute("id", "comprobante"),
-                new XAttribute("version", "2.0.0"),
-                new XElement(ns + "infoTributaria",
-                    new XElement(ns + "ambiente", ((byte)retencion.AmbienteSRI).ToString()),
-                    new XElement(ns + "tipoEmision", string.IsNullOrWhiteSpace(empresa.TipoEmision) ? "1" : empresa.TipoEmision),
-                    new XElement(ns + "razonSocial", empresa.RazonSocial),
-                    new XElement(ns + "nombreComercial", empresa.NombreComercial ?? empresa.RazonSocial),
-                    new XElement(ns + "ruc", empresa.Ruc),
-                    new XElement(ns + "claveAcceso", retencion.ClaveAcceso),
-                    new XElement(ns + "codDoc", "07"),
-                    new XElement(ns + "estab", retencion.Establecimiento),
-                    new XElement(ns + "ptoEmi", retencion.PuntoEmision),
-                    new XElement(ns + "secuencial", retencion.Secuencial),
-                    new XElement(ns + "dirMatriz", empresa.DireccionMatriz)),
-                new XElement(ns + "infoCompRetencion",
-                    new XElement(ns + "fechaEmision", retencion.FechaEmision.ToString("dd/MM/yyyy")),
-                    new XElement(ns + "dirEstablecimiento", empresa.DireccionEstablecimiento ?? empresa.DireccionMatriz),
-                    empresa.ContribuyenteEspecial is null ? null : new XElement(ns + "contribuyenteEspecial", empresa.ContribuyenteEspecial),
-                    new XElement(ns + "obligadoContabilidad", empresa.ObligadoContabilidad ? "SI" : "NO"),
-                    new XElement(ns + "tipoIdentificacionSujetoRetenido", SriCatalogCodes.NormalizeTipoIdentificacionCode(proveedor.Persona.TipoIdentificacion) ?? proveedor.Persona.TipoIdentificacion),
-                    new XElement(ns + "razonSocialSujetoRetenido", proveedor.Persona.RazonSocialONombresCompletos),
-                    new XElement(ns + "identificacionSujetoRetenido", proveedor.Persona.Identificacion),
-                    new XElement(ns + "periodoFiscal", retencion.FechaEmision.ToString("MM/yyyy"))),
-                BuildDocsSustentoElement(ns, retencion.Detalles)));
-
-        return documento.ToString(SaveOptions.DisableFormatting);
-    }
-
-    private static XElement BuildDocsSustentoElement(
-        XNamespace ns,
-        IEnumerable<ComprobanteRetencionDetalleEntity> detalles)
-    {
-        return new XElement(
-            ns + "docsSustento",
-            detalles
-                .GroupBy(current => new { current.CodDocSustento, current.NumDocSustento, current.FechaEmisionDocSustento })
-                .Select(group =>
-                {
-                    var totalBase = group.Sum(item => item.BaseImponible);
-                    var retenciones = group.Select(item => new XElement(
-                        ns + "retencion",
-                        new XElement(ns + "codigo", item.CodigoImpuesto),
-                        new XElement(ns + "codigoRetencion", item.CodigoRetencionSRI),
-                        new XElement(ns + "baseImponible", item.BaseImponible.ToString("0.00")),
-                        new XElement(ns + "porcentajeRetener", item.PorcentajeRetencion.ToString("0.00")),
-                        new XElement(ns + "valorRetenido", item.ValorRetenido.ToString("0.00"))));
-
-                    return new XElement(
-                        ns + "docSustento",
-                        new XElement(ns + "codSustento", "01"),
-                        new XElement(ns + "codDocSustento", group.Key.CodDocSustento),
-                        new XElement(ns + "numDocSustento", group.Key.NumDocSustento.Replace("-", string.Empty)),
-                        new XElement(ns + "fechaEmisionDocSustento", group.Key.FechaEmisionDocSustento.ToString("dd/MM/yyyy")),
-                        new XElement(ns + "pagoLocExt", "01"),
-                        new XElement(ns + "totalComprobantesReembolso", "0.00"),
-                        new XElement(ns + "totalBaseImponibleReembolso", "0.00"),
-                        new XElement(ns + "totalImpuestoReembolso", "0.00"),
-                        new XElement(ns + "totalSinImpuestos", totalBase.ToString("0.00")),
-                        new XElement(ns + "importeTotal", totalBase.ToString("0.00")),
-                        new XElement(ns + "impuestosDocSustento"),
-                        new XElement(ns + "retenciones", retenciones));
-                }));
-    }
-
-    private static (byte[] Contenido, string Clave) ResolveCertificate(EmpresaEmisoraEntity empresa)
-    {
-        var certificado = empresa.CertificadosDigitales
-            .Where(current => current.IsActive)
-            .OrderByDescending(current => current.EsPrincipal)
-            .ThenByDescending(current => current.FechaFinVigencia)
-            .FirstOrDefault();
-
-        if (certificado is not null)
-        {
-            return (certificado.Contenido, certificado.Clave);
-        }
-
-        if (empresa.CertificadoContenido is { Length: > 0 } && !string.IsNullOrWhiteSpace(empresa.CertificadoClave))
-        {
-            return (empresa.CertificadoContenido, empresa.CertificadoClave);
-        }
-
-        throw new InvalidOperationException("La empresa no tiene certificado digital activo para firmar retenciones.");
-    }
 
     private static string BuildCodigoNumerico(Guid id)
     {
@@ -608,6 +518,7 @@ public sealed class RetencionService(
             EmpresaId = entity.EmpresaId,
             CompraId = entity.CompraId,
             ProveedorId = entity.ProveedorId,
+            ParteRelacionada = entity.ParteRelacionada,
             Establecimiento = entity.Establecimiento,
             PuntoEmision = entity.PuntoEmision,
             Secuencial = entity.Secuencial,

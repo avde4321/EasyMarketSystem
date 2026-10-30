@@ -86,6 +86,7 @@ internal static class SriLiquidacionCompraXmlBuilder
                 new XElement("infoLiquidacionCompra",
                     new XElement("fechaEmision", compra.FechaEmision.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
                     new XElement("dirEstablecimiento", ResolveDireccionEstablecimiento(compra, empresa)),
+                    BuildOptionalElement("contribuyenteEspecial", empresa.ContribuyenteEspecial),
                     new XElement("obligadoContabilidad", empresa.ObligadoContabilidad ? "SI" : "NO"),
                     new XElement("tipoIdentificacionProveedor", MapProveedorTipoIdentificacion(persona.TipoIdentificacion)),
                     new XElement("razonSocialProveedor", persona.RazonSocialONombresCompletos),
@@ -97,7 +98,6 @@ internal static class SriLiquidacionCompraXmlBuilder
                     new XElement("importeTotal", compra.ImporteTotal.ToString("0.00", CultureInfo.InvariantCulture)),
                     new XElement("moneda", MonedaDolar),
                     pagos,
-                    BuildOptionalElement("contribuyenteEspecial", empresa.ContribuyenteEspecial),
                     BuildOptionalElement("regimenRimpe", empresa.RegimenRimpe)),
                 new XElement("detalles", detalles),
                 BuildInfoAdicional(compra, persona)));

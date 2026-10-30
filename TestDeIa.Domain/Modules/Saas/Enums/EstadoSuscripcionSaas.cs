@@ -5,5 +5,6 @@ public enum EstadoSuscripcionSaas
     Activa = 1,
     Suspendida = 2,
     Cancelada = 3,
-    Demo = 4
+    Demo = 4,
+    PendientePago = 5
 }
