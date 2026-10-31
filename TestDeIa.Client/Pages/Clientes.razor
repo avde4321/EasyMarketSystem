@@ -14,7 +14,7 @@
         <button class="primary-action" @onclick="OpenCreateModalAsync">Crear cliente</button>
     </header>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    @if (!isEditorOpen && !string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert-message">@errorMessage</div>
     }
@@ -98,8 +98,13 @@
         <section class="modal-card">
             <header class="modal-header">
                 <h2>@(editingClienteId.HasValue ? "Actualizar cliente" : "Crear cliente")</h2>
-                <button class="icon-button" @onclick="CloseModal">x</button>
+                <button class="icon-button" @onclick="CloseModal" disabled="@isSaving">x</button>
             </header>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert-message" role="alert">@errorMessage</div>
+            }
 
             @if (!editingClienteId.HasValue && !showClienteRoleForm)
             {
@@ -179,8 +184,9 @@
             <section class="carousel-pane active-pane">
             <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync">
                 <DataAnnotationsValidator />
+                <ValidationSummary />
 
-                @if (editingClienteId.HasValue && !string.IsNullOrWhiteSpace(statusMessage))
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
                 {
                     <div class="soft-info-message compact-message">@statusMessage</div>
                 }
@@ -195,7 +201,7 @@
                         <span class="conversion-avatar">✓</span>
                         <div>
                             <strong>@clienteRequest.RazonSocialONombresCompletos</strong>
-                            <small>@clienteRequest.TipoIdentificacion - @clienteRequest.Identificacion · la informacion base de Persona se usara por debajo.</small>
+                            <small>@clienteRequest.TipoIdentificacion - @clienteRequest.Identificacion · @(EsClienteJuridico ? "Empresa / persona jurídica" : "Persona natural") · se conservará su clasificación.</small>
                         </div>
                     </div>
                 }
@@ -203,12 +209,21 @@
                 @if (ShowPersonaBaseFields)
                 {
                 <div class="form-grid">
+                    <div class="form-field full">
+                        <label for="tipoCliente">Tipo de cliente</label>
+                        <InputSelect id="tipoCliente" class="form-control" @bind-Value="clienteRequest.TipoCliente" @bind-Value:after="OnTipoClienteChanged" disabled="@isSaving">
+                            <option value="Natural">Persona natural</option>
+                            <option value="Juridico">Empresa / persona jurídica</option>
+                        </InputSelect>
+                        <ValidationMessage For="@(() => clienteRequest.TipoCliente)" />
+                        <small class="file-hint">@(EsClienteJuridico ? "Registra el RUC y la razón social de la empresa." : "Una persona natural puede tener cédula o RUC; tener RUC no la convierte en persona jurídica.")</small>
+                    </div>
                     <div class="form-field">
                         <label for="tipoIdentificacion">Tipo identificacion</label>
-                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="clienteRequest.TipoIdentificacion">
+                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="clienteRequest.TipoIdentificacion" @bind-Value:after="OnTipoIdentificacionChanged">
                             @foreach (var item in tiposIdentificacion)
                             {
-                                <option value="@item.Codigo">@item.Nombre</option>
+                                <option value="@item.Codigo" disabled="@(EsClienteJuridico && item.Codigo != "04")">@item.Nombre</option>
                             }
                         </InputSelect>
                         <ValidationMessage For="@(() => clienteRequest.TipoIdentificacion)" />
@@ -217,62 +232,59 @@
                     <div class="form-field">
                         <label for="identificacion">Identificacion</label>
                         <div class="input-action-row">
-                            <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" />
+                            <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" readonly="@EsConsumidorFinal" maxlength="30" />
                             <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
                                 @(isSearchingPersona ? "Buscando..." : "Buscar")
                             </button>
                         </div>
                         <ValidationMessage For="@(() => clienteRequest.Identificacion)" />
-                        <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
+                        @if (clienteRequest.TipoIdentificacion == "07")
+                        {
+                            <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
+                        }
                     </div>
 
                     <div class="form-field full">
-                        <label for="razonSocial">Razon social / nombres completos</label>
-                        <InputText id="razonSocial" class="form-control" @bind-Value="clienteRequest.RazonSocialONombresCompletos" />
+                        <label for="razonSocial">@(EsConsumidorFinal ? "Denominación" : EsClienteJuridico ? "Razón social" : "Nombres y apellidos completos") *</label>
+                        <InputText id="razonSocial" class="form-control" @bind-Value="clienteRequest.RazonSocialONombresCompletos" readonly="@EsConsumidorFinal" maxlength="180" />
                         <ValidationMessage For="@(() => clienteRequest.RazonSocialONombresCompletos)" />
                     </div>
 
+                    @if (MostrarNombreComercial)
+                    {
                     <div class="form-field">
-                        <label for="nombreComercial">Nombre comercial</label>
+                        <label for="nombreComercial">Nombre comercial (opcional)</label>
                         <InputText id="nombreComercial" class="form-control" @bind-Value="clienteRequest.NombreComercial" />
                         <ValidationMessage For="@(() => clienteRequest.NombreComercial)" />
                     </div>
+                    }
 
                     <div class="form-field">
-                        <label for="email">Correo principal</label>
-                        <InputText id="email" class="form-control" @bind-Value="clienteRequest.CorreoElectronicoPrincipal" />
+                        <label for="email">Correo principal (opcional)</label>
+                        <InputText id="email" type="email" class="form-control" @bind-Value="clienteRequest.CorreoElectronicoPrincipal" maxlength="180" />
                         <ValidationMessage For="@(() => clienteRequest.CorreoElectronicoPrincipal)" />
                     </div>
 
                     <div class="form-field">
-                        <label for="correoFacturacion">Correo facturacion electronica</label>
-                        <InputText id="correoFacturacion" class="form-control" @bind-Value="clienteRequest.CorreoFacturacionElectronica" />
-                        <ValidationMessage For="@(() => clienteRequest.CorreoFacturacionElectronica)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="telefono">Celular</label>
-                        <InputText id="telefono" class="form-control" @bind-Value="clienteRequest.TelefonoCelular" />
+                        <label for="telefono">Teléfono de contacto (opcional)</label>
+                        <InputText id="telefono" type="tel" class="form-control" @bind-Value="clienteRequest.TelefonoCelular" maxlength="40" />
                         <ValidationMessage For="@(() => clienteRequest.TelefonoCelular)" />
                     </div>
 
+                    @if (MostrarDatosPersonales)
+                    {
                     <div class="form-field">
-                        <label for="tipoCliente">Tipo cliente</label>
-                        <InputSelect id="tipoCliente" class="form-control" @bind-Value="clienteRequest.TipoCliente">
-                            <option value="Natural">Natural</option>
-                            <option value="Juridico">Juridico</option>
-                        </InputSelect>
+                        <label for="genero">Género (opcional)</label>
+                        <InputText id="genero" class="form-control" @bind-Value="clienteRequest.Genero" maxlength="30" />
+                        <ValidationMessage For="@(() => clienteRequest.Genero)" />
                     </div>
 
                     <div class="form-field">
-                        <label for="genero">Genero</label>
-                        <InputText id="genero" class="form-control" @bind-Value="clienteRequest.Genero" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="fechaNacimiento">Fecha nacimiento</label>
+                        <label for="fechaNacimiento">Fecha de nacimiento (opcional)</label>
                         <InputDate id="fechaNacimiento" class="form-control" @bind-Value="clienteRequest.FechaNacimiento" />
+                        <ValidationMessage For="@(() => clienteRequest.FechaNacimiento)" />
                     </div>
+                    }
 
                     <div class="form-field full">
                         <label>Ubicacion</label>
@@ -283,7 +295,7 @@
                     </div>
 
                     <div class="form-field full">
-                        <label for="direccion">Direccion exacta / referencia</label>
+                        <label for="direccion">Dirección exacta / referencia *</label>
                         <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.DireccionPrincipal" />
                         <ValidationMessage For="@(() => clienteRequest.DireccionPrincipal)" />
                         <small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small>
@@ -291,7 +303,16 @@
                 </div>
                 }
 
+                <div class="client-form-divider"><span>Facturación y condiciones comerciales</span></div>
                 <div class="form-grid">
+                    <div class="form-field full">
+                        <label for="correoFacturacion">Correo para comprobantes (opcional)</label>
+                        <InputText id="correoFacturacion" type="email" class="form-control" @bind-Value="clienteRequest.CorreoFacturacionElectronica" maxlength="180" />
+                        <ValidationMessage For="@(() => clienteRequest.CorreoFacturacionElectronica)" />
+                        <small class="file-hint">Si se deja vacío se utiliza el correo principal. No cambia el correo de la persona.</small>
+                    </div>
+                    @if (MostrarDatosTributarios)
+                    {
                     <label class="form-check soft-check">
                         <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.ObligadoContabilidad" />
                         <span class="form-check-label">Obligado a llevar contabilidad</span>
@@ -301,29 +322,35 @@
                         <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.EsContribuyenteEspecial" />
                         <span class="form-check-label">Contribuyente especial</span>
                     </label>
+                    <ValidationMessage For="@(() => clienteRequest.ObligadoContabilidad)" />
+                    <ValidationMessage For="@(() => clienteRequest.EsContribuyenteEspecial)" />
+                    }
 
                     <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.PermiteCredito" />
+                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.PermiteCredito" disabled="@EsConsumidorFinal" />
                         <span class="form-check-label">Permite credito</span>
                     </label>
 
                     <div class="form-field">
                         <label for="limiteCredito">Limite credito</label>
-                        <InputNumber id="limiteCredito" class="form-control" @bind-Value="clienteRequest.LimiteCredito" />
+                        <InputNumber id="limiteCredito" class="form-control" @bind-Value="clienteRequest.LimiteCredito" disabled="@(!clienteRequest.PermiteCredito)" min="0" />
+                        <ValidationMessage For="@(() => clienteRequest.LimiteCredito)" />
                     </div>
 
                     <div class="form-field">
                         <label for="diasCredito">Dias credito maximo</label>
-                        <InputNumber id="diasCredito" class="form-control" @bind-Value="clienteRequest.DiasCreditoMaximo" />
+                        <InputNumber id="diasCredito" class="form-control" @bind-Value="clienteRequest.DiasCreditoMaximo" disabled="@(!clienteRequest.PermiteCredito)" min="0" max="3650" />
+                        <ValidationMessage For="@(() => clienteRequest.DiasCreditoMaximo)" />
                     </div>
 
                     <div class="form-field">
                         <label for="estadoCredito">Estado credito</label>
-                        <InputSelect id="estadoCredito" class="form-control" @bind-Value="clienteRequest.EstadoCredito">
+                        <InputSelect id="estadoCredito" class="form-control" @bind-Value="clienteRequest.EstadoCredito" disabled="@(!clienteRequest.PermiteCredito)">
                             <option value="AlDia">Al dia</option>
                             <option value="Suspendido">Suspendido</option>
                             <option value="Bloqueado">Bloqueado</option>
                         </InputSelect>
+                        <ValidationMessage For="@(() => clienteRequest.EstadoCredito)" />
                     </div>
                 </div>
 
@@ -333,10 +360,10 @@
                 </label>
 
                 <footer class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseModal">Cancelar</button>
+                    <button class="secondary-action" type="button" @onclick="CloseModal" disabled="@isSaving">Cancelar</button>
                     @if (!editingClienteId.HasValue)
                     {
-                        <button class="secondary-action" type="button" @onclick="VolverAConsultaPersonasCliente">Volver a personas</button>
+                        <button class="secondary-action" type="button" @onclick="VolverAConsultaPersonasCliente" disabled="@isSaving">Volver a personas</button>
                     }
                     <button class="primary-action" type="submit" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar")

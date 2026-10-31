@@ -26,6 +26,9 @@ internal sealed class SriSignedXml : SignedXml
                 .Where(element => element.GetAttribute("id") == idValue || element.GetAttribute("Id") == idValue));
         if (matches.Count == 0)
         {
+            // KeyInfo aún está separado del documento al calcular su referencia.
+            var keyInfo = KeyInfo?.GetXml();
+            if (keyInfo?.GetAttribute("Id") == idValue) matches.Add(keyInfo);
             foreach (DataObject dataObject in Signature.ObjectList)
             {
                 matches.AddRange(dataObject.GetXml().GetElementsByTagName("*").OfType<XmlElement>()

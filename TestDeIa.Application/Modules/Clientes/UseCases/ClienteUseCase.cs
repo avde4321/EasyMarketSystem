@@ -10,6 +10,8 @@ using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Responses.Clientes;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Sri;
+using TestDeIa.Shared.Clientes;
+using System.ComponentModel.DataAnnotations;
 
 namespace TestDeIa.Application.Modules.Clientes.UseCases;
 
@@ -58,6 +60,7 @@ public sealed class ClienteUseCase : IClienteUseCase
 
     public async Task<ClienteResponse> CreateAsync(ClienteRequest request, CancellationToken cancellationToken = default)
     {
+        ValidateAndNormalizeRequest(request);
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion del cliente no coincide con los tipos soportados por facturacion electronica.");
@@ -72,18 +75,19 @@ public sealed class ClienteUseCase : IClienteUseCase
                 throw new InvalidOperationException("La persona ya tiene el rol de cliente. Puedes editarla desde la lista.");
             }
 
-            persona = await personaRepository.UpdateAsync(BuildPersona(persona.Id, persona.CreatedAt, request, persona.EsPersonaJuridica, persona.EsEmpresa), cancellationToken)
-                ?? throw new InvalidOperationException("No se pudo actualizar la persona base del cliente.");
+            if (persona.EsPersonaJuridica != (request.TipoCliente == TipoClienteCodes.Juridico))
+                throw new InvalidOperationException("La clasificación no coincide con la persona existente. Selecciónala para utilizar sus datos registrados.");
+            // Agregar un rol no autoriza sobrescribir los datos maestros con campos ocultos o desactualizados.
         }
         else
         {
-            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request, request.TipoIdentificacion.Trim() == "04", false), cancellationToken);
+            persona = await personaRepository.CreateAsync(BuildPersona(Guid.NewGuid(), DateTimeOffset.UtcNow, request), cancellationToken);
         }
 
         var cliente = new Cliente(
             persona.Id,
             persona.Id,
-            currentUserAccessor.GetRequiredUserId(),
+            currentUserAccessor.GetRequiredEmpresaId(),
             persona.TipoIdentificacion,
             persona.Identificacion,
             persona.RazonSocialONombresCompletos,
@@ -116,6 +120,7 @@ public sealed class ClienteUseCase : IClienteUseCase
 
     public async Task<ClienteResponse?> UpdateAsync(Guid id, ClienteRequest request, CancellationToken cancellationToken = default)
     {
+        ValidateAndNormalizeRequest(request);
         await ValidateCatalogValuesAsync(request, cancellationToken);
         var tipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
             ?? throw new InvalidOperationException("El tipo de identificacion del cliente no coincide con los tipos soportados por facturacion electronica.");
@@ -136,7 +141,7 @@ public sealed class ClienteUseCase : IClienteUseCase
         var currentPersona = await personaRepository.GetByIdAsync(current.PersonaId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro la persona asociada al cliente.");
 
-        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request, currentPersona.EsPersonaJuridica, currentPersona.EsEmpresa), cancellationToken)
+        var updatedPersona = await personaRepository.UpdateAsync(BuildPersona(currentPersona.Id, currentPersona.CreatedAt, request), cancellationToken)
             ?? throw new InvalidOperationException("No se pudo actualizar la persona del cliente.");
 
         var cliente = new Cliente(
@@ -179,7 +184,7 @@ public sealed class ClienteUseCase : IClienteUseCase
         return clienteRepository.DeleteAsync(id, cancellationToken);
     }
 
-    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ClienteRequest request, bool esPersonaJuridica, bool esEmpresa)
+    private static Persona BuildPersona(Guid id, DateTimeOffset createdAt, ClienteRequest request)
     {
         return new Persona(
             id,
@@ -190,10 +195,10 @@ public sealed class ClienteUseCase : IClienteUseCase
             request.DireccionPrincipal.Trim(),
             NormalizeOptional(request.TelefonoCelular),
             NormalizeOptional(request.CorreoElectronicoPrincipal),
-            request.FechaNacimiento,
-            NormalizeOptional(request.Genero),
-            esPersonaJuridica,
-            esEmpresa,
+            request.TipoCliente == TipoClienteCodes.Juridico ? null : request.FechaNacimiento,
+            request.TipoCliente == TipoClienteCodes.Juridico ? null : NormalizeOptional(request.Genero),
+            request.TipoCliente == TipoClienteCodes.Juridico,
+            request.TipoCliente == TipoClienteCodes.Juridico,
             [],
             request.IsActive,
             createdAt,
@@ -251,4 +256,28 @@ public sealed class ClienteUseCase : IClienteUseCase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static void ValidateAndNormalizeRequest(ClienteRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.TipoCliente = TipoClienteCodes.Normalize(request.TipoCliente)
+            ?? throw new InvalidOperationException("Selecciona persona natural o empresa / persona jurídica.");
+        if (request.TipoCliente == TipoClienteCodes.Juridico &&
+            SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion) != "04")
+            throw new InvalidOperationException("Una empresa / persona jurídica debe registrarse con RUC.");
+        request.TipoIdentificacion = SriCatalogCodes.NormalizeTipoIdentificacionCode(request.TipoIdentificacion)
+            ?? throw new InvalidOperationException("Selecciona un tipo de identificación válido.");
+        request.EstadoCredito = EstadoCreditoClienteCodes.Normalize(request.EstadoCredito)
+            ?? throw new InvalidOperationException("Selecciona un estado de crédito válido.");
+        if (request.TipoIdentificacion == SriCatalogCodes.IdentificacionConsumidorFinal)
+        {
+            request.RazonSocialONombresCompletos = "CONSUMIDOR FINAL";
+            request.NombreComercial = null;
+            request.FechaNacimiento = null;
+            request.Genero = null;
+        }
+        var errors = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(request, new ValidationContext(request), errors, true))
+            throw new InvalidOperationException(string.Join(" ", errors.Select(x => x.ErrorMessage)));
+    }
 }

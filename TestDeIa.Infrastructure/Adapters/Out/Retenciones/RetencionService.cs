@@ -192,7 +192,7 @@ public sealed class RetencionService(
             Establecimiento = NormalizeNumeric(empresa.Establecimiento, 3, "establecimiento"),
             PuntoEmision = NormalizeNumeric(empresa.PuntoEmision, 3, "punto de emision"),
             Secuencial = secuencial,
-            FechaEmision = now,
+            FechaEmision = TestDeIa.Shared.Sri.SriFechaFiscal.EcuadorContinental(now),
             AmbienteSRI = ClaveAccesoService.GetAmbienteCode(empresa.AmbienteSri) == "2"
                 ? AmbienteSriRetencion.Produccion
                 : AmbienteSriRetencion.Pruebas,

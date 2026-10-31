@@ -65,12 +65,22 @@ public sealed class SriXadesBesSigner
         signedPropertiesReference.AddTransform(new XmlDsigC14NTransform());
         signedXml.AddReference(signedPropertiesReference);
 
-        var keyInfo = new KeyInfo();
+        var keyInfo = new KeyInfo { Id = $"Certificate-{Guid.NewGuid():N}" };
         var x509Data = new KeyInfoX509Data(certificate);
-        x509Data.AddIssuerSerial(certificate.Issuer, GetDecimalSerialNumber(certificate));
-        keyInfo.AddClause(new RSAKeyValue(privateKey));
+        // AddIssuerSerial recibe HEX y lo serializa como decimal. Pasar decimal aquí cambia la identidad.
+        x509Data.AddIssuerSerial(certificate.Issuer, certificate.GetSerialNumberString());
         keyInfo.AddClause(x509Data);
+        keyInfo.AddClause(new RSAKeyValue(privateKey));
         signedXml.KeyInfo = keyInfo;
+
+        // SRI exige firmar también el contenedor del certificado, no solo el documento y SignedProperties.
+        var certificateReference = new Reference
+        {
+            Uri = $"#{keyInfo.Id}",
+            DigestMethod = SignedXml.XmlDsigSHA1Url
+        };
+        certificateReference.AddTransform(new XmlDsigC14NTransform());
+        signedXml.AddReference(certificateReference);
 
         signedXml.ComputeSignature();
 
@@ -143,7 +153,24 @@ public sealed class SriXadesBesSigner
         var validator = new SriSignedXml(xmlDocument);
         validator.LoadXml(signatureElement);
 
-        if (!validator.CheckSignature(certificate, true))
+        var ns = new XmlNamespaceManager(xmlDocument.NameTable);
+        ns.AddNamespace("ds", SignedXml.XmlDsigNamespaceUrl);
+        ns.AddNamespace("etsi", XadesNamespace);
+        var embedded = signatureElement.SelectSingleNode("ds:KeyInfo/ds:X509Data/ds:X509Certificate", ns)
+            ?? throw new InvalidOperationException("La firma no contiene el certificado firmante en KeyInfo.");
+        using var embeddedCertificate = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(embedded.InnerText));
+        var expectedSerial = GetDecimalSerialNumber(embeddedCertificate);
+        var keySerial = signatureElement.SelectSingleNode("ds:KeyInfo/ds:X509Data/ds:X509IssuerSerial/ds:X509SerialNumber", ns)?.InnerText;
+        var signedSerial = signatureElement.SelectSingleNode(".//etsi:SigningCertificate/etsi:Cert/etsi:IssuerSerial/ds:X509SerialNumber", ns)?.InnerText;
+        var keyIssuer = signatureElement.SelectSingleNode("ds:KeyInfo/ds:X509Data/ds:X509IssuerSerial/ds:X509IssuerName", ns)?.InnerText;
+        var signedIssuer = signatureElement.SelectSingleNode(".//etsi:SigningCertificate/etsi:Cert/etsi:IssuerSerial/ds:X509IssuerName", ns)?.InnerText;
+        var digest = signatureElement.SelectSingleNode(".//etsi:SigningCertificate/etsi:Cert/etsi:CertDigest/ds:DigestValue", ns)?.InnerText;
+        if (keySerial != expectedSerial || signedSerial != expectedSerial ||
+            keyIssuer != embeddedCertificate.Issuer || signedIssuer != embeddedCertificate.Issuer ||
+            digest != Convert.ToBase64String(SHA1.HashData(embeddedCertificate.RawData)))
+            throw new InvalidOperationException("El certificado firmante no coincide con la serie, emisor o huella declarados en XAdES/KeyInfo.");
+        if (!embeddedCertificate.RawData.AsSpan().SequenceEqual(certificate.RawData) ||
+            !validator.CheckSignature(embeddedCertificate, true))
         {
             throw new InvalidOperationException("La firma XAdES-BES generada no paso la validacion criptografica local.");
         }

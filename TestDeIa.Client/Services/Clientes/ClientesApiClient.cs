@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Clientes;
@@ -24,19 +25,19 @@ public sealed class ClientesApiClient
 
     public async Task<(bool Succeeded, string? ErrorMessage)> CreateAsync(ClienteRequest request)
     {
-        var response = await httpClient.PostAsJsonAsync("api/clientes", request);
+        using var response = await httpClient.PostAsJsonAsync("api/clientes", request);
         return await BuildResultAsync(response);
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage)> UpdateAsync(Guid id, ClienteRequest request)
     {
-        var response = await httpClient.PutAsJsonAsync($"api/clientes/{id}", request);
+        using var response = await httpClient.PutAsJsonAsync($"api/clientes/{id}", request);
         return await BuildResultAsync(response);
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        var response = await httpClient.DeleteAsync($"api/clientes/{id}");
+        using var response = await httpClient.DeleteAsync($"api/clientes/{id}");
         response.EnsureSuccessStatusCode();
     }
 
@@ -47,10 +48,16 @@ public sealed class ClientesApiClient
             return (true, null);
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity)
         {
+            try
+            {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Message ?? "No se pudo guardar el cliente.");
+            var messages = error?.Errors?.Values.SelectMany(x => x).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
+            if (messages is { Length: > 0 }) return (false, string.Join(" ", messages));
+            return (false, error?.Message ?? error?.Detail ?? error?.Title ?? "No se pudo guardar el cliente.");
+            }
+            catch (JsonException) { return (false, "No se pudo guardar el cliente. Revisa los datos e intenta nuevamente."); }
         }
 
         return (false, "No se pudo completar la operacion.");
@@ -59,5 +66,8 @@ public sealed class ClientesApiClient
     private sealed class ApiError
     {
         public string? Message { get; set; }
+        public string? Detail { get; set; }
+        public string? Title { get; set; }
+        public Dictionary<string, string[]>? Errors { get; set; }
     }
 }

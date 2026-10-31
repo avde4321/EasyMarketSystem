@@ -291,7 +291,7 @@ public sealed class NotaCreditoService : INotaCreditoService
             ClienteNombre = factura.ClienteNombre,
             ClienteDireccion = factura.ClienteDireccion,
             Estado = FacturaEstado.NO_FIRMADO,
-            FechaEmision = now,
+            FechaEmision = TestDeIa.Shared.Sri.SriFechaFiscal.EcuadorContinental(now),
             CreatedAt = now,
             UpdatedAt = now
         };

@@ -1,9 +1,14 @@
 using System.ComponentModel.DataAnnotations;
+using TestDeIa.Shared.Clientes;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Shared.Requests.Clientes;
 
-public sealed class ClienteRequest
+public sealed class ClienteRequest : IValidatableObject
 {
+    private string? correoElectronicoPrincipal;
+    private string? correoFacturacionElectronica;
+    private string? telefonoCelular;
     [Required(ErrorMessage = "El tipo de identificacion es obligatorio.")]
     [StringLength(2, ErrorMessage = "El tipo de identificacion debe usar el codigo oficial SRI.")]
     public string TipoIdentificacion { get; set; } = "05";
@@ -33,10 +38,19 @@ public sealed class ClienteRequest
 
     [EmailAddress(ErrorMessage = "El correo no tiene un formato valido.")]
     [StringLength(180, ErrorMessage = "El correo no puede superar 180 caracteres.")]
-    public string? CorreoElectronicoPrincipal { get; set; }
+    public string? CorreoElectronicoPrincipal
+    {
+        get => correoElectronicoPrincipal;
+        set => correoElectronicoPrincipal = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 
-    [StringLength(40, ErrorMessage = "El telefono celular no puede superar 40 caracteres.")]
-    public string? TelefonoCelular { get; set; }
+    [Phone(ErrorMessage = "El teléfono de contacto no tiene un formato válido.")]
+    [StringLength(40, ErrorMessage = "El teléfono de contacto no puede superar 40 caracteres.")]
+    public string? TelefonoCelular
+    {
+        get => telefonoCelular;
+        set => telefonoCelular = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 
     public DateOnly? FechaNacimiento { get; set; }
 
@@ -45,7 +59,11 @@ public sealed class ClienteRequest
 
     [EmailAddress(ErrorMessage = "El correo de facturacion no tiene un formato valido.")]
     [StringLength(180, ErrorMessage = "El correo de facturacion no puede superar 180 caracteres.")]
-    public string? CorreoFacturacionElectronica { get; set; }
+    public string? CorreoFacturacionElectronica
+    {
+        get => correoFacturacionElectronica;
+        set => correoFacturacionElectronica = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 
     [Required(ErrorMessage = "El tipo de cliente es obligatorio.")]
     [StringLength(20, ErrorMessage = "El tipo de cliente no puede superar 20 caracteres.")]
@@ -65,7 +83,36 @@ public sealed class ClienteRequest
 
     [Required(ErrorMessage = "El estado de credito es obligatorio.")]
     [StringLength(20, ErrorMessage = "El estado de credito no puede superar 20 caracteres.")]
-    public string EstadoCredito { get; set; } = "Normal";
+    public string EstadoCredito { get; set; } = EstadoCreditoClienteCodes.AlDia;
 
     public bool IsActive { get; set; } = true;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var tipo = TipoClienteCodes.Normalize(TipoCliente);
+        if (tipo is null)
+            yield return new ValidationResult("Selecciona persona natural o empresa / persona jurídica.", [nameof(TipoCliente)]);
+        if (tipo == TipoClienteCodes.Juridico && SriCatalogCodes.NormalizeTipoIdentificacionCode(TipoIdentificacion) != "04")
+            yield return new ValidationResult("Una empresa / persona jurídica debe registrarse con RUC.", [nameof(TipoIdentificacion)]);
+        var identificacionTipo = SriCatalogCodes.NormalizeTipoIdentificacionCode(TipoIdentificacion);
+        var numero = Identificacion?.Trim() ?? string.Empty;
+        if (identificacionTipo is null)
+            yield return new ValidationResult("Selecciona un tipo de identificación válido.", [nameof(TipoIdentificacion)]);
+        if ((identificacionTipo == "04" && numero.Length != 13) || (identificacionTipo == "05" && numero.Length != 10) ||
+            (identificacionTipo is "04" or "05" && numero.Any(c => c is < '0' or > '9')))
+            yield return new ValidationResult("La cédula debe tener 10 dígitos y el RUC 13 dígitos, sin letras ni separadores.", [nameof(Identificacion)]);
+        if (identificacionTipo == "07" && numero != "9999999999999")
+            yield return new ValidationResult("Consumidor final debe usar 9999999999999.", [nameof(Identificacion)]);
+        if (identificacionTipo == "06" && numero.Length < 3)
+            yield return new ValidationResult("El pasaporte debe tener al menos 3 caracteres.", [nameof(Identificacion)]);
+        if (identificacionTipo != "04" && (ObligadoContabilidad || EsContribuyenteEspecial))
+            yield return new ValidationResult("Los datos tributarios del contribuyente requieren un RUC.", [nameof(ObligadoContabilidad), nameof(EsContribuyenteEspecial)]);
+        if (tipo == TipoClienteCodes.Natural && identificacionTipo != "07" &&
+            FechaNacimiento > DateOnly.FromDateTime(SriFechaFiscal.EcuadorContinental(DateTimeOffset.UtcNow).DateTime))
+            yield return new ValidationResult("La fecha de nacimiento no puede ser futura.", [nameof(FechaNacimiento)]);
+        if (EstadoCreditoClienteCodes.Normalize(EstadoCredito) is null)
+            yield return new ValidationResult("Selecciona un estado de crédito válido.", [nameof(EstadoCredito)]);
+        if (identificacionTipo == "07" && PermiteCredito)
+            yield return new ValidationResult("Consumidor final no puede tener una línea de crédito individual.", [nameof(PermiteCredito)]);
+    }
 }

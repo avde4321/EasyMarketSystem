@@ -6,6 +6,7 @@ using TestDeIa.Shared.Requests.Clientes;
 using TestDeIa.Shared.Responses.Catalogos;
 using TestDeIa.Shared.Responses.Clientes;
 using TestDeIa.Shared.Responses.Personas;
+using TestDeIa.Shared.Clientes;
 
 namespace TestDeIa.Client.Pages;
 
@@ -42,6 +43,44 @@ public partial class Clientes
     private IEnumerable<ClienteResponse> VisibleClientes => clientes;
     private bool HasPersonaSearchTerm => !string.IsNullOrWhiteSpace(personaSearchTerm);
     private bool ShowPersonaBaseFields => editingClienteId.HasValue || !isClienteFromExistingPersona;
+    private bool EsClienteJuridico => clienteRequest.TipoCliente == TipoClienteCodes.Juridico;
+    private bool EsConsumidorFinal => clienteRequest.TipoIdentificacion == "07";
+    private bool MostrarDatosPersonales => !EsClienteJuridico && !EsConsumidorFinal;
+    private bool MostrarDatosTributarios => clienteRequest.TipoIdentificacion == "04";
+    private bool MostrarNombreComercial => EsClienteJuridico || clienteRequest.TipoIdentificacion == "04";
+    private void OnTipoClienteChanged()
+    {
+        if (EsClienteJuridico)
+        {
+            clienteRequest.TipoIdentificacion = "04";
+            clienteRequest.FechaNacimiento = null;
+            clienteRequest.Genero = null;
+        }
+        OnTipoIdentificacionChanged();
+    }
+
+    private void OnTipoIdentificacionChanged()
+    {
+        if (EsConsumidorFinal)
+        {
+            clienteRequest.TipoCliente = TipoClienteCodes.Natural;
+            clienteRequest.Identificacion = "9999999999999";
+            clienteRequest.RazonSocialONombresCompletos = "CONSUMIDOR FINAL";
+            clienteRequest.PermiteCredito = false;
+            clienteRequest.LimiteCredito = 0;
+            clienteRequest.DiasCreditoMaximo = 0;
+            clienteRequest.EstadoCredito = EstadoCreditoClienteCodes.AlDia;
+        }
+        else if (clienteRequest.Identificacion == "9999999999999")
+        {
+            clienteRequest.Identificacion = string.Empty;
+            if (clienteRequest.RazonSocialONombresCompletos == "CONSUMIDOR FINAL")
+                clienteRequest.RazonSocialONombresCompletos = string.Empty;
+        }
+        if (!MostrarNombreComercial) clienteRequest.NombreComercial = null;
+        if (!MostrarDatosPersonales) { clienteRequest.FechaNacimiento = null; clienteRequest.Genero = null; }
+        if (!MostrarDatosTributarios) { clienteRequest.ObligadoContabilidad = false; clienteRequest.EsContribuyenteEspecial = false; }
+    }
     private static bool TieneRolCliente(PersonaResponse persona) => persona.RolesPersona.Contains("Cliente", StringComparer.OrdinalIgnoreCase);
     private bool CanGoPrevious => currentSkip > 0;
     private bool CanGoNext => currentSkip + PageSize < totalCount;
@@ -92,7 +131,7 @@ public partial class Clientes
         editingClienteId = null;
         clienteRequest = new ClienteRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
+            TipoIdentificacion = "05",
             TipoCliente = "Natural",
             EstadoCredito = "AlDia"
         };
@@ -130,7 +169,7 @@ public partial class Clientes
             PermiteCredito = cliente.PermiteCredito,
             LimiteCredito = cliente.LimiteCredito,
             DiasCreditoMaximo = cliente.DiasCreditoMaximo,
-            EstadoCredito = cliente.EstadoCredito,
+            EstadoCredito = EstadoCreditoClienteCodes.Normalize(cliente.EstadoCredito) ?? cliente.EstadoCredito,
             FechaNacimiento = cliente.FechaNacimiento,
             Genero = cliente.Genero,
             IsActive = cliente.IsActive
@@ -193,7 +232,9 @@ public partial class Clientes
 
     private void SeleccionarPersona(PersonaResponse persona)
     {
+        clienteRequest = new ClienteRequest();
         clienteRequest.TipoIdentificacion = persona.TipoIdentificacion;
+        clienteRequest.TipoCliente = persona.EsPersonaJuridica ? TipoClienteCodes.Juridico : TipoClienteCodes.Natural;
         clienteRequest.Identificacion = persona.Identificacion;
         clienteRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
         clienteRequest.NombreComercial = persona.NombreComercial;
@@ -225,7 +266,7 @@ public partial class Clientes
         editingClienteId = null;
         clienteRequest = new ClienteRequest
         {
-            TipoIdentificacion = tiposIdentificacion.FirstOrDefault()?.Codigo ?? "05",
+            TipoIdentificacion = "05",
             TipoCliente = "Natural",
             EstadoCredito = "AlDia",
             IsActive = true
@@ -267,26 +308,7 @@ public partial class Clientes
                 return;
             }
 
-            clienteRequest.TipoIdentificacion = persona.TipoIdentificacion;
-            clienteRequest.Identificacion = persona.Identificacion;
-            clienteRequest.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
-            clienteRequest.NombreComercial = persona.NombreComercial;
-            clienteRequest.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
-            clienteRequest.TelefonoCelular = persona.TelefonoCelular;
-            clienteRequest.DireccionPrincipal = persona.DireccionPrincipal;
-            clienteRequest.RegionCodigo = persona.RegionCodigo;
-            clienteRequest.ProvinciaCodigo = persona.ProvinciaCodigo;
-            clienteRequest.CiudadCodigo = persona.CiudadCodigo;
-            clienteRequest.SectorCodigo = persona.SectorCodigo;
-            clienteRequest.FechaNacimiento = persona.FechaNacimiento;
-            clienteRequest.Genero = persona.Genero;
-            clienteRequest.IsActive = persona.IsActive;
-            if (string.IsNullOrWhiteSpace(clienteRequest.CorreoFacturacionElectronica))
-            {
-                clienteRequest.CorreoFacturacionElectronica = persona.CorreoElectronicoPrincipal;
-            }
-
-            statusMessage = "Se cargo la informacion de la persona existente.";
+            SeleccionarPersona(persona);
         }
         catch (HttpRequestException)
         {
@@ -300,6 +322,7 @@ public partial class Clientes
 
     private async Task SaveClienteAsync()
     {
+        if (isSaving) return;
         isSaving = true;
         errorMessage = null;
 

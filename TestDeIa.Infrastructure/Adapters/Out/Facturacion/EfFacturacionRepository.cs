@@ -68,7 +68,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 Identificacion = persona.Identificacion,
                 NombreCompleto = persona.RazonSocialONombresCompletos,
                 NombreComercial = persona.NombreComercial,
-                Email = persona.CorreoElectronicoPrincipal,
+                Email = persona.Cliente != null && !string.IsNullOrWhiteSpace(persona.Cliente.CorreoFacturacionElectronica)
+                    ? persona.Cliente.CorreoFacturacionElectronica : persona.CorreoElectronicoPrincipal,
                 Telefono = persona.TelefonoCelular,
                 Direccion = persona.DireccionPrincipal,
                 HasClienteExtension = persona.Cliente != null && persona.Cliente.IsActive
@@ -362,7 +363,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             ClienteIdentificacion = cliente.Persona.Identificacion,
             ClienteNombre = cliente.Persona.RazonSocialONombresCompletos,
             ClienteDireccion = NormalizeOptional(cliente.Persona.DireccionPrincipal),
-            ClienteEmail = NormalizeOptional(cliente.Persona.CorreoElectronicoPrincipal),
+            ClienteEmail = NormalizeOptional(cliente.CorreoFacturacionElectronica) ?? NormalizeOptional(cliente.Persona.CorreoElectronicoPrincipal),
             ClienteTelefono = NormalizeOptional(cliente.Persona.TelefonoCelular),
             FormaPago = formaPago,
             FormaPagoSriCodigo = formaPagoCodigo,
@@ -370,7 +371,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             VueltoEntregado = formaPagoCodigo == SriCatalogCodes.FormaPagoEfectivo ? NormalizeMoney(request.VueltoEntregado) : null,
             Estado = FacturaEstado.NO_FIRMADO,
             Observacion = NormalizeOptional(request.Observacion),
-            FechaEmision = now,
+            FechaEmision = SriFechaFiscal.EcuadorContinental(now),
             CreatedAt = now,
             UpdatedAt = now,
             ClaveAcceso = string.Empty,
