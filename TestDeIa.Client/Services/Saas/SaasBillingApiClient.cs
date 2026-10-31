@@ -3,11 +3,30 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using TestDeIa.Shared.Requests.Saas;
 using TestDeIa.Shared.Responses.Saas;
+using TestDeIa.Shared.Responses.Common;
+using System.Globalization;
 
 namespace TestDeIa.Client.Services.Saas;
 
 public sealed class SaasBillingApiClient(HttpClient http)
 {
+    public Task<PagedResultResponse<SaasConsumoResponse>> GetConsumptionAsync(SaasConsumoQuery query, CancellationToken ct = default)
+        => SendAsync<PagedResultResponse<SaasConsumoResponse>>(new HttpRequestMessage(HttpMethod.Get,
+            $"api/v1/saas/billing/admin/consumption?skip={query.Skip}&take={query.Take}&term={Uri.EscapeDataString(query.Term ?? string.Empty)}"), ct);
+    public Task<SaasDashboardResponse> GetDashboardAsync(CancellationToken ct = default)
+        => SendAsync<SaasDashboardResponse>(new HttpRequestMessage(HttpMethod.Get, "api/v1/saas/billing/admin/dashboard"), ct);
+    public Task<PagedResultResponse<SaasPagoAdminResponse>> GetAdminPaymentsAsync(SaasPagosAdminQuery query, CancellationToken ct = default)
+    {
+        var parts = new List<string> { $"skip={query.Skip}", $"take={query.Take}",
+            $"estado={Uri.EscapeDataString(query.Estado ?? "Todos")}", $"term={Uri.EscapeDataString(query.Term ?? string.Empty)}" };
+        if (query.EmpresaId.HasValue) parts.Add($"empresaId={query.EmpresaId:D}");
+        if (query.FechaDesde.HasValue) parts.Add("fechaDesde=" + query.FechaDesde.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        if (query.FechaHasta.HasValue) parts.Add("fechaHasta=" + query.FechaHasta.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        return SendAsync<PagedResultResponse<SaasPagoAdminResponse>>(new HttpRequestMessage(HttpMethod.Get,
+            "api/v1/saas/billing/admin/payments?" + string.Join("&", parts)), ct);
+    }
+    public Task<SaasPagoResponse> ConfirmPaymentAsync(ConfirmarPagoSaasDto dto, CancellationToken ct = default)
+        => SendAsync<SaasPagoResponse>(new HttpRequestMessage(HttpMethod.Post, "api/v1/saas/billing/confirm-payment") { Content = JsonContent.Create(dto) }, ct);
     public Task<SaasBillingPortalResponse> GetPortalAsync(CancellationToken ct = default)
         => SendAsync<SaasBillingPortalResponse>(new HttpRequestMessage(HttpMethod.Get, "api/v1/saas/billing/portal"), ct);
     public Task<SaasPagoResponse> RegisterTransferAsync(RegistrarTransferenciaSaasDto dto, CancellationToken ct = default)

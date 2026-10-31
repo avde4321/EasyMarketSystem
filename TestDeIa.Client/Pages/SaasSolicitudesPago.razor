@@ -1,0 +1,94 @@
+@page "/saas/solicitudes-pago"
+@attribute [Authorize(Roles = SecurityRoleNames.SuperAdministrador)]
+
+<PageTitle>Solicitudes de pago SaaS</PageTitle>
+<ProcessingOverlay IsVisible="@(isLoading || isSending)" Title="@(isSending ? "Procesando decisión" : "Consultando pagos")" Message="Espera hasta que termine la operación." />
+<ErrorBoundary>
+<ChildContent>
+<section class="module-page" aria-busy="@(isLoading || isSending)">
+    <header class="module-header">
+        <div><span class="page-kicker">Administración de plataforma</span><h1>Solicitudes de pago</h1><p>Verifica la acreditación antes de habilitar o renovar un plan.</p></div>
+        <button class="secondary-action" type="button" @onclick="RefreshAsync" disabled="@(isLoading || isSending)">Actualizar</button>
+    </header>
+    <div class="soft-info-message">Bandeja global exclusiva del superadministrador. La empresa seleccionada en el ERP no limita esta consulta.</div>
+    @if (!string.IsNullOrWhiteSpace(errorMessage)) { <div class="alert-message" role="alert">@errorMessage</div> }
+    @if (!string.IsNullOrWhiteSpace(infoMessage)) { <div class="soft-info-message" role="status">@infoMessage</div> }
+    <section class="table-card">
+        <div class="admin-payment-filters">
+            <label class="form-field">Empresa, RUC o referencia<InputText class="form-control" @bind-Value="term" maxlength="150" disabled="@isLoading" /></label>
+            <label class="form-field">Estado<InputSelect class="form-control" @bind-Value="state" disabled="@isLoading"><option>Pendiente</option><option>Aprobado</option><option>Rechazado</option><option>Todos</option></InputSelect></label>
+            <label class="form-field">Registro desde<InputDate class="form-control" @bind-Value="from" disabled="@isLoading" /></label>
+            <label class="form-field">Registro hasta<InputDate class="form-control" @bind-Value="until" disabled="@isLoading" /></label>
+            <button class="primary-action" type="button" @onclick="SearchAsync" disabled="@isLoading">Buscar</button>
+        </div>
+        <p class="file-hint">Las fechas filtran el registro de la solicitud (hora de Ecuador). Sin fechas se incluyen pendientes de meses anteriores.</p>
+        @if (isLoading) { <p role="status">Cargando solicitudes…</p> }
+        else if (items.Count == 0) { <div class="empty-state">No se encontraron solicitudes para estos filtros.</div> }
+        else
+        {
+            <div class="table-scroll"><table class="data-table">
+                <thead><tr><th>Empresa / RUC</th><th>Plan solicitado</th><th>Monto</th><th>Referencia</th><th>Registro</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody>@foreach (var item in items)
+                {
+                    <tr @key="item.Id">
+                        <td data-label="Empresa"><strong>@item.EmpresaNombre</strong><small class="admin-payment-meta">@item.EmpresaRuc</small></td>
+                        <td data-label="Plan">@item.PlanNombre</td><td data-label="Monto">@Money(item.Monto)</td>
+                        <td data-label="Referencia">@item.ComprobanteReferencia</td><td data-label="Registro">@LocalDate(item.FechaRegistro)</td>
+                        <td data-label="Estado"><span class="admin-payment-badge @Badge(item.EstadoPago)">@item.EstadoPago</span></td>
+                        <td data-label="Acciones"><button class="secondary-action" type="button" @onclick="() => OpenReview(item)">@(Pending(item) ? "Revisar solicitud" : "Ver detalle")</button></td>
+                    </tr>
+                }</tbody>
+            </table></div>
+        }
+        <footer class="table-footer">
+            <span>@totalCount solicitud(es) · Página @((skip / pageSize) + 1) de @Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize))</span>
+            <div class="pager-actions">
+                <label>Por página <InputSelect @bind-Value="pageSize" @bind-Value:after="SearchAsync" disabled="@isLoading"><option value="10">10</option><option value="20">20</option><option value="50">50</option></InputSelect></label>
+                <button class="ghost-button" type="button" @onclick="PreviousAsync" disabled="@(isLoading || skip == 0)">Anterior</button>
+                <button class="ghost-button" type="button" @onclick="NextAsync" disabled="@(isLoading || skip + pageSize >= totalCount)">Siguiente</button>
+            </div>
+        </footer>
+    </section>
+</section>
+
+@if (selected is not null)
+{
+    <div class="modal-backdrop"><section class="modal-card admin-payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-review-title" tabindex="-1" @ref="modalElement" @onkeydown="OnModalKeyDown">
+        <header class="modal-header"><div><span class="page-kicker">@selected.EstadoPago</span><h2 id="payment-review-title">Revisión de pago</h2></div><button class="icon-button" type="button" aria-label="Cerrar revisión" @onclick="CloseReview" disabled="@isSending">×</button></header>
+        <dl class="admin-payment-details">
+            <div><dt>Empresa</dt><dd>@selected.EmpresaNombre · @selected.EmpresaRuc</dd></div>
+            <div><dt>Plan solicitado</dt><dd>@selected.PlanNombre</dd></div><div><dt>Monto informado</dt><dd>@Money(selected.Monto)</dd></div>
+            <div><dt>Referencia bancaria</dt><dd>@selected.ComprobanteReferencia</dd></div>
+            <div><dt>Medio de pago</dt><dd>@selected.MetodoPago</dd></div><div><dt>Fecha declarada del pago</dt><dd>@(selected.FechaPagoInformada?.ToString("dd/MM/yyyy") ?? "No informada")</dd></div>
+            <div><dt>Registro de solicitud</dt><dd>@LocalDate(selected.FechaRegistro)</dd></div>
+            <div><dt>Observaciones del solicitante</dt><dd>@(selected.Observaciones ?? "Sin observaciones")</dd></div>
+        </dl>
+        @if (Pending(selected))
+        {
+            <p class="soft-info-message">Aprobar activa o renueva el plan por un mes y reinicia el cupo según la política vigente. Una referencia escrita no demuestra la acreditación del dinero.</p>
+            @if (!selected.PlanActivo) { <div class="alert-message">El plan está inactivo. El backend no permitirá su aprobación.</div> }
+            <label class="form-field" for="payment-review-notes">Observaciones de la decisión (obligatorias para rechazar)
+                <InputTextArea id="payment-review-notes" class="form-control" @bind-Value="notes" maxlength="2000" disabled="@isSending" />
+            </label>
+            <label class="form-check soft-check"><InputCheckbox @bind-Value="bankVerified" disabled="@isSending" /><span>He verificado que el pago fue acreditado y corresponde a esta empresa y plan.</span></label>
+        }
+        else
+        {
+            <p>Decisión registrada: @LocalDate(selected.FechaConfirmacion)</p>
+            <p>@(selected.ObservacionesConfirmacion ?? "Sin observaciones de decisión")</p>
+            <p>Este pago ya tiene una decisión definitiva. No se habilita un plan nuevamente desde este registro.</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(decisionError)) { <div class="alert-message" role="alert">@decisionError</div> }
+        <footer class="modal-actions">
+            <button class="secondary-action" type="button" @onclick="CloseReview" disabled="@isSending">Cerrar</button>
+            @if (Pending(selected))
+            {
+                <button class="danger-button" type="button" @onclick="() => DecideAsync(false)" disabled="@isSending">Confirmar rechazo</button>
+                <button class="primary-action" type="button" @onclick="() => DecideAsync(true)" disabled="@(isSending || !bankVerified || !selected.PlanActivo)">Confirmar aprobación y habilitar</button>
+            }
+        </footer>
+    </section></div>
+}
+</ChildContent>
+<ErrorContent><section class="table-card"><p role="alert">No se pudo mostrar la bandeja. Recarga la página para intentarlo nuevamente.</p><a href="/empresa">Volver a mis empresas</a></section></ErrorContent>
+</ErrorBoundary>

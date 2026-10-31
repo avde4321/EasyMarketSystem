@@ -51,7 +51,8 @@ public partial class Login
                 await EmpresaSessionService.ClearEmpresaIdAsync();
             }
 
-            NavigationManager.NavigateTo("/");
+            NavigationManager.NavigateTo(response.Roles.Contains(TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador, StringComparer.Ordinal)
+                ? "/saas/dashboard" : "/");
         }
         catch (HttpRequestException)
         {

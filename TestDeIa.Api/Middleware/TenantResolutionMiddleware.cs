@@ -23,6 +23,7 @@ public sealed class TenantResolutionMiddleware
         tenantContextAccessor.IsSystemContext = false;
         tenantContextAccessor.EmpresaId = null;
         tenantContextAccessor.UserId = null;
+        tenantContextAccessor.IsPlatformOwner = false;
 
         if (context.User.Identity?.IsAuthenticated == true)
         {
@@ -42,7 +43,29 @@ public sealed class TenantResolutionMiddleware
             }
 
             var requestedEmpresaId = tenantResolution.EmpresaId ?? ResolveDefaultEmpresaId(context);
-            if (deployment.IsOnPremise && tenantContextAccessor.UserId.HasValue)
+            // El administrador de plataforma no hereda acceso ERP por una asociación antigua.
+            var platformOwner = await dbContext.SecurityUserRoles.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.UserId == userId && x.Role.Name == TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador
+                    && x.Role.IsActive && x.User.IsActive, context.RequestAborted);
+            tenantContextAccessor.IsPlatformOwner = platformOwner;
+            if (platformOwner && requestedEmpresaId.HasValue)
+            {
+                var ownsCompany = await dbContext.EmpresasEmisoras.IgnoreQueryFilters().AsNoTracking()
+                    .AnyAsync(x => x.Id == requestedEmpresaId.Value && x.OwnerUserId == userId, context.RequestAborted);
+                if (!ownsCompany)
+                {
+                    if (tenantResolution.EmpresaId.HasValue && !context.Request.Path.StartsWithSegments("/api/empresa")
+                        && !context.Request.Path.StartsWithSegments("/api/v1/saas/billing/admin")
+                        && !context.Request.Path.Equals("/api/v1/saas/billing/confirm-payment", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        await context.Response.WriteAsJsonAsync(new { message = "El administrador del portal solo puede operar sus propias empresas." }, context.RequestAborted);
+                        return;
+                    }
+                    requestedEmpresaId = null;
+                }
+            }
+            if (deployment.IsOnPremise && tenantContextAccessor.UserId.HasValue && !platformOwner)
             {
                 var companies = dbContext.EmpresasEmisoras.IgnoreQueryFilters().AsNoTracking().Where(x => x.IsActive);
                 if (deployment.OnPremiseEmpresaId.HasValue)

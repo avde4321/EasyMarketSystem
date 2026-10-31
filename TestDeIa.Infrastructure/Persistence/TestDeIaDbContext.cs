@@ -218,19 +218,23 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<EmpresaEmisoraEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+                (tenantContextAccessor.UserId.HasValue && entity.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)
+                 && (!tenantContextAccessor.IsPlatformOwner || entity.OwnerUserId == tenantContextAccessor.UserId)));
         modelBuilder.Entity<EmpresaPuntoEmisionEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)
+                 && (!tenantContextAccessor.IsPlatformOwner || entity.Empresa.OwnerUserId == tenantContextAccessor.UserId)));
         modelBuilder.Entity<CertificadoDigitalEmpresaEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)
+                 && (!tenantContextAccessor.IsPlatformOwner || entity.Empresa.OwnerUserId == tenantContextAccessor.UserId)));
         modelBuilder.Entity<EmpresaConfiguracionServiciosEntity>()
             .HasQueryFilter(entity =>
                 tenantContextAccessor.IsSystemContext ||
-                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)));
+                (tenantContextAccessor.UserId.HasValue && entity.Empresa.UserAssignments.Any(link => link.SecurityUserId == tenantContextAccessor.UserId.Value)
+                 && (!tenantContextAccessor.IsPlatformOwner || entity.Empresa.OwnerUserId == tenantContextAccessor.UserId)));
         modelBuilder.Entity<TransaccionPagoDigitalEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<WhatsAppNotificacionLogEntity>()

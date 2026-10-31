@@ -4,6 +4,9 @@
 
 <PageTitle>Inicio</PageTitle>
 
+<AuthorizeView Roles="@SecurityRoleNames.SuperAdministrador">
+    <Authorized Context="ownerContext"><SaasDashboard /></Authorized>
+    <NotAuthorized Context="tenantContext">
 <AuthorizeView Roles="Administrador,Gerente">
     <Authorized Context="managerContext">
         <DashboardGerencial />
@@ -28,5 +31,7 @@
                 </AuthorizeView>
             </NotAuthorized>
         </AuthorizeView>
+    </NotAuthorized>
+</AuthorizeView>
     </NotAuthorized>
 </AuthorizeView>

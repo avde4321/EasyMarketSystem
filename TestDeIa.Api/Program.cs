@@ -196,6 +196,7 @@ app.UseCors("BlazorClient");
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseMiddleware<PlatformOwnerBoundaryMiddleware>();
 app.UseMiddleware<RequireActiveSubscriptionMiddleware>();
 app.UseMiddleware<SaaSQuotaExceptionMiddleware>();
 app.UseAuthorization();

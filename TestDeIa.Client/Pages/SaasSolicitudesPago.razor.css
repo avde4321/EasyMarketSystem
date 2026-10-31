@@ -1,0 +1,13 @@
+.admin-payment-filters { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(130px, 1fr)) auto; align-items: end; gap: 1rem; }
+.admin-payment-meta { display: block; margin-top: .3rem; }
+.admin-payment-badge { display: inline-block; padding: .45rem .85rem; border-radius: 1.5rem; font-weight: 600; }
+.admin-payment-badge.pending { background: #fff1cd; color: #805700; }
+.admin-payment-badge.approved { background: #dff5ed; color: #12694b; }
+.admin-payment-badge.rejected { background: #ffe7e7; color: #9e3030; }
+.admin-payment-modal { width: min(860px, 94vw); max-height: 90vh; overflow-y: auto; }
+.admin-payment-details { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.admin-payment-details dt { font-weight: 600; }
+.admin-payment-details dd { margin: .3rem 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.admin-payment-modal .form-field { margin: 1rem 0; }
+@media (max-width: 1000px) { .admin-payment-filters { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .admin-payment-filters, .admin-payment-details { grid-template-columns: 1fr; } }

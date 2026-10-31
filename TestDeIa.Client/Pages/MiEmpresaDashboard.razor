@@ -1,0 +1,5 @@
+@page "/mi-empresa/dashboard"
+@attribute [Authorize(Roles = SecurityRoleNames.SuperAdministrador)]
+<PageTitle>Mi empresa · Gerencia</PageTitle>
+<p>Información exclusiva de tu empresa operativa seleccionada.</p>
+<DashboardGerencial />

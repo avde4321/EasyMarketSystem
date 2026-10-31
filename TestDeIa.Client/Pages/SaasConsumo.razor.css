@@ -1,0 +1,11 @@
+.consumption-filters { display: flex; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+.consumption-filters .form-field { flex: 1; max-width: 600px; }
+.consumption-table { min-width: 1150px; }
+.consumption-table td { vertical-align: top; }
+.consumption-table small, .consumption-table strong { display: block; margin: .35rem 0; }
+.consumption-badge { display: inline-block; padding: .4rem .7rem; border-radius: 1rem; font-weight: 600; }
+.healthy { background: #dff5ed; color: #12694b; }
+.warning { background: #fff1cd; color: #805700; }
+progress { width: 100%; max-width: 220px; accent-color: #159d99; }
+.consumption-modal { max-width: 760px; max-height: 90vh; overflow-y: auto; }
+@media(max-width: 650px) { .consumption-filters { flex-direction: column; align-items: stretch; } }

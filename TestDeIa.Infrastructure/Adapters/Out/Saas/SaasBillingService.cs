@@ -13,9 +13,11 @@ using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Saas;
 
-public sealed class SaasBillingService(TestDeIaDbContext db, ISaaSQuotaValidationService quota,
-    ITenantContextAccessor tenant, ILogger<SaasBillingService> logger, TimeProvider? timeProvider = null) : ISaasBillingService
+public sealed partial class SaasBillingService(TestDeIaDbContext db, ISaaSQuotaValidationService quota,
+    ITenantContextAccessor tenant, ILogger<SaasBillingService> logger, TimeProvider? timeProvider = null,
+    Microsoft.Extensions.Options.IOptions<DeploymentSettingsOptions>? deploymentOptions = null) : ISaasBillingService
 {
+    private readonly DeploymentSettingsOptions deploymentSettings = deploymentOptions?.Value ?? new();
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
     private async Task<Guid> EnsureMemberAsync(CancellationToken ct)
@@ -113,11 +115,7 @@ public sealed class SaasBillingService(TestDeIaDbContext db, ISaaSQuotaValidatio
     {
         if (pagoId == Guid.Empty || empresaId == Guid.Empty) throw new SaasBillingException("Identifica el pago y su empresa.");
         if (observaciones?.Length > 2000) throw new SaasBillingException("La observación no puede superar 2000 caracteres.");
-        var actor = tenant.UserId ?? throw new UnauthorizedAccessException("Se requiere un administrador autorizado.");
-        // Permiso de plataforma real, no el rol AdministradorEmpresa ni datos enviados en el body.
-        var admin = await db.SecurityUserRoles.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.UserId == actor
-            && x.Role.Name == SecurityRoleNames.SuperAdministrador && x.Role.IsActive && x.User.IsActive && !x.User.BloqueadoManualmente, ct);
-        if (!admin) throw new UnauthorizedAccessException("Solo el superadministrador de la plataforma puede confirmar pagos SaaS.");
+        var actor = await EnsureSuperAdministratorAsync(ct);
         return await InTransactionAsync(empresaId, async () =>
         {
             var payment = await db.SaasPagoRegistros.IgnoreQueryFilters()

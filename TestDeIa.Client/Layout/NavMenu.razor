@@ -17,6 +17,31 @@
 
     <nav class="nav-body">
         <div class="nav-primary">
+            <AuthorizeView Roles="@SecurityRoleNames.SuperAdministrador">
+                <Authorized Context="platformAuth">
+                    <section class="nav-group @(IsExpanded("saas") ? "is-open" : string.Empty)">
+                        <button class="nav-group-trigger" type="button" title="Administración SaaS" @onclick='() => ToggleGroup("saas")'>
+                            <span class="nav-link nav-link-root">
+                                <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" class="icon-svg"><path d="M12 3 20 7v5c0 4-3 7-8 9-5-2-8-5-8-9V7Z" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8" /></svg></span>
+                                <span class="nav-text">Administración SaaS</span>
+                            </span>
+                            <span class="nav-caret" aria-hidden="true">⌄</span>
+                        </button>
+                        <div class="nav-group-panel"><div class="nav-submenu">
+                            <NavLink class="nav-sublink" href="saas/dashboard" title="Dashboard SaaS"><span class="nav-text">Dashboard SaaS</span></NavLink>
+                            <NavLink class="nav-sublink" href="saas/consumo" title="Consumo y crecimiento"><span class="nav-text">Consumo y crecimiento</span></NavLink>
+                            <NavLink class="nav-sublink" href="empresa" title="Mis empresas"><span class="nav-text">Mis empresas</span></NavLink>
+                            <NavLink class="nav-sublink" href="mi-empresa/dashboard" title="Dashboard de mi empresa"><span class="nav-text">Dashboard de mi empresa</span></NavLink>
+                            <NavLink class="nav-sublink" href="saas/solicitudes-pago" title="Solicitudes de pago">
+                                <span class="nav-icon nav-icon-sub" aria-hidden="true"><svg viewBox="0 0 24 24" class="icon-svg"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M7 15h5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
+                                <span class="nav-text">Solicitudes de pago</span>
+                            </NavLink>
+                        </div></div>
+                    </section>
+                </Authorized>
+            </AuthorizeView>
+            @if (AllowOperationalNavigation)
+            {
             <AuthorizeView Policy="@SecurityPolicyNames.DashboardView">
                 <Authorized Context="dashboardAuth">
                     <NavLink class="nav-link nav-link-root" href="" Match="NavLinkMatch.All" title="Inicio">
@@ -654,6 +679,7 @@
                     </section>
                 </Authorized>
             </AuthorizeView>
+            }
         </div>
 
         <div class="nav-footer">
@@ -675,6 +701,7 @@
 </div>
 
 @code {
+    [Parameter] public bool AllowOperationalNavigation { get; set; } = true;
     [Parameter]
     public bool IsCollapsed { get; set; }
 
@@ -728,6 +755,7 @@
         expandedGroup = relativePath switch
         {
             "" => null,
+            "saas/solicitudes-pago" or "saas/dashboard" or "saas/consumo" => "saas",
             "personas" or "clientes" or "empleados" or "proveedores" => "comercial",
             "facturacion/pos" or "caja/control" or "inventario" or "inventario/productos" or "inventario/consulta" or "inventario/bodegas" or "inventario/transferencias" or "inventario/activos-fijos" => "operaciones",
             "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "compras/reporte-fisico-financiero" => "compras",

@@ -21,6 +21,76 @@ namespace TestDeIa.Tests.Saas;
 [Collection("SaasSql")]
 public sealed class SaasBillingTests
 {
+    [SqlQuotaFact]
+    public async Task ConsumptionIsPagedAggregateOnlyAndDoesNotChangeContractsOrCounters()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        await using var db = fixture.Open();
+        var now = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+        var period = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var company = await db.EmpresasEmisoras.SingleAsync(x => x.Id == fixture.Company);
+        company.IsActive = true;
+        var plan = await db.SaasPlanes.SingleAsync(x => x.Id == fixture.PlanId);
+        plan.LimiteFacturasMensuales = 10;
+        var subscription = await db.SaasSuscripciones.SingleAsync(x => x.EmpresaId == fixture.Company);
+        subscription.FechaInicio = now.UtcDateTime.AddMonths(-1);
+        subscription.FechaVencimiento = now.UtcDateTime.AddMonths(1);
+        subscription.FacturasEmitidasMesActual = 8;
+        subscription.ContadorFacturasPeriodo = period;
+        subscription.FechaReinicioCupo = now.AddDays(-1);
+        var warehouse = new BodegaEntity { Id = Guid.NewGuid(), EmpresaId = fixture.Company, Codigo = "999", Nombre = "TEST-CONSUMPTION" };
+        db.Bodegas.Add(warehouse);
+        for (var i = 0; i < 5; i++)
+        {
+            var date = i < 3 ? now.AddHours(-1) : now.AddMonths(-1);
+            db.Facturas.Add(new FacturaEntity { Id = Guid.NewGuid(), EmpresaId = fixture.Company, BodegaId = warehouse.Id,
+                Establecimiento = "999", PuntoEmision = "999", Secuencial = i + 1, AmbienteSri = "1", Estado = FacturaEstado.AUTORIZADO,
+                ClaveAcceso = i.ToString().PadLeft(49, '0'), FechaEmision = date, FechaAutorizacion = date, CreatedAt = date,
+                ClienteNombre = "CONFIDENCIAL-NO-DEBE-SALIR", Total = 987654m });
+        }
+        for (var i = 0; i < 3; i++) db.SaasFacturaCupos.Add(new SaasFacturaCupoEntity
+        {
+            FacturaId = Guid.NewGuid(), EmpresaId = fixture.Company, Estado = "CONFIRMADO", PeriodoAutorizacion = period,
+            FechaConfirmacion = i < 2 ? now.AddHours(-1) : now.AddDays(-3), FechaReserva = now.AddDays(-3)
+        });
+        db.SaasFacturaCupos.Add(new SaasFacturaCupoEntity { FacturaId = Guid.NewGuid(), EmpresaId = fixture.Company, Estado = "RESERVADO", FechaReserva = now });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var service = Service(db, fixture.Company, actor, now);
+        var page = await service.ConsultarConsumoAsync(new SaasConsumoQuery { Term = company.Ruc, Take = 1 });
+        var row = Assert.Single(page.Items);
+        Assert.Equal(1, page.TotalCount);
+        Assert.Equal(3, row.GeneradasMes); Assert.Equal(3, row.AutorizadasMes); Assert.Equal(2, row.AutorizadasMesAnterior);
+        Assert.Equal(8, row.ConsumoCupo); Assert.Equal(1, row.Reservadas); Assert.Equal(1, row.Disponibles); Assert.Equal(90m, row.PorcentajeUso);
+        Assert.True(row.ContadorDifiere); Assert.True(row.PuedeOperar); Assert.Equal("Revisar ampliación", row.Evaluacion);
+        Assert.NotNull(row.PlanSugerido);
+        Assert.DoesNotContain("CONFIDENCIAL", System.Text.Json.JsonSerializer.Serialize(row));
+        Assert.DoesNotContain("987654", System.Text.Json.JsonSerializer.Serialize(row));
+        Assert.False(db.ChangeTracker.HasChanges());
+        Assert.Equal(fixture.PlanId, await db.SaasSuscripciones.Where(x => x.EmpresaId == fixture.Company).Select(x => x.SaasPlanId).SingleAsync());
+        Assert.Empty((await service.ConsultarConsumoAsync(new SaasConsumoQuery { Term = company.Ruc, Skip = 1, Take = 1 })).Items);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(db, fixture.Company, Guid.NewGuid()).ConsultarConsumoAsync(new()));
+        await Assert.ThrowsAsync<ValidationException>(() => service.ConsultarConsumoAsync(new SaasConsumoQuery { Take = 51 }));
+    }
+
+    [SqlQuotaFact]
+    public async Task PlatformDashboardUsesBillingReadModelAndRequiresRealPlatformRole()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        await using var db = fixture.Open();
+        var service = Service(db, fixture.Company, actor);
+        await service.RegistrarTransferenciaAsync(Request(fixture.PlanId));
+        var summary = await service.ObtenerDashboardAdministracionAsync();
+        Assert.True(summary.PagosPendientes >= 1);
+        Assert.True(summary.HastaUtc > summary.DesdeUtc);
+        Assert.Equal(5, summary.DesdeUtc.Hour); // Primer día local de Ecuador, expresado en UTC.
+        Assert.Equal(1, summary.DesdeUtc.Day);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            Service(db, fixture.Company, Guid.NewGuid()).ObtenerDashboardAdministracionAsync());
+    }
+
     [Theory]
     [InlineData("2026-01-31", "2026-01-01", "2026-02-28")]
     [InlineData("2028-01-31", "2028-01-01", "2028-02-29")]
@@ -52,6 +122,126 @@ public sealed class SaasBillingTests
         Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
         var auth = Assert.Single(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
         Assert.Equal(SecurityRoleNames.SuperAdministrador, auth.Roles);
+    }
+
+    [Fact]
+    public void AdminQueueEndpointRequiresPlatformRole()
+    {
+        var method = typeof(SaasBillingController).GetMethod(nameof(SaasBillingController.AdminPayments))!;
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        Assert.Equal(SecurityRoleNames.SuperAdministrador,
+            Assert.Single(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
+    }
+
+    [SqlQuotaFact]
+    public async Task TenantAndLegacyAdminsCannotReadGlobalPaymentQueue()
+    {
+        foreach (var role in new[] { SecurityRoleNames.Administrador, SecurityRoleNames.AdministradorEmpresa })
+        {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture, role);
+        await using var db = fixture.Open();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(db, fixture.Company, actor)
+            .ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery()));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(db, fixture.Company, actor)
+            .ConsultarConsumoAsync(new SaasConsumoQuery()));
+        }
+    }
+
+    [SqlQuotaFact]
+    public async Task SuperAdminQueueIsGlobalPagedAndApprovalUsesTheSelectedCompanyWithoutChangingTenant()
+    {
+        await using var first = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        await using var second = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(first);
+        var customer = await PrepareAsync(second, SecurityRoleNames.AdministradorEmpresa);
+        var reference = "TEST-ADMIN-" + Guid.NewGuid().ToString("N");
+        Guid secondPayment;
+        await using (var db = first.Open())
+        {
+            var request = Request(first.PlanId); request.ComprobanteReferencia = reference;
+            await Service(db, first.Company, actor).RegistrarTransferenciaAsync(request);
+        }
+        await using (var db = second.Open())
+        {
+            var request = Request(second.PlanId); request.ComprobanteReferencia = reference;
+            secondPayment = (await Service(db, second.Company, customer).RegistrarTransferenciaAsync(request)).Id;
+        }
+        var tenant = new TenantContextAccessor { EmpresaId = first.Company, UserId = actor, IsSystemContext = false };
+        await using var scoped = new TestDeIaDbContext(new DbContextOptionsBuilder<TestDeIaDbContext>()
+            .UseSqlServer(Environment.GetEnvironmentVariable("EASYMARKET_TEST_SQL")).Options, tenant);
+        var service = new SaasBillingService(scoped, new SaaSQuotaValidationService(scoped), tenant, NullLogger<SaasBillingService>.Instance);
+        var page1 = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { Term = reference, Take = 1 });
+        var page2 = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { Term = reference, Take = 1, Skip = 1 });
+        Assert.Equal(2, page1.TotalCount); Assert.Equal(2, page2.TotalCount);
+        Assert.NotEqual(Assert.Single(page1.Items).Id, Assert.Single(page2.Items).Id);
+        Assert.Equal(new[] { first.Company, second.Company }.Order(), page1.Items.Concat(page2.Items).Select(x => x.EmpresaId).Order());
+        Assert.Empty(scoped.ChangeTracker.Entries());
+        Assert.False(await scoped.SecurityUserEmpresas.IgnoreQueryFilters().AnyAsync(x => x.SecurityUserId == actor && x.EmpresaId == second.Company));
+        await service.AprobarPagoAsync(secondPayment, second.Company, "Acreditación comprobada en prueba.");
+        var expiration = await scoped.SaasSuscripciones.IgnoreQueryFilters().Where(x => x.EmpresaId == second.Company).Select(x => x.FechaVencimiento).SingleAsync();
+        await service.AprobarPagoAsync(secondPayment, second.Company, "Reintento de la misma aprobación.");
+        Assert.Equal(expiration, await scoped.SaasSuscripciones.IgnoreQueryFilters().Where(x => x.EmpresaId == second.Company).Select(x => x.FechaVencimiento).SingleAsync());
+        Assert.Equal(1, await scoped.SecurityAuditLogs.IgnoreQueryFilters().CountAsync(x => x.EmpresaId == second.Company
+            && x.UsuarioId == actor && x.TipoEvento == TestDeIa.Domain.Modules.Security.Entities.SecurityAuditEventType.PagoSaasAprobado));
+        var approved = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { Term = reference, Estado = "Aprobado" });
+        Assert.Equal(second.Company, Assert.Single(approved.Items).EmpresaId);
+        var pending = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { Term = reference });
+        Assert.Equal(first.Company, Assert.Single(pending.Items).EmpresaId);
+        Assert.False(tenant.IsSystemContext); Assert.Equal(first.Company, tenant.EmpresaId);
+        await using var customerDb = second.Open();
+        var portal = await Service(customerDb, second.Company, customer).ObtenerPortalAsync();
+        Assert.True(portal.SuscripcionActiva); Assert.Empty(portal.PagosPendientes);
+    }
+
+    [SqlQuotaFact]
+    public async Task BlockedSuperAdminCannotReadQueue()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        await using var db = fixture.Open();
+        (await db.SecurityUsers.SingleAsync(x => x.Id == actor)).BloqueadoManualmente = true;
+        await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(db, fixture.Company, actor)
+            .ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery()));
+    }
+
+    [Fact]
+    public async Task PlatformQueueDoesNotDependOnSelectedTenantSubscription()
+    {
+        var reached = false;
+        var middleware = new RequireActiveSubscriptionMiddleware(_ => { reached = true; return Task.CompletedTask; }, NullLogger<RequireActiveSubscriptionMiddleware>.Instance);
+        var context = new DefaultHttpContext(); context.Request.Method = "GET"; context.Request.Path = "/api/v1/saas/billing/admin/payments";
+        context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim("sub", "test")], "Test"));
+        await middleware.InvokeAsync(context, new TenantContextAccessor { EmpresaId = Guid.NewGuid(), UserId = Guid.NewGuid() }, null!);
+        Assert.True(reached); // Autorización por rol y DB se evalúa aparte, no se omite.
+    }
+
+    [Fact]
+    public void AdminFiltersRejectInvalidStatesDatesAndUnboundedPages()
+    {
+        foreach (var query in new[] { new SaasPagosAdminQuery { Take = 500 }, new SaasPagosAdminQuery { Skip = -1 },
+            new SaasPagosAdminQuery { Estado = "99" }, new SaasPagosAdminQuery { EmpresaId = Guid.Empty },
+            new SaasPagosAdminQuery { FechaDesde = new DateOnly(2026, 11, 1), FechaHasta = new DateOnly(2026, 10, 1) } })
+            Assert.Throws<ValidationException>(() => Validator.ValidateObject(query, new ValidationContext(query), true));
+    }
+
+    [SqlQuotaFact]
+    public async Task AdminDailyFilterUsesEcuadorDateRatherThanUtcDay()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        await using var db = fixture.Open();
+        var time = new DateTimeOffset(2026, 10, 31, 4, 59, 0, TimeSpan.Zero); // 30/10 23:59 Ecuador.
+        var request = Request(fixture.PlanId); request.ComprobanteReferencia = "TEST-DATE-" + Guid.NewGuid().ToString("N");
+        var service = Service(db, fixture.Company, actor, time);
+        var payment = await service.RegistrarTransferenciaAsync(request);
+        var localDay = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { EmpresaId = fixture.Company,
+            FechaDesde = new DateOnly(2026, 10, 30), FechaHasta = new DateOnly(2026, 10, 30) });
+        Assert.Equal(payment.Id, Assert.Single(localDay.Items).Id);
+        var nextDay = await service.ConsultarPagosAdministracionAsync(new SaasPagosAdminQuery { EmpresaId = fixture.Company,
+            FechaDesde = new DateOnly(2026, 10, 31), FechaHasta = new DateOnly(2026, 10, 31) });
+        Assert.Empty(nextDay.Items);
     }
 
     [SqlQuotaFact]

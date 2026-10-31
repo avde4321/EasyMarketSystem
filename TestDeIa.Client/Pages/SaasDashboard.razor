@@ -1,0 +1,47 @@
+@page "/saas/dashboard"
+@attribute [Authorize(Roles = SecurityRoleNames.SuperAdministrador)]
+@inject TestDeIa.Client.Services.Saas.SaasBillingApiClient Billing
+
+<PageTitle>Dashboard de plataforma SaaS</PageTitle>
+<section class="dashboard-page">
+    <div class="dashboard-section">
+        <h1>Gerencia de EasyMarket SaaS</h1>
+        <p>Suscripciones y cobros de tu plataforma. No incluye ventas, clientes ni inventarios de las empresas usuarias.</p>
+        <a class="button-primary" href="saas/solicitudes-pago">Solicitudes de pago</a>
+        <a class="button-secondary" href="saas/consumo">Consumo y crecimiento</a>
+        <a class="button-secondary" href="empresa">Mis empresas operativas</a>
+        <a class="button-secondary" href="mi-empresa/dashboard">Dashboard de mi empresa</a>
+    </div>
+    @if (error is not null)
+    {
+        <div class="dashboard-section" role="alert">@error <button @onclick="LoadAsync">Reintentar</button></div>
+    }
+    else if (summary is not null)
+    {
+        <div class="saas-kpis">
+            <div class="dashboard-section"><span>Suscripciones activas</span><h2>@summary.SuscripcionesActivas</h2></div>
+            <div class="dashboard-section"><span>Demos vigentes</span><h2>@summary.DemosVigentes</h2></div>
+            <div class="dashboard-section"><span>Suscripciones vencidas</span><h2>@summary.SuscripcionesVencidas</h2></div>
+            <div class="dashboard-section"><span>Pagos por verificar</span><h2>@summary.PagosPendientes</h2></div>
+            <div class="dashboard-section"><span>Cobros SaaS aprobados este mes</span><h2>$ @summary.CobrosAprobadosMes.ToString("N2") USD</h2></div>
+        </div>
+        <p>Actualizado: @summary.HastaUtc.AddHours(-5).ToString("dd/MM/yyyy HH:mm") · Ecuador.</p>
+    }
+</section>
+<ProcessingOverlay IsVisible="busy" Message="Consultando indicadores de la plataforma…" />
+
+@code {
+    private TestDeIa.Shared.Responses.Saas.SaasDashboardResponse? summary;
+    private string? error;
+    private bool busy;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        if (busy) return;
+        busy = true;
+        error = null;
+        try { summary = await Billing.GetDashboardAsync(); }
+        catch (HttpRequestException) { error = "No se pudieron consultar los indicadores SaaS. Intenta nuevamente."; }
+        finally { busy = false; }
+    }
+}

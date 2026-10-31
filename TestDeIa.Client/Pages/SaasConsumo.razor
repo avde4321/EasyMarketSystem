@@ -1,0 +1,111 @@
+@page "/saas/consumo"
+@attribute [Authorize(Roles = SecurityRoleNames.SuperAdministrador)]
+@using TestDeIa.Shared.Requests.Saas
+@using TestDeIa.Shared.Responses.Saas
+@inject TestDeIa.Client.Services.Saas.SaasBillingApiClient Billing
+
+<PageTitle>Consumo y crecimiento SaaS</PageTitle>
+<ProcessingOverlay IsVisible="busy" Title="Consultando consumo" Message="Calculando cantidades y cupos, sin cargar documentos comerciales." />
+<ErrorBoundary>
+<ChildContent>
+<section class="module-page" aria-busy="@busy">
+    <header class="module-header"><div><span class="page-kicker">Administración de plataforma</span><h1>Consumo y crecimiento</h1>
+        <p>Control de facturación por empresa y oportunidades de ampliación del plan.</p></div>
+        <button class="secondary-action" @onclick="LoadAsync" disabled="@busy">Actualizar</button></header>
+    <div class="soft-info-message">Solo cantidades: no se muestran clientes, importes, productos, claves de acceso ni XML.
+        El mes corresponde a UTC, igual que el control de cuotas actual. Las proyecciones son estimaciones, no compromisos de consumo.</div>
+    @if (error is not null) { <div class="alert-message" role="alert">@error</div> }
+    @if (rows.Count > 0) { <p role="status">Mes: @rows.First().PeriodoUtc.ToString("MM/yyyy") UTC · Consulta: @rows.First().ConsultadoUtc.AddHours(-5).ToString("dd/MM/yyyy HH:mm") Ecuador.</p> }
+    <section class="table-card">
+        <div class="consumption-filters"><label class="form-field">Empresa o RUC<InputText class="form-control" @bind-Value="term" maxlength="150" disabled="@busy" /></label>
+            <button class="primary-action" @onclick="SearchAsync" disabled="@busy">Buscar</button></div>
+        @if (rows.Count == 0 && !busy) { <p>No se encontraron empresas para los filtros seleccionados.</p> }
+        else
+        {
+            <div class="table-responsive"><table class="data-table consumption-table">
+                <thead><tr><th>Empresa / contrato actual</th><th>Cupo operativo</th><th>Volumen mensual</th><th>Tendencia</th><th>Evaluación</th></tr></thead>
+                <tbody>@foreach (var row in rows)
+                {
+                    <tr @key="row.EmpresaId">
+                        <td><strong>@row.EmpresaNombre</strong><small>@row.Ruc</small><small>Plan: @row.Plan · @row.EstadoSuscripcion</small>
+                            <small>Vence: @(row.Vencimiento == DateTime.MinValue ? "—" : row.Vencimiento.ToString("dd/MM/yyyy"))</small>
+                            @if (!row.CuotasAplicadas) { <span class="consumption-badge warning">Topes desactivados en esta instalación</span> }
+                        </td>
+                        <td><strong>@row.ConsumoCupo consumidas + @row.Reservadas reservadas</strong>
+                            <small>Límite: @(row.SuscripcionesRegistradas == 0 ? "Sin plan" : row.LimiteMensual == 0 ? "Ilimitado" : row.LimiteMensual.ToString())</small>
+                            <small>Disponible: @(row.Disponibles?.ToString() ?? "—") · Uso: @(row.PorcentajeUso?.ToString("N1") + (row.PorcentajeUso.HasValue ? "%" : "—"))</small>
+                            @if (row.PorcentajeUso.HasValue) { <progress max="100" value="@(Math.Min(100m, row.PorcentajeUso.Value).ToString(System.Globalization.CultureInfo.InvariantCulture))" aria-label="Porcentaje de cupo ocupado"></progress> }
+                            @if (row.ContadorDifiere) { <span class="consumption-badge warning">Revisar contador / registro de cupos</span> }
+                        </td>
+                        <td><small>Generadas: <strong>@row.GeneradasMes</strong></small><small>Autorizadas: <strong>@row.AutorizadasMes</strong></small>
+                            <small>Autorizadas mes anterior: @row.AutorizadasMesAnterior</small>
+                            <small>El cupo puede diferir del volumen si se reinició al renovar.</small></td>
+                        <td><strong>Proyección: @row.ProyeccionAutorizadasMes</strong><small>Crecimiento estimado vs. mes anterior:
+                            @(row.CrecimientoPorcentaje.HasValue ? row.CrecimientoPorcentaje.Value.ToString("+0.0;-0.0;0.0") + "%" : "Sin base suficiente")</small></td>
+                        <td><span class="consumption-badge @(row.Evaluacion == "Dentro del plan" ? "healthy" : "warning")">@row.Evaluacion</span>
+                            <small>@row.Motivo</small>
+                            @if (row.PlanSugerido is not null) { <strong>Proponer: @row.PlanSugerido</strong> }
+                            else if (row.Evaluacion == "Revisar ampliación") { <small>Revisar oferta personalizada: no existe otro plan compatible con la capacidad requerida.</small> }
+                            @if (row.SuscripcionesRegistradas > 1) { <small>Alerta: @row.SuscripcionesRegistradas suscripciones registradas; regularizar antes de recomendar.</small> }
+                            <button class="ghost-button" @onclick="() => OpenAnalysis(row)">Ver análisis</button>
+                        </td>
+                    </tr>
+                }</tbody>
+            </table></div>
+        }
+        <footer class="table-footer"><span>@total empresa(s) · Página @((skip / size) + 1) de @Math.Max(1, (int)Math.Ceiling(total / (double)size))</span>
+            <div class="pager-actions"><label>Por página <InputSelect @bind-Value="size" @bind-Value:after="SearchAsync" disabled="@busy"><option value="10">10</option><option value="20">20</option><option value="50">50</option></InputSelect></label>
+                <button class="ghost-button" @onclick="PreviousAsync" disabled="@(busy || skip == 0)">Anterior</button>
+                <button class="ghost-button" @onclick="NextAsync" disabled="@(busy || skip + size >= total)">Siguiente</button></div></footer>
+    </section>
+</section>
+@if (selected is not null)
+{
+    <div class="modal-backdrop"><section class="modal-card consumption-modal" role="dialog" aria-modal="true" aria-labelledby="consumption-title"
+        tabindex="-1" @ref="modalElement" @onkeydown="ModalKeyDown">
+        <header class="modal-header"><h2 id="consumption-title">Análisis de @selected.EmpresaNombre</h2><button class="icon-button" aria-label="Cerrar" @onclick="() => selected = null">×</button></header>
+        <p>@selected.Motivo</p>
+        <p>Período: @selected.PeriodoUtc.ToString("MM/yyyy") UTC. Consulta: @selected.ConsultadoUtc.AddHours(-5).ToString("dd/MM/yyyy HH:mm") Ecuador.</p>
+        <p>La proyección extrapola las autorizadas del mes según los días transcurridos. Se evalúa la tendencia a partir del día 7; el crecimiento compara esa proyección con el mes anterior completo.</p>
+        <p>Se sugiere revisar el plan al ocupar el 80% del cupo (consumo más reservas), alcanzar el límite o proyectar superarlo. La recomendación conserva los módulos y capacidades del plan actual.</p>
+        <p>No se modifica el plan, no se realiza ningún cobro y no se envían ofertas automáticamente. La ampliación requiere acuerdo comercial y el proceso normal de aprobación.</p>
+        <footer class="modal-footer"><button class="secondary-action" @onclick="() => selected = null">Cerrar</button></footer>
+    </section></div>
+}
+</ChildContent>
+<ErrorContent><div class="alert-message">No se pudo mostrar la consulta. Regresa al dashboard e intenta nuevamente.</div></ErrorContent>
+</ErrorBoundary>
+
+@code {
+    private IReadOnlyCollection<SaasConsumoResponse> rows = [];
+    private SaasConsumoResponse? selected;
+    private string? term, error;
+    private bool busy;
+    private bool focusModal;
+    private ElementReference modalElement;
+    private int skip, total, size = 20;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusModal && selected is not null) { focusModal = false; await modalElement.FocusAsync(); }
+    }
+    private void OpenAnalysis(SaasConsumoResponse row) { selected = row; focusModal = true; }
+    private void ModalKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") selected = null; }
+    private async Task LoadAsync()
+    {
+        if (busy) return;
+        busy = true;
+        error = null;
+        try
+        {
+            var result = await Billing.GetConsumptionAsync(new SaasConsumoQuery { Term = term, Skip = skip, Take = size });
+            rows = result.Items;
+            total = result.TotalCount;
+        }
+        catch (HttpRequestException ex) { rows = []; total = 0; error = ex.Message; }
+        finally { busy = false; }
+    }
+    private Task SearchAsync() { skip = 0; return LoadAsync(); }
+    private Task PreviousAsync() { if (busy) return Task.CompletedTask; skip = Math.Max(0, skip - size); return LoadAsync(); }
+    private Task NextAsync() { if (busy || skip + size >= total) return Task.CompletedTask; skip += size; return LoadAsync(); }
+}

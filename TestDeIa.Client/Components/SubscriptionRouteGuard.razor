@@ -18,7 +18,19 @@ else
     protected override async Task OnInitializedAsync()
     {
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');
-        var authenticated = (await Authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        var authenticated = user.Identity?.IsAuthenticated == true;
+        // La administración de plataforma no depende del plan de la empresa seleccionada en el ERP.
+        // El componente y el backend conservan su autorización independiente.
+        if (user.IsInRole(TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador) &&
+            (path.Equals("saas/solicitudes-pago", StringComparison.OrdinalIgnoreCase)
+             || path.Equals("saas/dashboard", StringComparison.OrdinalIgnoreCase)
+             || path.Equals("saas/consumo", StringComparison.OrdinalIgnoreCase)
+             || path.Equals("dashboard", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(path)))
+        {
+            allowed = true;
+            return;
+        }
         if (!authenticated || path.Equals("empresa", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("subscription-expired", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("register-tenant", StringComparison.OrdinalIgnoreCase) || path.Equals("registro", StringComparison.OrdinalIgnoreCase) ||

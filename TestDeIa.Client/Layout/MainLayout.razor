@@ -15,7 +15,7 @@
     }
 
     <aside class="sidebar">
-        <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" />
+        <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" AllowOperationalNavigation="@(!isPlatformOwner || selectedEmpresa is not null)" />
     </aside>
 
     <main>
@@ -46,7 +46,7 @@
                     <small>@loggedInIdentification</small>
                 </div>
                 <div class="company-switch">
-                    <label for="empresa-global">Empresa</label>
+                    <label for="empresa-global">@(isPlatformOwner ? "Mi empresa operativa" : "Empresa")</label>
                     <select id="empresa-global" class="company-select" @bind="selectedEmpresaId" @bind:after="OnEmpresaChangedAsync">
                         @if (empresas.Count == 0)
                         {
@@ -72,6 +72,7 @@
 
 @code {
     private bool isSidebarCollapsed;
+    private bool isPlatformOwner;
     private bool isMobileSidebarOpen;
     private string? selectedEmpresaId;
     private string loggedInUserName = "Sesion activa";
@@ -86,6 +87,7 @@
     {
         var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authenticationState.User;
+        isPlatformOwner = user.IsInRole(SecurityRoleNames.SuperAdministrador);
 
         if (user.Identity?.IsAuthenticated == true)
         {
@@ -122,6 +124,11 @@
             empresas.Clear();
             empresas.AddRange(await EmpresaApiClient.GetMineAsync());
             selectedEmpresaId = await EmpresaSessionService.GetEmpresaIdAsync();
+            if (isPlatformOwner && !empresas.Any(x => x.Id.ToString() == selectedEmpresaId))
+            {
+                selectedEmpresaId = null;
+                await EmpresaSessionService.ClearEmpresaIdAsync();
+            }
 
             if (string.IsNullOrWhiteSpace(selectedEmpresaId) && empresas.Count > 0)
             {

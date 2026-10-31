@@ -304,7 +304,9 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             .AsNoTracking()
             .Where(company => userId.HasValue && dbContext.SecurityUserEmpresas
                 .IgnoreQueryFilters()
-                .Any(access => access.EmpresaId == company.Id && access.SecurityUserId == userId.Value));
+                .Any(access => access.EmpresaId == company.Id && access.SecurityUserId == userId.Value))
+            .Where(company => company.OwnerUserId == userId || !dbContext.SecurityUserRoles.IgnoreQueryFilters()
+                .Any(role => role.UserId == userId && role.Role.IsActive && role.Role.Name == TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador));
     }
 
     private static EmpresaEmisora Map(EmpresaEmisoraEntity entity)

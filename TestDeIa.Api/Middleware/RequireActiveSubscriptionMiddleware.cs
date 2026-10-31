@@ -73,6 +73,10 @@ public sealed class RequireActiveSubscriptionMiddleware(
 
     private static bool ShouldSkip(HttpContext context)
     {
+        // Administración de plataforma: el endpoint y el servicio exigen SuperAdministrador activo.
+        if (HttpMethods.IsGet(context.Request.Method) && (context.Request.Path.Equals("/api/v1/saas/billing/admin/payments", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.Equals("/api/v1/saas/billing/admin/consumption", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.Equals("/api/v1/saas/billing/admin/dashboard", StringComparison.OrdinalIgnoreCase))) return true;
         if (HttpMethods.IsGet(context.Request.Method) && context.Request.Path.Equals("/api/v1/saas/billing/portal", StringComparison.OrdinalIgnoreCase)) return true;
         // Se permite pagar/confirmar aun con suscripción vencida; la autorización del endpoint sigue activa.
         if (HttpMethods.IsPost(context.Request.Method) &&

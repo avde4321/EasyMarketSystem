@@ -646,6 +646,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             roles,
             permissions,
             user.EmpresasAcceso
+                .Where(link => !roles.Contains(SecurityRoleNames.SuperAdministrador) || link.Empresa.OwnerUserId == user.Id)
                 .OrderByDescending(link => link.IsDefault)
                 .ThenBy(link => link.Empresa.RazonSocial)
                 .Select(link => new UserEmpresaAcceso(

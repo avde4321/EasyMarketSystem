@@ -7,4 +7,5 @@ public sealed class TenantContextAccessor : ITenantContextAccessor
     public Guid? EmpresaId { get; set; }
     public Guid? UserId { get; set; }
     public bool IsSystemContext { get; set; }
+    public bool IsPlatformOwner { get; set; }
 }
