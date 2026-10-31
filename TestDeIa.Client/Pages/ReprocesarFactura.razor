@@ -1,0 +1,49 @@
+@page "/facturacion/reprocesar/{Id:guid}"
+@attribute [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
+@inject TestDeIa.Client.Services.Facturacion.FacturacionApiClient Api
+
+<PageTitle>Reprocesar factura</PageTitle>
+<ProcessingOverlay IsVisible="@busy" Title="@(processing ? "Procesando comprobante" : "Consultando documento")"
+                   Message="@(processing ? "Validando la firma y comunicando con el SRI. Espera hasta que termine el proceso." : "Cargando el estado actualizado…")" />
+<section class="module-page" inert="@busy" aria-busy="@busy">
+    <header class="module-header"><h1>Procesamiento manual de factura</h1><a class="secondary-action" href="/facturacion/monitor">Volver al monitor</a></header>
+    <section class="table-card">
+        <p>Ejecuta firma y envío, o consulta la autorización si ya existe un XML firmado. Se conserva el número y la clave de acceso.</p>
+        @if (error is not null) { <div class="alert-message" role="alert">@error</div> }
+        @if (documento is not null)
+        {
+            <h2>@($"{documento.Establecimiento}-{documento.PuntoEmision}-{documento.Secuencial:000000000}")</h2>
+            <p>Estado: <strong>@documento.Estado</strong> · Intentos: @documento.RetryCount</p>
+            <p style="overflow-wrap:anywhere">Clave de acceso: @documento.ClaveAcceso</p>
+            <p role="status">@documento.MensajeEstado</p>
+            <button class="primary-action" disabled="@(busy || !PuedeProcesar)" @onclick="Procesar">@(busy ? "Procesando, espera…" : "Reprocesar ahora")</button>
+            <button class="secondary-action" disabled="@busy" @onclick="Cargar">Actualizar estado</button>
+        }
+        else if (busy) { <p>Cargando documento…</p> }
+    </section>
+</section>
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private FacturaProcesamientoResponse? documento;
+    private string? error;
+    private bool busy;
+    private bool processing;
+    private bool PuedeProcesar => documento?.Estado is "NO_FIRMADO" or "PENDIENTE";
+    protected override Task OnParametersSetAsync() => Cargar();
+    private async Task Cargar()
+    {
+        busy = true; error = null;
+        try { documento = await Api.GetProcesamientoAsync(Id); }
+        catch (HttpRequestException ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private async Task Procesar()
+    {
+        if (busy || !PuedeProcesar) return;
+        busy = true; error = null;
+        processing = true;
+        try { documento = await Api.ReprocesarAsync(Id); }
+        catch (HttpRequestException ex) { error = ex.Message; }
+        finally { busy = false; processing = false; }
+    }
+}

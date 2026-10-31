@@ -1,0 +1,53 @@
+.warehouses-page .warehouse-modal-card {
+    max-width: 760px;
+}
+
+.warehouses-page .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.warehouses-page .form-field {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.warehouses-page .form-field-wide {
+    grid-column: 1 / -1;
+}
+
+.warehouses-page .switch-field label {
+    min-height: 3.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(73, 194, 211, 0.24);
+    border-radius: 16px;
+    background: rgba(236, 247, 252, 0.78);
+}
+
+.warehouses-page .status-principal {
+    background: rgba(255, 231, 170, 0.86);
+    color: #8a5b08;
+}
+
+.warehouses-page .status-muted {
+    background: rgba(220, 226, 233, 0.7);
+    color: #61758b;
+}
+
+.warehouses-page .modal-message {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 16px;
+    color: #8a4f15;
+    background: rgba(255, 233, 186, 0.7);
+}
+
+@media (max-width: 760px) {
+    .warehouses-page .form-grid {
+        grid-template-columns: 1fr;
+    }
+}

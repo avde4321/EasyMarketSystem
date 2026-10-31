@@ -1,0 +1,97 @@
+@page "/contabilidad/plan-cuentas"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+
+<PageTitle>Plan de Cuentas</PageTitle>
+
+<section class="module-page plan-cuentas-page">
+    <header class="module-header plan-cuentas-header">
+        <div>
+            <h1>Plan de cuentas NIIF</h1>
+            <p>Estructura jerárquica base por empresa para el núcleo contable multi-tenant.</p>
+        </div>
+        <button class="secondary-action rounded-xl-button" type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card plan-cuentas-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Catálogo contable</h2>
+                <p>Las cuentas agrupadoras resaltan en negrita y las aceptables muestran su saldo actual.</p>
+            </div>
+            <div class="plan-summary-pill">
+                <span>Cuentas cargadas</span>
+                <strong>@totalCuentas</strong>
+            </div>
+        </header>
+
+        @if (isLoading && cuentas.Count == 0)
+        {
+            <div class="empty-state">Cargando estructura contable...</div>
+        }
+        else if (cuentas.Count == 0)
+        {
+            <div class="empty-state">La empresa activa aún no tiene cuentas contables sembradas.</div>
+        }
+        else
+        {
+            <div class="plan-tree-wrapper">
+                <ul class="plan-tree-root">
+                    @foreach (var cuenta in cuentas)
+                    {
+                        <PlanCuentaNode Cuenta="cuenta" />
+                    }
+                </ul>
+            </div>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly List<CuentaContableResponse> cuentas = [];
+    private bool isLoading;
+    private string? errorMessage;
+    private int totalCuentas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            cuentas.Clear();
+            cuentas.AddRange(await ContabilidadApiClient.GetPlanCuentasAsync());
+            totalCuentas = CountNodes(cuentas);
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo cargar el plan de cuentas de la empresa activa.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static int CountNodes(IEnumerable<CuentaContableResponse> nodes)
+    {
+        return nodes.Sum(current => 1 + CountNodes(current.Hijos));
+    }
+}

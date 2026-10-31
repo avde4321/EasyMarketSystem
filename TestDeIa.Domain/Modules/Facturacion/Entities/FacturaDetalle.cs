@@ -12,6 +12,7 @@ public sealed class FacturaDetalle
         decimal porcentajeIva,
         decimal cantidad,
         decimal precioUnitario,
+        decimal descuento,
         decimal subtotal,
         decimal ivaValor,
         decimal total)
@@ -25,6 +26,7 @@ public sealed class FacturaDetalle
         PorcentajeIva = porcentajeIva;
         Cantidad = cantidad;
         PrecioUnitario = precioUnitario;
+        Descuento = descuento;
         Subtotal = subtotal;
         IvaValor = ivaValor;
         Total = total;
@@ -47,6 +49,8 @@ public sealed class FacturaDetalle
     public decimal Cantidad { get; }
 
     public decimal PrecioUnitario { get; }
+
+    public decimal Descuento { get; }
 
     public decimal Subtotal { get; }
 

@@ -13,11 +13,12 @@ public sealed class FacturaSriEventoEntityConfiguration : IEntityTypeConfigurati
         builder.HasKey(evento => evento.Id);
 
         builder.Property(evento => evento.Estado)
+            .HasConversion<string>()
             .HasMaxLength(30)
             .IsRequired();
 
         builder.Property(evento => evento.Mensaje)
-            .HasMaxLength(400)
+            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.HasOne(evento => evento.Factura)

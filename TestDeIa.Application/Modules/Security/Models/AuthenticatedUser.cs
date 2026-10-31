@@ -4,5 +4,8 @@ public sealed record AuthenticatedUser(
     Guid Id,
     string UserName,
     string DisplayName,
+    string Identification,
     string Email,
-    IReadOnlyCollection<string> Roles);
+    Guid? DefaultEmpresaId,
+    IReadOnlyCollection<string> Roles,
+    IReadOnlyCollection<string> Permissions);

@@ -1,0 +1,132 @@
+@inject GeografiaApiClient GeografiaApiClient
+
+<div class="geo-address-grid">
+    <div class="form-field">
+        <label>@RegionLabel</label>
+        <select class="form-control" value="@RegionCodigo" @onchange="OnRegionChangedAsync">
+            <option value="">Selecciona region</option>
+            @foreach (var item in regiones)
+            {
+                <option value="@item.Codigo">@item.Nombre</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-field">
+        <label>@ProvinciaLabel</label>
+        <select class="form-control" value="@ProvinciaCodigo" @onchange="OnProvinciaChangedAsync" disabled="@string.IsNullOrWhiteSpace(RegionCodigo)">
+            <option value="">Selecciona provincia</option>
+            @foreach (var item in ProvinciasFiltradas)
+            {
+                <option value="@item.Codigo">@item.Nombre</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-field">
+        <label>@CiudadLabel</label>
+        <select class="form-control" value="@CiudadCodigo" @onchange="OnCiudadChangedAsync" disabled="@string.IsNullOrWhiteSpace(ProvinciaCodigo)">
+            <option value="">Selecciona ciudad/canton</option>
+            @foreach (var item in CiudadesFiltradas)
+            {
+                <option value="@item.Codigo">@item.Nombre</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-field">
+        <label>@SectorLabel</label>
+        <select class="form-control" value="@SectorCodigo" @onchange="OnSectorChangedAsync" disabled="@string.IsNullOrWhiteSpace(CiudadCodigo)">
+            <option value="">Selecciona sector</option>
+            @foreach (var item in SectoresFiltrados)
+            {
+                <option value="@item.Codigo">@item.Nombre</option>
+            }
+        </select>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string RegionLabel { get; set; } = "Region";
+    [Parameter] public string ProvinciaLabel { get; set; } = "Provincia";
+    [Parameter] public string CiudadLabel { get; set; } = "Ciudad / Canton";
+    [Parameter] public string SectorLabel { get; set; } = "Sector";
+
+    [Parameter] public string? RegionCodigo { get; set; }
+    [Parameter] public EventCallback<string?> RegionCodigoChanged { get; set; }
+
+    [Parameter] public string? ProvinciaCodigo { get; set; }
+    [Parameter] public EventCallback<string?> ProvinciaCodigoChanged { get; set; }
+
+    [Parameter] public string? CiudadCodigo { get; set; }
+    [Parameter] public EventCallback<string?> CiudadCodigoChanged { get; set; }
+
+    [Parameter] public string? SectorCodigo { get; set; }
+    [Parameter] public EventCallback<string?> SectorCodigoChanged { get; set; }
+
+    private readonly List<GeoItemResponse> regiones = [];
+    private readonly List<GeoItemResponse> provincias = [];
+    private readonly List<GeoItemResponse> ciudades = [];
+    private readonly List<GeoItemResponse> sectores = [];
+
+    private IEnumerable<GeoItemResponse> ProvinciasFiltradas => provincias.Where(item => MatchesParent(item, regiones, RegionCodigo));
+    private IEnumerable<GeoItemResponse> CiudadesFiltradas => ciudades.Where(item => MatchesParent(item, provincias, ProvinciaCodigo));
+    private IEnumerable<GeoItemResponse> SectoresFiltrados => sectores.Where(item => MatchesParent(item, ciudades, CiudadCodigo));
+
+    protected override async Task OnInitializedAsync()
+    {
+        regiones.AddRange(await GeografiaApiClient.GetRegionesAsync());
+        provincias.AddRange(await GeografiaApiClient.GetProvinciasAsync());
+        ciudades.AddRange(await GeografiaApiClient.GetCiudadesAsync());
+        sectores.AddRange(await GeografiaApiClient.GetSectoresAsync());
+    }
+
+    private async Task OnRegionChangedAsync(ChangeEventArgs args)
+    {
+        RegionCodigo = Normalize(args.Value?.ToString());
+        ProvinciaCodigo = null;
+        CiudadCodigo = null;
+        SectorCodigo = null;
+        await RegionCodigoChanged.InvokeAsync(RegionCodigo);
+        await ProvinciaCodigoChanged.InvokeAsync(null);
+        await CiudadCodigoChanged.InvokeAsync(null);
+        await SectorCodigoChanged.InvokeAsync(null);
+    }
+
+    private async Task OnProvinciaChangedAsync(ChangeEventArgs args)
+    {
+        ProvinciaCodigo = Normalize(args.Value?.ToString());
+        CiudadCodigo = null;
+        SectorCodigo = null;
+        await ProvinciaCodigoChanged.InvokeAsync(ProvinciaCodigo);
+        await CiudadCodigoChanged.InvokeAsync(null);
+        await SectorCodigoChanged.InvokeAsync(null);
+    }
+
+    private async Task OnCiudadChangedAsync(ChangeEventArgs args)
+    {
+        CiudadCodigo = Normalize(args.Value?.ToString());
+        SectorCodigo = null;
+        await CiudadCodigoChanged.InvokeAsync(CiudadCodigo);
+        await SectorCodigoChanged.InvokeAsync(null);
+    }
+
+    private async Task OnSectorChangedAsync(ChangeEventArgs args)
+    {
+        SectorCodigo = Normalize(args.Value?.ToString());
+        await SectorCodigoChanged.InvokeAsync(SectorCodigo);
+    }
+
+    private static bool MatchesParent(GeoItemResponse item, IEnumerable<GeoItemResponse> parents, string? parentCodigo)
+    {
+        if (string.IsNullOrWhiteSpace(parentCodigo))
+        {
+            return false;
+        }
+
+        var parent = parents.FirstOrDefault(current => string.Equals(current.Codigo, parentCodigo, StringComparison.OrdinalIgnoreCase));
+        return parent is not null && item.ParentId == parent.Id;
+    }
+
+    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

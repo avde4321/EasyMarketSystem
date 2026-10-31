@@ -1,0 +1,213 @@
+@using TestDeIa.Client.Services.Facturacion
+@using TestDeIa.Shared.Requests.XmlSri
+@using TestDeIa.Shared.Responses.Facturacion
+@using TestDeIa.Shared.Responses.XmlSri
+@inject FacturacionApiClient FacturacionApiClient
+
+<div class="easy-modal-backdrop">
+    <section class="easy-modal-card xml-mapping-modal">
+        <button class="easy-modal-close" type="button" @onclick="OnCancel">x</button>
+        <span class="eyebrow">Mapeo XML SRI</span>
+        <h2>Procesar como compra</h2>
+        <p>Revisa el XML del proveedor y empareja sus items con productos internos antes de ingresar a inventario.</p>
+
+        <div class="xml-financial-summary">
+            <div>
+                <span>Proveedor</span>
+                <strong>@Log.RazonSocialEmisor</strong>
+                <small>@Log.RucEmisor</small>
+            </div>
+            <div>
+                <span>Comprobante</span>
+                <strong>@Log.EstabPuntoEmiSecuencial</strong>
+                <small>@Log.ClaveAcceso</small>
+            </div>
+            <div>
+                <span>Total recibido</span>
+                <strong>@Log.ImporteTotal.ToString("C2")</strong>
+                <small>IVA y retenciones sugeridas se calcularan en el flujo de compra.</small>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <label>
+                Bodega destino
+                <select class="input-control" @bind="BodegaId">
+                    <option value="@Guid.Empty">Seleccionar bodega...</option>
+                    @foreach (var bodega in Bodegas)
+                    {
+                        <option value="@bodega.Id">@bodega.Codigo - @bodega.Nombre</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Forma de pago compra
+                <select class="input-control" @bind="FormaPagoCompra">
+                    <option value="4">Credito proveedores</option>
+                    <option value="0">Contado efectivo</option>
+                    <option value="1">Transferencia bancaria</option>
+                    <option value="2">Cheque</option>
+                    <option value="3">Tarjeta credito</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="xml-mapping-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Item XML</th>
+                        <th>Producto EasyMarket</th>
+                        <th>Accion rapida</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Rows)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@row.CodigoProveedor</strong>
+                                <span>@row.NombreProveedor</span>
+                                <small>Costo sugerido: @row.CostoSugerido.ToString("C4") · IVA @row.TarifaIva.ToString("0.##")%</small>
+                            </td>
+                            <td>
+                                <div class="inline-search">
+                                    <input class="input-control" placeholder="Buscar producto interno..." @bind="row.SearchTerm" @bind:event="oninput" />
+                                    <button class="ghost-button compact" type="button" @onclick="() => SearchProductoAsync(row)">Buscar</button>
+                                </div>
+                                @if (row.Results.Count > 0)
+                                {
+                                    <div class="lookup-results">
+                                        @foreach (var product in row.Results)
+                                        {
+                                            <button type="button" class="lookup-pill" @onclick="() => SelectProduct(row, product)">
+                                                <strong>@product.Nombre</strong>
+                                                <span>@product.Codigo</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                @if (row.ProductoId != Guid.Empty)
+                                {
+                                    <small class="mapped-product">Mapeado: @row.ProductoNombreInterno</small>
+                                }
+                            </td>
+                            <td>
+                                <button class="secondary-action compact" type="button" @onclick="() => MarkCreateNew(row)">
+                                    Crear producto nuevo
+                                </button>
+                                @if (row.CrearNuevo)
+                                {
+                                    <small class="create-hint">Se heredara nombre, costo y tarifa IVA desde el XML.</small>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="modal-actions">
+            <button class="ghost-button" type="button" @onclick="OnCancel">Cancelar</button>
+            <button class="primary-action" type="button" @onclick="ConfirmAsync" disabled="@(BodegaId == Guid.Empty)">Convertir a compra</button>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public FacturaCompraXmlLogResponse Log { get; set; } = default!;
+    [Parameter] public XmlSriParserResultDto? ParsedXml { get; set; }
+    [Parameter] public IReadOnlyCollection<TestDeIa.Shared.Responses.Inventario.BodegaResponse> Bodegas { get; set; } = Array.Empty<TestDeIa.Shared.Responses.Inventario.BodegaResponse>();
+    [Parameter] public EventCallback<ConvertirXmlACompraRequest> OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Guid BodegaId { get; set; }
+    private int FormaPagoCompra { get; set; } = 4;
+    private List<XmlMappingRow> Rows { get; } = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Rows.Count == 0 && ParsedXml is not null)
+        {
+            Rows.AddRange(ParsedXml.Detalles.Select(detail => new XmlMappingRow
+            {
+                CodigoProveedor = string.IsNullOrWhiteSpace(detail.CodigoPrincipal) ? detail.Descripcion : detail.CodigoPrincipal,
+                NombreProveedor = detail.Descripcion,
+                SearchTerm = $"{detail.CodigoPrincipal} {detail.Descripcion}".Trim(),
+                CostoSugerido = detail.Cantidad == 0 ? detail.PrecioUnitario : detail.PrecioTotalSinImpuesto / detail.Cantidad,
+                TarifaIva = detail.Impuestos.FirstOrDefault(current => current.Codigo == "2")?.Tarifa ?? 0m
+            }));
+        }
+
+        if (Rows.Count == 0)
+        {
+            Rows.Add(new XmlMappingRow
+            {
+                CodigoProveedor = "AUTO",
+                NombreProveedor = $"Items de {Log.RazonSocialEmisor}",
+                SearchTerm = Log.RazonSocialEmisor,
+                CostoSugerido = Log.TotalSinImpuestos,
+                TarifaIva = Log.ImporteTotal > Log.TotalSinImpuestos ? 15m : 0m
+            });
+        }
+    }
+
+    private async Task SearchProductoAsync(XmlMappingRow row)
+    {
+        var result = await FacturacionApiClient.SearchProductosAsync(row.SearchTerm ?? string.Empty, 0, 8, BodegaId == Guid.Empty ? null : BodegaId);
+        row.Results = result.Items.ToList();
+    }
+
+    private static void SelectProduct(XmlMappingRow row, PosProductoResponse product)
+    {
+        row.ProductoId = product.ProductoId;
+        row.ProductoCodigoInterno = product.Codigo;
+        row.ProductoNombreInterno = product.Nombre;
+        row.CrearNuevo = false;
+        row.Results.Clear();
+    }
+
+    private static void MarkCreateNew(XmlMappingRow row)
+    {
+        row.CrearNuevo = true;
+        row.ProductoId = Guid.Empty;
+        row.ProductoNombreInterno = string.Empty;
+        row.ProductoCodigoInterno = string.Empty;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        await OnConfirm.InvokeAsync(new ConvertirXmlACompraRequest
+        {
+            FacturaCompraXmlLogId = Log.Id,
+            BodegaId = BodegaId,
+            CrearProveedorSiNoExiste = true,
+            FormaPagoCompra = (TestDeIa.Shared.Compras.FormaPagoCompra)FormaPagoCompra,
+            MapeosProductos = Rows
+                .Where(row => row.ProductoId != Guid.Empty)
+                .Select(row => new MapeoProductoProveedorDto
+                {
+                    CodigoProductoProveedor = row.CodigoProveedor,
+                    NombreProductoProveedor = row.NombreProveedor,
+                    ProductoId = row.ProductoId,
+                    ProductoCodigoInterno = row.ProductoCodigoInterno,
+                    ProductoNombreInterno = row.ProductoNombreInterno
+                })
+                .ToArray()
+        });
+    }
+
+    private sealed class XmlMappingRow
+    {
+        public string CodigoProveedor { get; set; } = string.Empty;
+        public string NombreProveedor { get; set; } = string.Empty;
+        public decimal CostoSugerido { get; set; }
+        public decimal TarifaIva { get; set; }
+        public string? SearchTerm { get; set; }
+        public Guid ProductoId { get; set; }
+        public string ProductoCodigoInterno { get; set; } = string.Empty;
+        public string ProductoNombreInterno { get; set; } = string.Empty;
+        public bool CrearNuevo { get; set; }
+        public List<PosProductoResponse> Results { get; set; } = [];
+    }
+}

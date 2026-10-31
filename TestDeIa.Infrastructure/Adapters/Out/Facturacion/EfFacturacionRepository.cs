@@ -1,87 +1,213 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
+using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Application.Modules.Saas.Ports.In;
+using TestDeIa.Domain.Modules.Caja.Entities;
 using TestDeIa.Domain.Modules.Facturacion.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
+using TestDeIa.Shared.Security;
+using TestDeIa.Shared.Sri;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Facturacion;
 
 public sealed class EfFacturacionRepository : IFacturacionRepository
 {
     private static readonly HashSet<decimal> SupportedIvaRates = [0m, 5m, 8m, 15m];
+    private const string PrincipalBodegaName = "Principal";
+    private const int MaxRetryDelayMinutes = 15;
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
+    private readonly IInventarioRepository inventarioRepository;
+    private readonly ISaaSQuotaValidationService quotaValidationService;
 
-    public EfFacturacionRepository(TestDeIaDbContext dbContext)
+    public EfFacturacionRepository(
+        TestDeIaDbContext dbContext,
+        ITenantContextAccessor tenantContextAccessor,
+        IInventarioRepository inventarioRepository,
+        ISaaSQuotaValidationService quotaValidationService)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
+        this.inventarioRepository = inventarioRepository;
+        this.quotaValidationService = quotaValidationService;
     }
 
-    public async Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take, CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term.Trim();
 
         if (normalizedTerm.Length < 2)
         {
-            return Array.Empty<PosClienteResponse>();
+            return new PagedResultResponse<PosClienteResponse> { Items = Array.Empty<PosClienteResponse>(), Skip = skip, Take = take };
         }
 
-        var clientes = await dbContext.Clientes
+        var query = dbContext.Personas
             .AsNoTracking()
-            .Include(cliente => cliente.Persona)
-            .Where(cliente =>
-                cliente.IsActive &&
-                cliente.Persona.IsActive &&
-                (cliente.Persona.Identificacion.Contains(normalizedTerm) ||
-                 cliente.Persona.Nombres.Contains(normalizedTerm) ||
-                 cliente.Persona.Apellidos.Contains(normalizedTerm)))
-            .OrderBy(cliente => cliente.Persona.Identificacion)
-            .Take(20)
-            .ToListAsync(cancellationToken);
+            .Where(persona =>
+                !persona.IsSystemRecord &&
+                persona.IsActive &&
+                (persona.Identificacion.Contains(normalizedTerm) ||
+                 persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                 (persona.NombreComercial != null && persona.NombreComercial.Contains(normalizedTerm))));
+        var totalCount = await query.CountAsync(cancellationToken);
+        var clientes = await query
+            .OrderBy(persona => persona.Identificacion)
+            .Skip(skip)
+            .Take(take)
+            .Select(persona => new PosClienteResponse
+            {
+                ClienteId = persona.Cliente != null ? persona.Cliente.PersonaId : null,
+                PersonaId = persona.Id,
+                TipoIdentificacion = persona.TipoIdentificacion,
+                Identificacion = persona.Identificacion,
+                NombreCompleto = persona.RazonSocialONombresCompletos,
+                NombreComercial = persona.NombreComercial,
+                Email = persona.Cliente != null && !string.IsNullOrWhiteSpace(persona.Cliente.CorreoFacturacionElectronica)
+                    ? persona.Cliente.CorreoFacturacionElectronica : persona.CorreoElectronicoPrincipal,
+                Telefono = persona.TelefonoCelular,
+                Direccion = persona.DireccionPrincipal,
+                HasClienteExtension = persona.Cliente != null && persona.Cliente.IsActive
+            })
+            .ToArrayAsync(cancellationToken);
 
-        return clientes.Select(cliente => new PosClienteResponse
+        return new PagedResultResponse<PosClienteResponse>
         {
-            ClienteId = cliente.Id,
-            PersonaId = cliente.PersonaId,
-            TipoIdentificacion = cliente.Persona.TipoIdentificacion,
-            Identificacion = cliente.Persona.Identificacion,
-            NombreCompleto = $"{cliente.Persona.Nombres} {cliente.Persona.Apellidos}".Trim(),
-            Email = cliente.Persona.Email,
-            Telefono = cliente.Persona.Telefono,
-            Direccion = cliente.Persona.Direccion
-        }).ToArray();
+            Items = clientes,
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
-    public async Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term, CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null, CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term.Trim();
 
         if (normalizedTerm.Length < 2)
         {
-            return Array.Empty<PosProductoResponse>();
+            return new PagedResultResponse<PosProductoResponse> { Items = Array.Empty<PosProductoResponse>(), Skip = skip, Take = take };
         }
 
-        var productos = await dbContext.Productos
+        var operationalBodegaId = await ResolveOperationalBodegaIdAsync(bodegaId, cancellationToken);
+
+        var query = dbContext.Productos
             .AsNoTracking()
             .Where(producto =>
                 producto.IsActive &&
+                (!producto.ControlaStock || producto.ProductosBodega.Any(existencia => existencia.BodegaId == operationalBodegaId)) &&
                 (producto.Codigo.Contains(normalizedTerm) ||
-                 producto.Nombre.Contains(normalizedTerm)))
+                 producto.Nombre.Contains(normalizedTerm) ||
+                 (producto.Descripcion != null && producto.Descripcion.Contains(normalizedTerm))));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var productos = await query
             .OrderBy(producto => producto.Nombre)
-            .Take(20)
+            .Skip(skip)
+            .Take(take)
+            .Select(producto => new PosProductoResponse
+            {
+                ProductoId = producto.Id,
+                Codigo = producto.Codigo,
+                Nombre = producto.Nombre,
+                Descripcion = producto.Descripcion,
+                CodigoIva = producto.CodigoIva,
+                PorcentajeIva = producto.PorcentajeIva,
+                PrecioVenta = producto.PrecioVenta,
+                StockActual = producto.ProductosBodega
+                    .Where(current => current.BodegaId == operationalBodegaId)
+                    .Select(current => current.StockActual)
+                    .FirstOrDefault(),
+                ControlaStock = producto.ControlaStock,
+                AplicaComision = producto.AplicaComision,
+                TipoComision = producto.TipoComision,
+                ValorComision = producto.ValorComision
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return new PagedResultResponse<PosProductoResponse>
+        {
+            Items = productos,
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
+    }
+
+
+    public async Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default)
+    {
+        var empresaActivaId = tenantContextAccessor.EmpresaId;
+        if (!empresaActivaId.HasValue)
+        {
+            return Array.Empty<PosOperadorResponse>();
+        }
+
+        return await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(usuario =>
+                usuario.IsActive &&
+                !usuario.BloqueadoManualmente &&
+                (usuario.BloqueadoHasta == null || usuario.BloqueadoHasta <= DateTimeOffset.UtcNow) &&
+                (usuario.EmpresaId == empresaActivaId.Value || usuario.EmpresasAcceso.Any(acceso => acceso.EmpresaId == empresaActivaId.Value)))
+            .OrderBy(usuario => usuario.DisplayName)
+            .Select(usuario => new PosOperadorResponse
+            {
+                UsuarioId = usuario.Id,
+                UserName = usuario.UserName,
+                NombreCompleto = string.IsNullOrWhiteSpace(usuario.DisplayName) ? usuario.UserName : usuario.DisplayName,
+                Identificacion = string.Empty
+            })
+            .ToArrayAsync(cancellationToken);
+    }
+    public async Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync(CancellationToken cancellationToken = default)
+    {
+        var empresaActivaId = tenantContextAccessor.EmpresaId;
+        if (!empresaActivaId.HasValue)
+        {
+            return Array.Empty<PosPuntoEmisionResponse>();
+        }
+
+        var usuarioId = tenantContextAccessor.UserId;
+        var roles = await GetCurrentUserRolesAsync(cancellationToken);
+        var isAdmin = roles.Contains(SecurityRoleNames.Administrador, StringComparer.OrdinalIgnoreCase);
+        var isCajero = roles.Contains(SecurityRoleNames.Cajero, StringComparer.OrdinalIgnoreCase);
+
+        var query = dbContext.EmpresaPuntosEmision
+            .AsNoTracking()
+            .Include(current => current.Bodega)
+            .Where(current => current.EmpresaEmisoraId == empresaActivaId.Value);
+
+        if (!isAdmin && isCajero && usuarioId.HasValue)
+        {
+            var puntosPermitidos = dbContext.Set<SecurityUserPuntoEmisionEntity>()
+                .AsNoTracking()
+                .Where(current => current.SecurityUserId == usuarioId.Value && current.EmpresaId == empresaActivaId.Value)
+                .Select(current => current.EmpresaPuntoEmisionId);
+
+            query = query.Where(current => puntosPermitidos.Contains(current.Id));
+        }
+
+        var puntos = await query
+            .OrderByDescending(current => current.IsDefault)
+            .ThenBy(current => current.Establecimiento)
+            .ThenBy(current => current.PuntoEmision)
             .ToListAsync(cancellationToken);
 
-        return productos.Select(producto => new PosProductoResponse
+        return puntos.Select(current => new PosPuntoEmisionResponse
         {
-            ProductoId = producto.Id,
-            Codigo = producto.Codigo,
-            Nombre = producto.Nombre,
-            Descripcion = producto.Descripcion,
-            CodigoIva = producto.CodigoIva,
-            PorcentajeIva = producto.PorcentajeIva,
-            PrecioVenta = producto.PrecioVenta,
-            StockActual = producto.StockActual
+            BodegaId = current.BodegaId ?? Guid.Empty,
+            BodegaNombre = current.Bodega == null ? "Sin bodega asignada" : current.Bodega.Nombre,
+            Establecimiento = current.Establecimiento,
+            PuntoEmision = current.PuntoEmision,
+            DireccionEstablecimiento = current.DireccionEstablecimiento,
+            IsDefault = current.IsDefault
         }).ToArray();
     }
 
@@ -92,21 +218,84 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         var cliente = await dbContext.Clientes
             .AsNoTracking()
             .Include(current => current.Persona)
-            .FirstOrDefaultAsync(current => current.Id == request.ClienteId, cancellationToken)
+            .FirstOrDefaultAsync(current => current.PersonaId == request.ClienteId, cancellationToken)
             ?? throw new InvalidOperationException("No se encontro el cliente seleccionado.");
+
+        var empresaActivaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la factura.");
+        await quotaValidationService.CanEmitirFacturaAsync(empresaActivaId, cancellationToken);
 
         var empresa = await dbContext.EmpresasEmisoras
             .AsNoTracking()
-            .FirstOrDefaultAsync(current => current.IsActive, cancellationToken)
+            .FirstOrDefaultAsync(current => current.Id == empresaActivaId && current.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("No existe una empresa emisora configurada para facturacion.");
 
+        var usuarioId = tenantContextAccessor.UserId ?? throw new InvalidOperationException("No se pudo identificar al cajero autenticado.");
+        var cajaActiva = await dbContext.Set<CajaSesionEntity>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(current =>
+                current.EmpresaId == empresaActivaId &&
+                current.UsuarioId == usuarioId &&
+                current.EstadoCaja == CajaEstado.Abierta,
+                cancellationToken)
+            ?? throw new InvalidOperationException("Debes abrir una caja antes de facturar en el POS.");
+
+        var puntoEmision = await dbContext.EmpresaPuntosEmision
+            .AsNoTracking()
+            .Include(current => current.Bodega)
+            .FirstOrDefaultAsync(current =>
+                current.EmpresaEmisoraId == empresa.Id &&
+                current.Establecimiento == request.Establecimiento.Trim() &&
+                current.PuntoEmision == request.PuntoEmision.Trim(),
+                cancellationToken)
+            ?? throw new InvalidOperationException("El establecimiento y punto de emision seleccionados no pertenecen a la empresa activa.");
+
+        await EnsurePuntoEmisionAllowedForCurrentUserAsync(usuarioId, empresaActivaId, puntoEmision.Id, cancellationToken);
+
+        if (puntoEmision.Bodega is null || !puntoEmision.BodegaId.HasValue)
+        {
+            throw new InvalidOperationException("El punto de emisión no tiene bodega asignada. Crea una bodega y asígnala antes de facturar.");
+        }
+        if (!puntoEmision.Bodega.IsActive)
+        {
+            throw new InvalidOperationException($"La bodega {puntoEmision.Bodega.Nombre} asociada al punto de emision no se encuentra activa.");
+        }
+
+        if (request.BodegaId.HasValue &&
+            request.BodegaId.Value != Guid.Empty &&
+            request.BodegaId.Value != puntoEmision.BodegaId)
+        {
+            throw new InvalidOperationException("El POS intento facturar con una bodega distinta a la asignada al punto de emision activo.");
+        }
+
+        if (cajaActiva.PuntoEmisionId.HasValue && cajaActiva.PuntoEmisionId.Value != puntoEmision.Id)
+        {
+            throw new InvalidOperationException("La caja activa pertenece a otro punto de emision. Cierra o selecciona la caja correcta antes de facturar.");
+        }
+
+        if (cajaActiva.BodegaId.HasValue && cajaActiva.BodegaId.Value != puntoEmision.BodegaId)
+        {
+            throw new InvalidOperationException("La caja activa pertenece a una bodega distinta al punto de emision seleccionado.");
+        }
+
         var itemsByProduct = request.Items
-            .GroupBy(item => item.ProductoId)
-            .Select(group => new { ProductoId = group.Key, Cantidad = group.Sum(item => item.Cantidad) })
+            .GroupBy(item => new { item.ProductoId, item.UsuarioIdOperador })
+            .Select(group => new
+            {
+                group.Key.ProductoId,
+                group.Key.UsuarioIdOperador,
+                Cantidad = group.Sum(item => item.Cantidad),
+                Descuento = group.Sum(item => item.Descuento),
+                PrecioUnitarioOverride = group
+                    .Select(item => item.PrecioUnitarioOverride)
+                    .LastOrDefault(value => value.HasValue)
+            })
             .ToArray();
 
         var productIds = itemsByProduct.Select(item => item.ProductoId).ToArray();
+        var operationalBodegaId = puntoEmision.BodegaId
+            ?? throw new InvalidOperationException("El punto de emisión no tiene bodega asignada. Crea una bodega y asígnala antes de facturar.");
         var productos = await dbContext.Productos
+            .Include(producto => producto.ProductosBodega)
             .Where(producto => productIds.Contains(producto.Id) && producto.IsActive)
             .ToListAsync(cancellationToken);
 
@@ -115,41 +304,78 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             throw new InvalidOperationException("Uno o varios productos ya no estan disponibles.");
         }
 
+        var serviceItems = itemsByProduct
+            .Where(item => !productos.First(producto => producto.Id == item.ProductoId).ControlaStock)
+            .ToArray();
+
+        if (serviceItems.Any(item => !item.UsuarioIdOperador.HasValue || item.UsuarioIdOperador.Value == Guid.Empty))
+        {
+            throw new InvalidOperationException("Todos los servicios deben registrar el operador que realizo el trabajo.");
+        }
+
+        var operadorIds = serviceItems
+            .Select(item => item.UsuarioIdOperador!.Value)
+            .Distinct()
+            .ToArray();
+
+        await EnsureOperadoresAllowedForActiveEmpresaAsync(operadorIds, empresaActivaId, cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         var clienteTipoIdentificacion = MapClienteTipoIdentificacionSri(cliente.Persona.TipoIdentificacion);
-        var formaPago = request.FormaPago.Trim();
+        var formaPagoCodigo = MapFormaPagoSriCodigo(request.FormaPago);
+        var formaPago = SriCatalogCodes.GetFormaPagoName(formaPagoCodigo);
+        var facturaId = Guid.NewGuid();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await quotaValidationService.ReservarCupoFacturaAsync(empresa.Id, facturaId, cancellationToken);
+        var secuencial = await ReserveNextSecuencialAsync(
+            empresa.Id,
+            empresa.AmbienteSri,
+            "01",
+            puntoEmision.Establecimiento,
+            puntoEmision.PuntoEmision,
+            now,
+            cancellationToken);
+
         var factura = new FacturaEntity
         {
-            Id = Guid.NewGuid(),
+            Id = facturaId,
+            EmpresaId = empresa.Id,
             EmpresaEmisoraId = empresa.Id,
-            Establecimiento = empresa.Establecimiento,
-            PuntoEmision = empresa.PuntoEmision,
+            BodegaId = operationalBodegaId,
+            UsuarioId = usuarioId,
+            CajaSesionId = cajaActiva.Id,
+            Secuencial = secuencial,
+            Establecimiento = puntoEmision.Establecimiento,
+            PuntoEmision = puntoEmision.PuntoEmision,
             RucEmisor = empresa.Ruc,
             RazonSocialEmisor = empresa.RazonSocial,
             NombreComercialEmisor = empresa.NombreComercial,
             DireccionMatrizEmisor = empresa.DireccionMatriz,
-            DireccionEstablecimientoEmisor = empresa.DireccionEstablecimiento,
+            DireccionEstablecimientoEmisor = puntoEmision.DireccionEstablecimiento ?? empresa.DireccionEstablecimiento,
             AmbienteSri = empresa.AmbienteSri,
             TipoEmision = empresa.TipoEmision,
             ObligadoContabilidad = empresa.ObligadoContabilidad,
             ContribuyenteEspecial = empresa.ContribuyenteEspecial,
             RegimenRimpe = empresa.RegimenRimpe,
             AgenteRetencionResolucion = empresa.AgenteRetencionResolucion,
-            ClienteId = cliente.Id,
+            ClienteId = cliente.PersonaId,
             ClienteTipoIdentificacion = clienteTipoIdentificacion,
             ClienteIdentificacion = cliente.Persona.Identificacion,
-            ClienteNombre = $"{cliente.Persona.Nombres} {cliente.Persona.Apellidos}".Trim(),
-            ClienteDireccion = NormalizeOptional(cliente.Persona.Direccion),
-            ClienteEmail = NormalizeOptional(cliente.Persona.Email),
-            ClienteTelefono = NormalizeOptional(cliente.Persona.Telefono),
+            ClienteNombre = cliente.Persona.RazonSocialONombresCompletos,
+            ClienteDireccion = NormalizeOptional(cliente.Persona.DireccionPrincipal),
+            ClienteEmail = NormalizeOptional(cliente.CorreoFacturacionElectronica) ?? NormalizeOptional(cliente.Persona.CorreoElectronicoPrincipal),
+            ClienteTelefono = NormalizeOptional(cliente.Persona.TelefonoCelular),
             FormaPago = formaPago,
-            FormaPagoSriCodigo = MapFormaPagoSriCodigo(formaPago),
-            Estado = "Pendiente",
+            FormaPagoSriCodigo = formaPagoCodigo,
+            MontoRecibido = formaPagoCodigo == SriCatalogCodes.FormaPagoEfectivo ? NormalizeMoney(request.MontoRecibido) : null,
+            VueltoEntregado = formaPagoCodigo == SriCatalogCodes.FormaPagoEfectivo ? NormalizeMoney(request.VueltoEntregado) : null,
+            Estado = FacturaEstado.NO_FIRMADO,
             Observacion = NormalizeOptional(request.Observacion),
-            FechaEmision = now,
+            FechaEmision = SriFechaFiscal.EcuadorContinental(now),
             CreatedAt = now,
             UpdatedAt = now,
-            MensajeEstado = "Factura registrada localmente y en cola para procesamiento."
+            ClaveAcceso = string.Empty,
+            MensajeEstado = "Factura registrada localmente. Se preparara el XML electronico."
         };
 
         foreach (var item in itemsByProduct)
@@ -161,14 +387,37 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 throw new InvalidOperationException($"El producto {producto.Nombre} tiene una tarifa de IVA no soportada.");
             }
 
-            if (producto.StockActual < item.Cantidad)
+            var stockDespacho = producto.ProductosBodega
+                .Where(current => current.BodegaId == operationalBodegaId)
+                .Select(current => current.StockActual)
+                .FirstOrDefault();
+
+            if (producto.ControlaStock && stockDespacho < item.Cantidad)
             {
-                throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre}.");
+                var disponibilidadAlterna = await BuildDisponibilidadAlternaMessageAsync(
+                    producto.Id,
+                    operationalBodegaId,
+                    item.Cantidad - stockDespacho,
+                    cancellationToken);
+
+                throw new InvalidOperationException($"No hay stock suficiente para {producto.Nombre} en la bodega {puntoEmision.Bodega.Nombre}. Stock local: {stockDespacho:0.####}. Requerido: {item.Cantidad:0.####}.{disponibilidadAlterna}");
             }
 
-            var subtotal = Math.Round(item.Cantidad * producto.PrecioVenta, 2);
+            var precioUnitario = producto.ControlaStock ? producto.PrecioVenta : item.PrecioUnitarioOverride ?? producto.PrecioVenta;
+            var subtotalBruto = Math.Round(item.Cantidad * precioUnitario, 2);
+            var descuento = Math.Round(item.Descuento, 2);
+            if (descuento > subtotalBruto)
+            {
+                throw new InvalidOperationException($"El descuento configurado para {producto.Nombre} no puede superar el subtotal de la linea.");
+            }
+
+            var subtotal = subtotalBruto - descuento;
             var ivaValor = Math.Round(subtotal * (producto.PorcentajeIva / 100m), 2);
             var total = subtotal + ivaValor;
+            var usuarioIdOperador = producto.ControlaStock ? null : item.UsuarioIdOperador;
+            var montoComision = CalculateServiceCommission(producto, usuarioIdOperador, subtotal, item.Cantidad);
+            var costoHistoricoUnitario = producto.ControlaStock ? Math.Round(producto.CostoPromedio, 6, MidpointRounding.AwayFromZero) : 0m;
+            var costoHistoricoTotal = Math.Round(item.Cantidad * costoHistoricoUnitario, 4, MidpointRounding.AwayFromZero);
 
             factura.Detalles.Add(new FacturaDetalleEntity
             {
@@ -180,13 +429,19 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 CodigoIva = producto.CodigoIva,
                 PorcentajeIva = producto.PorcentajeIva,
                 Cantidad = item.Cantidad,
-                PrecioUnitario = producto.PrecioVenta,
+                PrecioUnitario = precioUnitario,
+                Descuento = descuento,
                 Subtotal = subtotal,
                 IvaValor = ivaValor,
-                Total = total
+                Total = total,
+                CostoHistoricoUnitario = costoHistoricoUnitario,
+                CostoHistoricoTotal = costoHistoricoTotal,
+                UsuarioIdOperador = usuarioIdOperador,
+                MontoComisionCalculado = montoComision
             });
 
             factura.Subtotal += subtotal;
+            factura.TotalDescuento += descuento;
             factura.IvaTotal += ivaValor;
 
             switch (producto.PorcentajeIva)
@@ -207,37 +462,271 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         }
 
         factura.Total = factura.Subtotal + factura.IvaTotal;
-        factura.EventosSri.Add(new FacturaSriEventoEntity
+        ValidateCashSettlement(request, formaPagoCodigo, factura.Total);
+        dbContext.Set<FacturaEntity>().Add(factura);
+        dbContext.Set<FacturaPagoEntity>().Add(new FacturaPagoEntity
+        {
+            Id = Guid.NewGuid(),
+            EmpresaId = empresa.Id,
+            FacturaId = factura.Id,
+            CajaSesionId = cajaActiva.Id,
+            FormaPagoCodigo = formaPagoCodigo,
+            Monto = Math.Round(factura.Total, 2)
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+
+        var persistedFactura = await dbContext.Set<FacturaEntity>()
+            .AsNoTracking()
+            .Include(current => current.Detalles)
+            .FirstAsync(current => current.Id == factura.Id, cancellationToken);
+
+        var domainFactura = MapDomain(persistedFactura);
+        var claveAcceso = SriFacturaXmlBuilder.GenerateClaveAcceso(domainFactura);
+        var xmlGenerado = SriFacturaXmlBuilder.BuildUnsignedXml(domainFactura, claveAcceso);
+        var updatedAt = DateTimeOffset.UtcNow;
+
+        if (empresa.ModoDesarrollo)
+        {
+            var numeroAutorizacion = $"{updatedAt:yyyyMMddHHmmss}{persistedFactura.Secuencial:000000000}";
+            const string mensajeModoDesarrollo = "Factura autorizada por simulacion interna de desarrollo.";
+
+            await dbContext.Set<FacturaEntity>()
+                .Where(current => current.Id == factura.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(current => current.ClaveAcceso, claveAcceso)
+                    .SetProperty(current => current.XmlGenerado, xmlGenerado)
+                    .SetProperty(current => current.XmlFirmado, xmlGenerado)
+                    .SetProperty(current => current.Estado, FacturaEstado.AUTORIZADO)
+                    .SetProperty(current => current.NumeroAutorizacion, numeroAutorizacion)
+                    .SetProperty(current => current.MensajeEstado, mensajeModoDesarrollo)
+                    .SetProperty(current => current.FechaAutorizacion, updatedAt)
+                    .SetProperty(current => current.UpdatedAt, updatedAt),
+                    cancellationToken);
+
+            persistedFactura.ClaveAcceso = claveAcceso;
+            persistedFactura.XmlGenerado = xmlGenerado;
+            persistedFactura.XmlFirmado = xmlGenerado;
+            persistedFactura.Estado = FacturaEstado.AUTORIZADO;
+            persistedFactura.NumeroAutorizacion = numeroAutorizacion;
+            persistedFactura.MensajeEstado = mensajeModoDesarrollo;
+            persistedFactura.FechaAutorizacion = updatedAt;
+            persistedFactura.UpdatedAt = updatedAt;
+
+            await ApplyInventoryIfNeededAsync(persistedFactura, "Factura autorizada", cancellationToken);
+
+            dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
+            {
+                Id = Guid.NewGuid(),
+                FacturaId = persistedFactura.Id,
+                Estado = persistedFactura.Estado,
+                Mensaje = persistedFactura.MensajeEstado,
+                CreatedAt = updatedAt
+            });
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await quotaValidationService.ConfirmarFacturaAutorizadaAsync(empresa.Id, facturaId, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return new FacturaEmissionResponse
+            {
+                FacturaId = persistedFactura.Id,
+                Secuencial = persistedFactura.Secuencial,
+                Estado = persistedFactura.Estado.ToApiValue(),
+                NumeroComprobante = $"{persistedFactura.Establecimiento}-{persistedFactura.PuntoEmision}-{persistedFactura.Secuencial:000000000}",
+                Mensaje = "Factura registrada, inventario aplicado y comprobante autorizado localmente en modo desarrollo."
+            };
+        }
+
+        const FacturaEstado estadoFinal = FacturaEstado.NO_FIRMADO;
+        const string mensajeEstado = "XML generado correctamente. El comprobante fue enviado a la cola de firma electronica.";
+
+        await dbContext.Set<FacturaEntity>()
+            .Where(current => current.Id == factura.Id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(current => current.ClaveAcceso, claveAcceso)
+                .SetProperty(current => current.XmlGenerado, xmlGenerado)
+                .SetProperty(current => current.XmlFirmado, (string?)null)
+                .SetProperty(current => current.Estado, estadoFinal)
+                .SetProperty(current => current.MensajeEstado, mensajeEstado)
+                .SetProperty(current => current.UpdatedAt, updatedAt),
+                cancellationToken);
+
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
             FacturaId = factura.Id,
-            Estado = factura.Estado,
-            Mensaje = factura.MensajeEstado ?? "Factura registrada.",
-            CreatedAt = now
+            Estado = estadoFinal,
+            Mensaje = mensajeEstado,
+            CreatedAt = updatedAt
         });
 
-        dbContext.Set<FacturaEntity>().Add(factura);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
 
         return new FacturaEmissionResponse
         {
-            FacturaId = factura.Id,
-            Secuencial = factura.Secuencial,
-            Estado = factura.Estado,
-            NumeroComprobante = $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
-            Mensaje = "Factura registrada correctamente. El procesamiento SRI continua en segundo plano."
+            FacturaId = persistedFactura.Id,
+            Secuencial = persistedFactura.Secuencial,
+            Estado = estadoFinal.ToApiValue(),
+            NumeroComprobante = $"{persistedFactura.Establecimiento}-{persistedFactura.PuntoEmision}-{persistedFactura.Secuencial:000000000}",
+            Mensaje = "Factura registrada localmente y enviada a la cola de firma electronica."
         };
     }
 
-    public async Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(
+        string? term,
+        string? tipoDocumentoId,
+        string? estadoSriId,
+        DateTimeOffset fechaDesde,
+        DateTimeOffset fechaHasta,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
     {
-        var facturas = await dbContext.Set<FacturaEntity>()
-            .AsNoTracking()
-            .OrderByDescending(factura => factura.CreatedAt)
-            .Take(100)
-            .ToListAsync(cancellationToken);
+        var normalizedTerm = term?.Trim();
+        var normalizedTipoDocumento = tipoDocumentoId?.Trim();
+        var normalizedEstado = estadoSriId?.Trim();
+        var incluirFacturas = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "01";
+        var incluirNotasCredito = string.IsNullOrWhiteSpace(normalizedTipoDocumento) || normalizedTipoDocumento == "04";
+        var comprobantes = new List<FacturaMonitorResponse>();
+        var totalCount = 0;
+        var takeForMerge = skip + take;
+        var estadoFiltro = TryParseFacturaEstado(normalizedEstado);
 
-        return facturas.Select(MapMonitor).ToArray();
+        if (incluirFacturas)
+        {
+            var query = dbContext.Set<FacturaEntity>()
+                .AsNoTracking()
+                .Where(factura => factura.FechaEmision >= fechaDesde && factura.FechaEmision <= fechaHasta);
+
+            if (estadoFiltro.HasValue)
+            {
+                query = query.Where(factura => factura.Estado == estadoFiltro.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedTerm))
+            {
+                query = query.Where(factura =>
+                    factura.Establecimiento.Contains(normalizedTerm) ||
+                    factura.PuntoEmision.Contains(normalizedTerm) ||
+                    factura.ClienteNombre.Contains(normalizedTerm) ||
+                    factura.ClienteIdentificacion.Contains(normalizedTerm) ||
+                    factura.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                    factura.FormaPago.Contains(normalizedTerm) ||
+                    (factura.ClaveAcceso != null && factura.ClaveAcceso.Contains(normalizedTerm)) ||
+                    (factura.MensajeEstado != null && factura.MensajeEstado.Contains(normalizedTerm)));
+            }
+
+            totalCount += await query.CountAsync(cancellationToken);
+
+            var facturas = await query
+                .OrderByDescending(factura => factura.FechaEmision)
+                .Take(takeForMerge)
+                .Select(factura => new FacturaMonitorResponse
+                {
+                    Id = factura.Id,
+                    Secuencial = factura.Secuencial,
+                    Establecimiento = factura.Establecimiento,
+                    PuntoEmision = factura.PuntoEmision,
+                    TipoDocumentoId = "01",
+                    TipoDocumentoNombre = "Factura",
+                    ClienteIdentificacion = factura.ClienteIdentificacion,
+                    ClienteTipoIdentificacion = factura.ClienteTipoIdentificacion,
+                    ClienteNombre = factura.ClienteNombre,
+                    FormaPago = factura.FormaPago,
+                    Estado = factura.Estado.ToApiValue(),
+                    Subtotal = factura.Subtotal,
+                    IvaTotal = factura.IvaTotal,
+                    Total = factura.Total,
+                    ClaveAcceso = factura.ClaveAcceso,
+                    NumeroAutorizacion = factura.NumeroAutorizacion,
+                    MensajeEstado = factura.MensajeEstado,
+                    TieneXmlGenerado = factura.XmlGenerado != null && factura.XmlGenerado != string.Empty,
+                    TieneXmlFirmado = factura.XmlFirmado != null && factura.XmlFirmado != string.Empty,
+                    FechaEmision = factura.FechaEmision,
+                    FechaAutorizacion = factura.FechaAutorizacion
+                })
+                .ToListAsync(cancellationToken);
+
+            comprobantes.AddRange(facturas);
+        }
+
+        if (incluirNotasCredito)
+        {
+            var query = dbContext.ComprobanteCabecera
+                .AsNoTracking()
+                .Where(comprobante =>
+                    comprobante.TipoDocumentoId == "04" &&
+                    comprobante.FechaEmision >= fechaDesde &&
+                    comprobante.FechaEmision <= fechaHasta);
+
+            if (estadoFiltro.HasValue)
+            {
+                query = query.Where(comprobante => comprobante.Estado == estadoFiltro.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedTerm))
+            {
+                query = query.Where(comprobante =>
+                    comprobante.Establecimiento.Contains(normalizedTerm) ||
+                    comprobante.PuntoEmision.Contains(normalizedTerm) ||
+                    comprobante.ClienteNombre.Contains(normalizedTerm) ||
+                    comprobante.ClienteIdentificacion.Contains(normalizedTerm) ||
+                    comprobante.ClienteTipoIdentificacion.Contains(normalizedTerm) ||
+                    comprobante.TipoDocumentoId.Contains(normalizedTerm) ||
+                    (comprobante.ClaveAcceso != null && comprobante.ClaveAcceso.Contains(normalizedTerm)) ||
+                    (comprobante.MotivoModificacion != null && comprobante.MotivoModificacion.Contains(normalizedTerm)));
+            }
+
+            totalCount += await query.CountAsync(cancellationToken);
+
+            var notasCredito = await query
+                .OrderByDescending(comprobante => comprobante.FechaEmision)
+                .Take(takeForMerge)
+                .Select(comprobante => new FacturaMonitorResponse
+                {
+                    Id = comprobante.Id,
+                    Secuencial = comprobante.Secuencial,
+                    Establecimiento = comprobante.Establecimiento,
+                    PuntoEmision = comprobante.PuntoEmision,
+                    TipoDocumentoId = comprobante.TipoDocumentoId,
+                    TipoDocumentoNombre = "Nota de credito",
+                    ClienteIdentificacion = comprobante.ClienteIdentificacion,
+                    ClienteTipoIdentificacion = comprobante.ClienteTipoIdentificacion,
+                    ClienteNombre = comprobante.ClienteNombre,
+                    FormaPago = "Devolucion",
+                    Estado = comprobante.Estado.ToApiValue(),
+                    Subtotal = comprobante.Subtotal,
+                    IvaTotal = comprobante.IvaTotal,
+                    Total = comprobante.Total,
+                    ClaveAcceso = comprobante.ClaveAcceso,
+                    NumeroAutorizacion = comprobante.NumeroAutorizacion,
+                    MensajeEstado = comprobante.MotivoModificacion,
+                    TieneXmlGenerado = comprobante.XmlGenerado != null && comprobante.XmlGenerado != string.Empty,
+                    TieneXmlFirmado = comprobante.XmlFirmado != null && comprobante.XmlFirmado != string.Empty,
+                    FechaEmision = comprobante.FechaEmision,
+                    FechaAutorizacion = comprobante.FechaAutorizacion
+                })
+                .ToListAsync(cancellationToken);
+
+            comprobantes.AddRange(notasCredito);
+        }
+        
+        var pageItems = comprobantes
+            .OrderByDescending(comprobante => comprobante.FechaEmision)
+            .Skip(skip)
+            .Take(take)
+            .ToArray();
+
+        return new PagedResultResponse<FacturaMonitorResponse>
+        {
+            Items = pageItems,
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
     }
 
     public async Task<IReadOnlyCollection<Guid>> GetPendingFacturaIdsAsync(int batchSize, DateTimeOffset now, CancellationToken cancellationToken = default)
@@ -247,9 +736,14 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         return await dbContext.Set<FacturaEntity>()
             .AsNoTracking()
             .Where(factura =>
-                factura.Estado == "Pendiente" ||
-                (factura.Estado == "Error" && (!factura.NextRetryAt.HasValue || factura.NextRetryAt <= now)) ||
-                (factura.Estado == "EnProceso" && factura.ProcessingStartedAt < staleProcessingLimit))
+                (factura.Estado == FacturaEstado.NO_FIRMADO || factura.Estado == FacturaEstado.PENDIENTE) &&
+                factura.ClaveAcceso != string.Empty &&
+                factura.XmlGenerado != null &&
+                factura.NumeroAutorizacion == null &&
+                ((factura.Estado == FacturaEstado.NO_FIRMADO && factura.XmlFirmado == null) ||
+                 (factura.Estado == FacturaEstado.PENDIENTE && factura.XmlFirmado != null)) &&
+                (!factura.ProcessingStartedAt.HasValue || factura.ProcessingStartedAt < staleProcessingLimit) &&
+                (!factura.NextRetryAt.HasValue || factura.NextRetryAt <= now || factura.ProcessingStartedAt < staleProcessingLimit))
             .OrderBy(factura => factura.CreatedAt)
             .Take(batchSize)
             .Select(factura => factura.Id)
@@ -263,16 +757,22 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         var affected = await dbContext.Set<FacturaEntity>()
             .Where(factura =>
                 factura.Id == facturaId &&
-                (factura.Estado == "Pendiente" ||
-                 (factura.Estado == "Error" && (!factura.NextRetryAt.HasValue || factura.NextRetryAt <= now)) ||
-                 (factura.Estado == "EnProceso" && factura.ProcessingStartedAt < staleProcessingLimit)))
+                (factura.Estado == FacturaEstado.NO_FIRMADO || factura.Estado == FacturaEstado.PENDIENTE) &&
+                factura.ClaveAcceso != string.Empty &&
+                factura.XmlGenerado != null &&
+                factura.NumeroAutorizacion == null &&
+                ((factura.Estado == FacturaEstado.NO_FIRMADO && factura.XmlFirmado == null) ||
+                 (factura.Estado == FacturaEstado.PENDIENTE && factura.XmlFirmado != null)) &&
+                (!factura.ProcessingStartedAt.HasValue || factura.ProcessingStartedAt < staleProcessingLimit) &&
+                (!factura.NextRetryAt.HasValue || factura.NextRetryAt <= now || factura.ProcessingStartedAt < staleProcessingLimit))
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(factura => factura.Estado, "EnProceso")
                 .SetProperty(factura => factura.ProcessingNode, workerId)
                 .SetProperty(factura => factura.ProcessingStartedAt, now)
                 .SetProperty(factura => factura.UpdatedAt, now)
                 .SetProperty(factura => factura.RetryCount, factura => factura.RetryCount + 1)
-                .SetProperty(factura => factura.MensajeEstado, "Factura tomada por un worker para envio al SRI."),
+                .SetProperty(factura => factura.MensajeEstado, factura => factura.Estado == FacturaEstado.PENDIENTE
+                    ? "Factura retomada por un worker para consultar autorizacion o reintentar el envio."
+                    : "Factura tomada por un worker para firma electronica."),
                 cancellationToken);
 
         if (affected == 0)
@@ -285,6 +785,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .Include(factura => factura.Detalles)
             .FirstAsync(factura => factura.Id == facturaId, cancellationToken);
 
+        tenantContextAccessor.EmpresaId = entity.EmpresaId;
+        tenantContextAccessor.UserId = entity.UsuarioId;
         return MapDomain(entity);
     }
 
@@ -293,24 +795,28 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         var factura = await dbContext.Set<FacturaEntity>()
             .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
 
-        if (factura is null || factura.Estado == "Autorizado" || factura.Estado == "Rechazado")
+        if (factura is null || factura.Estado.IsFinal())
         {
             return;
         }
 
-        factura.Estado = "Recibido";
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.ReservarCupoFacturaAsync(factura.EmpresaId, factura.Id, cancellationToken);
+
         factura.MensajeEstado = mensaje;
         factura.UpdatedAt = DateTimeOffset.UtcNow;
-        factura.EventosSri.Add(new FacturaSriEventoEntity
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
             FacturaId = factura.Id,
-            Estado = factura.Estado,
+            Estado = FacturaEstado.PENDIENTE,
             Mensaje = mensaje,
             CreatedAt = DateTimeOffset.UtcNow
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task MarkFacturaAsAuthorizedAsync(
@@ -322,31 +828,35 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var empresa = await dbContext.Facturas.AsNoTracking().Where(x => x.Id == facturaId).Select(x => (Guid?)x.EmpresaId).SingleOrDefaultAsync(cancellationToken);
+        if (!empresa.HasValue) return;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.BloquearCuotaAsync(empresa.Value, cancellationToken);
+        await MarkFacturaAsAuthorizedCoreAsync(facturaId, claveAcceso, numeroAutorizacion, xmlFirmado, mensaje, fechaRespuesta, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+    }
 
+    private async Task MarkFacturaAsAuthorizedCoreAsync(Guid facturaId, string claveAcceso, string? numeroAutorizacion,
+        string xmlFirmado, string mensaje, DateTimeOffset fechaRespuesta, CancellationToken cancellationToken)
+    {
         var factura = await dbContext.Set<FacturaEntity>()
             .Include(current => current.Detalles)
             .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
 
-        if (factura is null || factura.Estado == "Autorizado")
+        if (factura is null) return;
+        await dbContext.Entry(factura).ReloadAsync(cancellationToken);
+        if (factura.Estado == FacturaEstado.AUTORIZADO)
         {
+            await quotaValidationService.ConfirmarFacturaAutorizadaAsync(factura.EmpresaId, factura.Id, cancellationToken);
             return;
         }
 
-        foreach (var detalle in factura.Detalles)
-        {
-            var producto = await dbContext.Productos
-                .FirstOrDefaultAsync(current => current.Id == detalle.ProductoId, cancellationToken)
-                ?? throw new InvalidOperationException("No se encontro un producto de la factura al intentar descargar inventario.");
+        EnsureStableClaveAcceso(factura, claveAcceso);
 
-            await RegistrarSalidaPorFacturaAsync(
-                producto,
-                $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
-                detalle.Cantidad,
-                cancellationToken);
-        }
+        await ApplyInventoryIfNeededAsync(factura, "Factura autorizada", cancellationToken);
 
-        factura.Estado = "Autorizado";
+        factura.Estado = FacturaEstado.AUTORIZADO;
         factura.ClaveAcceso = claveAcceso;
         factura.NumeroAutorizacion = numeroAutorizacion;
         factura.XmlFirmado = xmlFirmado;
@@ -355,8 +865,9 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         factura.UpdatedAt = fechaRespuesta;
         factura.ProcessingNode = null;
         factura.ProcessingStartedAt = null;
+        factura.RetryCount = 0;
         factura.NextRetryAt = null;
-        factura.EventosSri.Add(new FacturaSriEventoEntity
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
             FacturaId = factura.Id,
@@ -366,13 +877,106 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        await quotaValidationService.ConfirmarFacturaAutorizadaAsync(factura.EmpresaId, factura.Id, cancellationToken);
+    }
+
+    public async Task MarkFacturaAsSignedPendingAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string xmlFirmado,
+        string mensaje,
+        string? auditoriaJson,
+        TimeSpan? retryDelay,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default)
+    {
+        var factura = await dbContext.Set<FacturaEntity>()
+            .Include(current => current.Detalles)
+            .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
+
+        if (factura is null)
+        {
+            return;
+        }
+
+        EnsureStableClaveAcceso(factura, claveAcceso);
+        await ApplyInventoryIfNeededAsync(factura, "Factura pendiente", cancellationToken);
+
+        factura.Estado = FacturaEstado.PENDIENTE;
+        factura.ClaveAcceso = claveAcceso;
+        factura.XmlFirmado = xmlFirmado;
+        factura.MensajeEstado = mensaje;
+        factura.UpdatedAt = fechaRespuesta;
+        factura.ProcessingNode = null;
+        factura.ProcessingStartedAt = null;
+        factura.NextRetryAt = fechaRespuesta.Add(retryDelay ?? ComputeRetryDelay(factura.RetryCount));
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
+        {
+            Id = Guid.NewGuid(),
+            FacturaId = factura.Id,
+            Estado = factura.Estado,
+            Mensaje = ToAuditMessage(mensaje, auditoriaJson),
+            CreatedAt = fechaRespuesta
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task MarkFacturaAsRejectedAsync(
         Guid facturaId,
         string mensaje,
-        string xmlFirmado,
+        string? auditoriaJson,
+        string? xmlFirmado,
+        DateTimeOffset fechaRespuesta,
+        CancellationToken cancellationToken = default)
+    {
+        var empresa = await dbContext.Facturas.AsNoTracking().Where(x => x.Id == facturaId).Select(x => (Guid?)x.EmpresaId).SingleOrDefaultAsync(cancellationToken);
+        if (!empresa.HasValue) return;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        await quotaValidationService.BloquearCuotaAsync(empresa.Value, cancellationToken);
+        await MarkFacturaAsRejectedCoreAsync(facturaId, mensaje, auditoriaJson, xmlFirmado, fechaRespuesta, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task MarkFacturaAsRejectedCoreAsync(Guid facturaId, string mensaje, string? auditoriaJson,
+        string? xmlFirmado, DateTimeOffset fechaRespuesta, CancellationToken cancellationToken)
+    {
+        var factura = await dbContext.Set<FacturaEntity>()
+            .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
+
+        if (factura is null)
+        {
+            return;
+        }
+        await dbContext.Entry(factura).ReloadAsync(cancellationToken);
+        if (factura.Estado == FacturaEstado.AUTORIZADO) return;
+        factura.Estado = FacturaEstado.RECHAZADO;
+        factura.XmlFirmado = xmlFirmado;
+        factura.MensajeEstado = mensaje;
+        factura.UpdatedAt = fechaRespuesta;
+        factura.ProcessingNode = null;
+        factura.ProcessingStartedAt = null;
+        factura.RetryCount = 0;
+        factura.NextRetryAt = null;
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
+        {
+            Id = Guid.NewGuid(),
+            FacturaId = factura.Id,
+            Estado = factura.Estado,
+            Mensaje = ToAuditMessage(mensaje, auditoriaJson),
+            CreatedAt = fechaRespuesta
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await quotaValidationService.LiberarCupoFacturaAsync(factura.EmpresaId, factura.Id, cancellationToken);
+    }
+
+    public async Task MarkFacturaAsUnsignedAsync(
+        Guid facturaId,
+        string claveAcceso,
+        string mensaje,
+        string xmlGenerado,
         DateTimeOffset fechaRespuesta,
         CancellationToken cancellationToken = default)
     {
@@ -384,13 +988,19 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             return;
         }
 
-        factura.Estado = "Rechazado";
-        factura.XmlFirmado = xmlFirmado;
+        EnsureStableClaveAcceso(factura, claveAcceso);
+
+        factura.Estado = FacturaEstado.NO_FIRMADO;
+        factura.ClaveAcceso = claveAcceso;
+        factura.XmlGenerado = xmlGenerado;
+        factura.XmlFirmado = null;
         factura.MensajeEstado = mensaje;
         factura.UpdatedAt = fechaRespuesta;
         factura.ProcessingNode = null;
         factura.ProcessingStartedAt = null;
-        factura.EventosSri.Add(new FacturaSriEventoEntity
+        factura.RetryCount = 0;
+        factura.NextRetryAt = DateTimeOffset.MaxValue;
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
             FacturaId = factura.Id,
@@ -405,72 +1015,224 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     public async Task MarkFacturaAsErrorAsync(
         Guid facturaId,
         string mensaje,
-        DateTimeOffset nextRetryAt,
+        string? auditoriaJson,
         CancellationToken cancellationToken = default)
     {
+        // Descartar estados del intento fallido antes de persistir su diagnóstico.
+        dbContext.ChangeTracker.Clear();
         var factura = await dbContext.Set<FacturaEntity>()
             .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
 
-        if (factura is null)
+        if (factura is null || factura.Estado.IsFinal())
         {
             return;
         }
 
-        factura.Estado = "Error";
         factura.MensajeEstado = mensaje;
         factura.UpdatedAt = DateTimeOffset.UtcNow;
+        factura.Estado = string.IsNullOrWhiteSpace(factura.XmlFirmado) ? FacturaEstado.NO_FIRMADO : FacturaEstado.PENDIENTE;
         factura.ProcessingNode = null;
         factura.ProcessingStartedAt = null;
-        factura.NextRetryAt = nextRetryAt;
-        factura.EventosSri.Add(new FacturaSriEventoEntity
+        factura.NextRetryAt = DateTimeOffset.UtcNow.Add(ComputeRetryDelay(factura.RetryCount));
+        dbContext.FacturaSriEventos.Add(new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
             FacturaId = factura.Id,
             Estado = factura.Estado,
-            Mensaje = mensaje,
+            Mensaje = ToAuditMessage(mensaje, auditoriaJson),
             CreatedAt = DateTimeOffset.UtcNow
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task RegistrarSalidaPorFacturaAsync(
-        ProductoEntity producto,
-        string referenciaFactura,
-        decimal cantidad,
+    private async Task ApplyInventoryIfNeededAsync(
+        FacturaEntity factura,
+        string concepto,
         CancellationToken cancellationToken)
     {
-        if (producto.StockActual < cantidad)
+        if (factura.InventarioAplicado)
         {
-            throw new InvalidOperationException($"No existe stock suficiente para {producto.Nombre} durante la autorizacion.");
+            return;
         }
 
-        producto.StockActual -= cantidad;
-        producto.UpdatedAt = DateTimeOffset.UtcNow;
+        await inventarioRepository.DescontarStockPorFacturaAsync(
+            factura.Id,
+            factura.BodegaId,
+            $"{factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}",
+            concepto,
+            factura.Detalles
+                .Select(detalle => (detalle.ProductoId, detalle.Cantidad, CostoHistoricoUnitario: (decimal?)detalle.CostoHistoricoUnitario))
+                .ToArray(),
+            cancellationToken);
 
-        dbContext.KardexMovimientos.Add(new KardexMovimientoEntity
+        var inventoryAppliedAt = DateTimeOffset.UtcNow;
+        var facturaEntry = dbContext.Entry(factura);
+        if (facturaEntry.State != EntityState.Detached)
+        {
+            factura.InventarioAplicado = true;
+            factura.InventarioAplicadoAt = inventoryAppliedAt;
+            factura.UpdatedAt = inventoryAppliedAt;
+        }
+        else
+        {
+            await dbContext.Set<FacturaEntity>()
+                .Where(current => current.Id == factura.Id && !current.InventarioAplicado)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(current => current.InventarioAplicado, true)
+                    .SetProperty(current => current.InventarioAplicadoAt, inventoryAppliedAt)
+                    .SetProperty(current => current.UpdatedAt, inventoryAppliedAt),
+                    cancellationToken);
+        }
+
+        var inventoryEvent = new FacturaSriEventoEntity
         {
             Id = Guid.NewGuid(),
-            ProductoId = producto.Id,
-            TipoMovimiento = "Salida",
-            Concepto = "Factura autorizada",
-            Referencia = referenciaFactura,
-            CantidadEntrada = 0,
-            CantidadSalida = cantidad,
-            SaldoCantidad = producto.StockActual,
-            CostoUnitario = producto.CostoPromedio,
-            CostoPromedio = producto.CostoPromedio,
-            SaldoValor = producto.StockActual * producto.CostoPromedio,
-            FechaMovimiento = DateTimeOffset.UtcNow
-        });
+            FacturaId = factura.Id,
+            Estado = factura.Estado,
+            Mensaje = $"Inventario transaccional aplicado. Referencia {factura.Establecimiento}-{factura.PuntoEmision}-{factura.Secuencial:000000000}.",
+            CreatedAt = inventoryAppliedAt
+        };
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        if (facturaEntry.State != EntityState.Detached)
+        {
+            dbContext.FacturaSriEventos.Add(inventoryEvent);
+        }
+        else
+        {
+            dbContext.FacturaSriEventos.Add(inventoryEvent);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
+        }
+    }
+
+    private async Task<string> BuildDisponibilidadAlternaMessageAsync(
+        Guid productoId,
+        Guid bodegaActualId,
+        decimal cantidadFaltante,
+        CancellationToken cancellationToken)
+    {
+        var alternativas = await dbContext.ProductosBodega
+            .AsNoTracking()
+            .Include(current => current.Bodega)
+            .Where(current =>
+                current.ProductoId == productoId &&
+                current.BodegaId != bodegaActualId &&
+                current.StockActual > 0 &&
+                current.Bodega.IsActive)
+            .OrderByDescending(current => current.StockActual)
+            .ThenBy(current => current.Bodega.Nombre)
+            .Take(3)
+            .Select(current => new
+            {
+                current.Bodega.Nombre,
+                current.StockActual
+            })
+            .ToArrayAsync(cancellationToken);
+
+        if (alternativas.Length == 0)
+        {
+            return " No existe disponibilidad en otras bodegas activas.";
+        }
+
+        var detalle = string.Join(
+            "; ",
+            alternativas.Select(current => $"{current.Nombre}: {current.StockActual:0.####}"));
+
+        return $" Faltante: {cantidadFaltante:0.####}. Disponible en otras bodegas: {detalle}. Registra una transferencia interna antes de facturar.";
+    }
+
+    private async Task EnsurePuntoEmisionAllowedForCurrentUserAsync(
+        Guid usuarioId,
+        Guid empresaId,
+        Guid puntoEmisionId,
+        CancellationToken cancellationToken)
+    {
+        var roles = await GetCurrentUserRolesAsync(cancellationToken);
+        if (roles.Contains(SecurityRoleNames.Administrador, StringComparer.OrdinalIgnoreCase) ||
+            !roles.Contains(SecurityRoleNames.Cajero, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var isAllowed = await dbContext.Set<SecurityUserPuntoEmisionEntity>()
+            .AsNoTracking()
+            .AnyAsync(current =>
+                current.SecurityUserId == usuarioId &&
+                current.EmpresaId == empresaId &&
+                current.EmpresaPuntoEmisionId == puntoEmisionId,
+                cancellationToken);
+
+        if (!isAllowed)
+        {
+            throw new InvalidOperationException("El cajero autenticado no tiene permiso para operar con el punto de emision seleccionado.");
+        }
+    }
+
+    private async Task<IReadOnlyCollection<string>> GetCurrentUserRolesAsync(CancellationToken cancellationToken)
+    {
+        var usuarioId = tenantContextAccessor.UserId;
+        if (!usuarioId.HasValue)
+        {
+            return Array.Empty<string>();
+        }
+
+        return await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(current => current.Id == usuarioId.Value)
+            .SelectMany(current => current.UserRoles.Select(userRole => userRole.Role.Name))
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
+    private async Task EnsureOperadoresAllowedForActiveEmpresaAsync(
+        IReadOnlyCollection<Guid> operadorIds,
+        Guid empresaId,
+        CancellationToken cancellationToken)
+    {
+        if (operadorIds.Count == 0)
+        {
+            return;
+        }
+
+        var operadoresValidos = await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(usuario =>
+                operadorIds.Contains(usuario.Id) &&
+                usuario.IsActive &&
+                !usuario.BloqueadoManualmente &&
+                (usuario.BloqueadoHasta == null || usuario.BloqueadoHasta <= DateTimeOffset.UtcNow) &&
+                (usuario.EmpresaId == empresaId || usuario.EmpresasAcceso.Any(acceso => acceso.EmpresaId == empresaId)))
+            .Select(usuario => usuario.Id)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        if (operadoresValidos.Length != operadorIds.Count)
+        {
+            throw new InvalidOperationException("Uno o varios operadores seleccionados no pertenecen a la empresa activa o no estan disponibles.");
+        }
+    }
+
+    private static string ToAuditMessage(string mensaje, string? auditoriaJson)
+    {
+        return string.IsNullOrWhiteSpace(auditoriaJson) ? mensaje : $"{mensaje}\n{auditoriaJson}";
+    }
+
+    private static TimeSpan ComputeRetryDelay(int retryCount)
+    {
+        var safeRetryCount = Math.Max(1, retryCount);
+        var exponent = Math.Min(safeRetryCount - 1, 6);
+        var delaySeconds = 15 * Math.Pow(2, exponent);
+        var boundedDelaySeconds = Math.Min(delaySeconds, MaxRetryDelayMinutes * 60);
+        return TimeSpan.FromSeconds(boundedDelaySeconds);
     }
 
     private static Factura MapDomain(FacturaEntity entity)
     {
         return new Factura(
             entity.Id,
+            entity.EmpresaId,
             entity.Secuencial,
             entity.Establecimiento,
             entity.PuntoEmision,
@@ -507,6 +1269,8 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             entity.ClaveAcceso,
             entity.NumeroAutorizacion,
             entity.MensajeEstado,
+            entity.XmlGenerado,
+            entity.XmlFirmado,
             entity.FechaEmision,
             entity.FechaAutorizacion,
             entity.Detalles.Select(detalle => new FacturaDetalle(
@@ -519,6 +1283,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
                 detalle.PorcentajeIva,
                 detalle.Cantidad,
                 detalle.PrecioUnitario,
+                detalle.Descuento,
                 detalle.Subtotal,
                 detalle.IvaValor,
                 detalle.Total)).ToArray());
@@ -536,13 +1301,15 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             ClienteTipoIdentificacion = entity.ClienteTipoIdentificacion,
             ClienteNombre = entity.ClienteNombre,
             FormaPago = entity.FormaPago,
-            Estado = entity.Estado,
+            Estado = entity.Estado.ToApiValue(),
             Subtotal = entity.Subtotal,
             IvaTotal = entity.IvaTotal,
             Total = entity.Total,
             ClaveAcceso = entity.ClaveAcceso,
             NumeroAutorizacion = entity.NumeroAutorizacion,
             MensajeEstado = entity.MensajeEstado,
+            TieneXmlGenerado = !string.IsNullOrWhiteSpace(entity.XmlGenerado),
+            TieneXmlFirmado = !string.IsNullOrWhiteSpace(entity.XmlFirmado),
             FechaEmision = entity.FechaEmision,
             FechaAutorizacion = entity.FechaAutorizacion
         };
@@ -553,47 +1320,155 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    private static decimal? NormalizeMoney(decimal? value)
+    {
+        return value.HasValue ? Math.Round(value.Value, 2, MidpointRounding.AwayFromZero) : null;
+    }
+
+    private static void ValidateCashSettlement(EmitirFacturaRequest request, string formaPagoCodigo, decimal totalFactura)
+    {
+        if (!string.Equals(formaPagoCodigo, SriCatalogCodes.FormaPagoEfectivo, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var montoRecibido = NormalizeMoney(request.MontoRecibido) ?? 0m;
+        var vueltoEntregado = NormalizeMoney(request.VueltoEntregado) ?? 0m;
+        var vueltoEsperado = Math.Round(montoRecibido - totalFactura, 2, MidpointRounding.AwayFromZero);
+
+        if (montoRecibido < totalFactura)
+        {
+            throw new InvalidOperationException($"El efectivo recibido ({montoRecibido:0.00}) no cubre el total de la factura ({totalFactura:0.00}).");
+        }
+
+        if (vueltoEsperado < 0)
+        {
+            throw new InvalidOperationException("El vuelto calculado no puede ser negativo.");
+        }
+
+        if (Math.Abs(vueltoEsperado - vueltoEntregado) > 0.01m)
+        {
+            throw new InvalidOperationException($"El vuelto entregado debe ser {vueltoEsperado:0.00} para cuadrar el efectivo recibido.");
+        }
+    }
+
+    private static void EnsureStableClaveAcceso(FacturaEntity factura, string claveAcceso)
+    {
+        if (!string.IsNullOrWhiteSpace(factura.ClaveAcceso) &&
+            !string.Equals(factura.ClaveAcceso, claveAcceso, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"La factura {factura.Id} ya fue registrada con la clave de acceso {factura.ClaveAcceso} y no puede continuar con una clave distinta ({claveAcceso}).");
+        }
+    }
+
     private static string MapClienteTipoIdentificacionSri(string? tipoIdentificacion)
     {
-        var normalized = NormalizeOptional(tipoIdentificacion)?.ToUpperInvariant();
-
-        return normalized switch
-        {
-            "RUC" => "04",
-            "CEDULA" => "05",
-            "CÉDULA" => "05",
-            "PASAPORTE" => "06",
-            "CONSUMIDOR FINAL" => "07",
-            "IDENTIFICACION DEL EXTERIOR" => "08",
-            "IDENTIFICACIÓN DEL EXTERIOR" => "08",
-            "PLACA" => "09",
-            _ => throw new InvalidOperationException("El cliente no tiene un tipo de identificacion compatible con la ficha tecnica del SRI.")
-        };
+        return SriCatalogCodes.NormalizeTipoIdentificacionCode(tipoIdentificacion)
+            ?? throw new InvalidOperationException("El cliente no tiene un tipo de identificacion compatible con la ficha tecnica del SRI.");
     }
 
     private static string MapFormaPagoSriCodigo(string formaPago)
     {
-        var normalized = formaPago.Trim().ToUpperInvariant();
+        return SriCatalogCodes.NormalizeFormaPagoCode(formaPago)
+            ?? throw new InvalidOperationException("La forma de pago seleccionada no esta mapeada a un codigo SRI valido.");
+    }
+
+    private static FacturaEstado? TryParseFacturaEstado(string? estado)
+    {
+        if (string.IsNullOrWhiteSpace(estado))
+        {
+            return null;
+        }
+
+        var normalized = estado.Trim().Replace("-", "_", StringComparison.Ordinal).Replace(" ", "_", StringComparison.Ordinal).ToUpperInvariant();
 
         return normalized switch
         {
-            "EFECTIVO" => "01",
-            "COMPENSACION" => "15",
-            "COMPENSACIÓN" => "15",
-            "TARJETA DE DEBITO" => "16",
-            "TARJETA DE DÉBITO" => "16",
-            "DINERO ELECTRONICO" => "17",
-            "DINERO ELECTRÓNICO" => "17",
-            "TARJETA PREPAGO" => "18",
-            "TARJETA" => "19",
-            "TARJETA DE CREDITO" => "19",
-            "TARJETA DE CRÉDITO" => "19",
-            "TRANSFERENCIA" => "20",
-            "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO" => "20",
-            "OTROS CON UTILIZACIÓN DEL SISTEMA FINANCIERO" => "20",
-            "ENDOSO DE TITULOS" => "21",
-            "ENDOSO DE TÍTULOS" => "21",
-            _ => throw new InvalidOperationException("La forma de pago seleccionada no esta mapeada a un codigo SRI valido.")
+            "GENERADO" or "FIRMADO" or "NO_FIRMADO" => FacturaEstado.NO_FIRMADO,
+            "EN_PROCESO" or "RECIBIDO" or "PENDIENTE" => FacturaEstado.PENDIENTE,
+            "AUTORIZADO" => FacturaEstado.AUTORIZADO,
+            "DEVUELTA" or "NO_AUTORIZADO" or "RECHAZADO" or "ERROR" => FacturaEstado.RECHAZADO,
+            _ when Enum.TryParse<FacturaEstado>(normalized, ignoreCase: true, out var parsed) => parsed,
+            _ => null
         };
+    }
+
+    private async Task<long> ReserveNextSecuencialAsync(
+        Guid empresaId,
+        string ambiente,
+        string codigoDocumento,
+        string establecimiento,
+        string puntoEmision,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        return await SriNumeracionAllocator.ReserveAsync(dbContext, empresaId,
+            ClaveAccesoService.GetAmbienteCode(ambiente), codigoDocumento, establecimiento, puntoEmision, cancellationToken);
+    }
+
+    private async Task<Guid> ResolvePrincipalBodegaIdAsync(CancellationToken cancellationToken)
+    {
+        var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para resolver la bodega principal.");
+
+        var bodegaId = await dbContext.Bodegas
+            .AsNoTracking()
+            .Where(current => current.EmpresaId == empresaId && current.Nombre == PrincipalBodegaName && current.IsActive)
+            .Select(current => current.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (bodegaId == Guid.Empty)
+        {
+            throw new InvalidOperationException("No existe una bodega principal configurada para la empresa activa.");
+        }
+
+        return bodegaId;
+    }
+
+
+    private static decimal CalculateServiceCommission(ProductoEntity producto, Guid? usuarioIdOperador, decimal subtotal, decimal cantidad)
+    {
+        if (producto.ControlaStock)
+        {
+            return 0m;
+        }
+
+        if (!usuarioIdOperador.HasValue || usuarioIdOperador.Value == Guid.Empty)
+        {
+            throw new InvalidOperationException($"Debe asignar un operador para el servicio {producto.Nombre}.");
+        }
+
+        if (!producto.AplicaComision)
+        {
+            return 0m;
+        }
+
+        var valorComision = producto.ValorComision ?? 0m;
+        var tipoComision = producto.TipoComision ?? string.Empty;
+        var monto = tipoComision.Equals("Porcentaje", StringComparison.OrdinalIgnoreCase)
+            ? subtotal * (valorComision / 100m)
+            : valorComision * cantidad;
+
+        return Math.Round(monto, 2, MidpointRounding.AwayFromZero);
+    }
+    private async Task<Guid> ResolveOperationalBodegaIdAsync(Guid? requestedBodegaId, CancellationToken cancellationToken)
+    {
+        if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)
+        {
+            var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para resolver la bodega operativa.");
+            var bodega = await dbContext.Bodegas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(current => current.Id == requestedBodegaId.Value && current.EmpresaId == empresaId, cancellationToken)
+                ?? throw new InvalidOperationException("La bodega seleccionada no pertenece a la empresa activa.");
+
+            if (!bodega.IsActive)
+            {
+                throw new InvalidOperationException("La bodega seleccionada no se encuentra activa.");
+            }
+
+            return bodega.Id;
+        }
+
+        return await ResolvePrincipalBodegaIdAsync(cancellationToken);
     }
 }

@@ -1,0 +1,32 @@
+@using TestDeIa.Shared.Responses.Contabilidad
+
+<li class="plan-node level-@Cuenta.Nivel">
+    <div class="plan-node-row @(Cuenta.EsAceptable ? "is-aceptable" : "is-group")">
+        <div class="plan-node-main">
+            <span class="plan-node-code">@Cuenta.Codigo</span>
+            <span class="plan-node-name">@Cuenta.Nombre</span>
+        </div>
+        <div class="plan-node-meta">
+            <span class="plan-node-type">@Cuenta.TipoCuenta</span>
+            @if (Cuenta.EsAceptable)
+            {
+                <span class="plan-saldo-badge">Saldo @Cuenta.SaldoActual.ToString("0.00")</span>
+            }
+        </div>
+    </div>
+
+    @if (Cuenta.Hijos.Count > 0)
+    {
+        <ul class="plan-tree-children">
+            @foreach (var hijo in Cuenta.Hijos)
+            {
+                <PlanCuentaNode Cuenta="hijo" />
+            }
+        </ul>
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public CuentaContableResponse Cuenta { get; set; } = default!;
+}

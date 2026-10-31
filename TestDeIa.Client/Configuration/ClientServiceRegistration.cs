@@ -1,0 +1,91 @@
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using TestDeIa.Client.Options;
+using TestDeIa.Client.Security;
+using TestDeIa.Client.Services;
+using TestDeIa.Client.Services.ActivosFijos;
+using TestDeIa.Client.Services.Caja;
+using TestDeIa.Client.Services.Catalogos;
+using TestDeIa.Client.Services.Clientes;
+using TestDeIa.Client.Services.Compras;
+using TestDeIa.Client.Services.Contabilidad;
+using TestDeIa.Client.Services.Dashboard;
+using TestDeIa.Client.Services.Empleados;
+using TestDeIa.Client.Services.Empresa;
+using TestDeIa.Client.Services.Facturacion;
+using TestDeIa.Client.Services.Financiero;
+using TestDeIa.Client.Services.Geografia;
+using TestDeIa.Client.Services.Inventario;
+using TestDeIa.Client.Services.Integraciones;
+using TestDeIa.Client.Services.OfflinePos;
+using TestDeIa.Client.Services.Personas;
+using TestDeIa.Client.Services.Proformas;
+using TestDeIa.Client.Services.Reporteria;
+using TestDeIa.Client.Services.Retenciones;
+using TestDeIa.Client.Services.Saas;
+using TestDeIa.Client.Services.Sri;
+using TestDeIa.Client.Services.Tesoreria;
+using TestDeIa.Client.Services.XmlSri;
+
+namespace TestDeIa.Client.Configuration;
+
+public static class ClientServiceRegistration
+{
+    public static IServiceCollection AddClientComposition(this IServiceCollection services, WebAssemblyHostConfiguration configuration)
+    {
+        var apiOptions = configuration.GetSection("Api").Get<ApiOptions>() ?? new ApiOptions();
+
+        services.AddAuthorizationCore(AuthorizationPolicyRegistration.Register);
+        services.AddScoped<TokenStorageService>();
+        services.AddScoped<PopupNotificationService>();
+        services.AddScoped<EmpresaSessionService>();
+        services.AddScoped<TokenAuthenticationStateProvider>();
+        services.AddScoped<AuthenticationStateProvider>(provider =>
+            provider.GetRequiredService<TokenAuthenticationStateProvider>());
+        services.AddScoped<AuthenticationHeaderHandler>();
+        services.AddScoped<SubscriptionResponseHandler>();
+        services.AddHttpClient("PublicApi", client => client.BaseAddress = new Uri(apiOptions.BaseUrl));
+        services.AddScoped(provider => new PublicTenantApiClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PublicApi")));
+        services.AddHttpClient("Api", client =>
+        {
+            client.BaseAddress = new Uri(apiOptions.BaseUrl);
+        })
+        .AddHttpMessageHandler<AuthenticationHeaderHandler>()
+        .AddHttpMessageHandler<SubscriptionResponseHandler>();
+
+        services.AddScoped(provider => provider.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
+        services.AddScoped<SecurityApiClient>();
+        services.AddScoped<CatalogosApiClient>();
+        services.AddScoped<CajaApiClient>();
+        services.AddScoped<ActivosFijosApiClient>();
+        services.AddScoped<ClientesApiClient>();
+        services.AddScoped<ComprasApiClient>();
+        services.AddScoped<ContabilidadApiClient>();
+        services.AddScoped<EstudioMercadoApiClient>();
+        services.AddScoped<CuentasPorPagarApiClient>();
+        services.AddScoped<DashboardApiClient>();
+        services.AddScoped<ProveedoresApiClient>();
+        services.AddScoped<EmpleadosApiClient>();
+        services.AddScoped<EmpresaApiClient>();
+        services.AddScoped<CertificadosDigitalesApiClient>();
+        services.AddScoped<FacturacionApiClient>();
+        services.AddScoped<FinancieroApiClient>();
+        services.AddScoped<GeografiaApiClient>();
+        services.AddScoped<PersonasApiClient>();
+        services.AddScoped<ProformasApiClient>();
+        services.AddScoped<ReporteriaVentasApiClient>();
+        services.AddScoped<RetencionesApiClient>();
+        services.AddScoped<InventarioApiClient>();
+        services.AddScoped<WhatsAppApiClient>();
+        services.AddScoped<PagosDigitalesApiClient>();
+        services.AddScoped<OfflinePosStorageService>();
+        services.AddScoped<PosOfflineApiClient>();
+        services.AddScoped<XmlComprasApiClient>();
+        services.AddScoped<TesoreriaApiClient>();
+        services.AddScoped<SriCatalogosApiClient>();
+        services.AddScoped<SaasApiClient>();
+        services.AddScoped<SaasBillingApiClient>();
+
+        return services;
+    }
+}

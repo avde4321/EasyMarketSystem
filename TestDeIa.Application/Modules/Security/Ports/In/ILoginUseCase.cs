@@ -5,5 +5,5 @@ namespace TestDeIa.Application.Modules.Security.Ports.In;
 
 public interface ILoginUseCase
 {
-    Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+    Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, CancellationToken cancellationToken = default);
 }

@@ -1,8 +1,9 @@
 namespace TestDeIa.Infrastructure.Persistence.Entities;
 
-public sealed class FacturaEntity
+public sealed class FacturaEntity : ITenantEntity
 {
     public Guid Id { get; set; }
+    public Guid EmpresaId { get; set; }
 
     public long Secuencial { get; set; }
 
@@ -11,6 +12,12 @@ public sealed class FacturaEntity
     public string PuntoEmision { get; set; } = string.Empty;
 
     public Guid ClienteId { get; set; }
+
+    public Guid BodegaId { get; set; }
+
+    public Guid UsuarioId { get; set; }
+
+    public Guid? CajaSesionId { get; set; }
 
     public Guid? EmpresaEmisoraId { get; set; }
 
@@ -52,7 +59,7 @@ public sealed class FacturaEntity
 
     public string FormaPagoSriCodigo { get; set; } = string.Empty;
 
-    public string Estado { get; set; } = string.Empty;
+    public TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado Estado { get; set; }
 
     public decimal Subtotal { get; set; }
 
@@ -70,13 +77,19 @@ public sealed class FacturaEntity
 
     public decimal Total { get; set; }
 
+    public decimal? MontoRecibido { get; set; }
+
+    public decimal? VueltoEntregado { get; set; }
+
     public string? Observacion { get; set; }
 
-    public string? ClaveAcceso { get; set; }
+    public string ClaveAcceso { get; set; } = string.Empty;
 
     public string? NumeroAutorizacion { get; set; }
 
     public string? MensajeEstado { get; set; }
+
+    public string? XmlGenerado { get; set; }
 
     public string? XmlFirmado { get; set; }
 
@@ -96,7 +109,9 @@ public sealed class FacturaEntity
 
     public DateTimeOffset? NextRetryAt { get; set; }
 
-    public byte[] RowVersion { get; set; } = [];
+    public bool InventarioAplicado { get; set; }
+
+    public DateTimeOffset? InventarioAplicadoAt { get; set; }
 
     public ICollection<FacturaDetalleEntity> Detalles { get; set; } = [];
 

@@ -1,0 +1,118 @@
+@page "/contabilidad/libro-diario"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using Microsoft.AspNetCore.Authorization
+@using TestDeIa.Client.Services.Contabilidad
+@using TestDeIa.Shared.Responses.Contabilidad
+@using TestDeIa.Shared.Security
+@inject ContabilidadApiClient ContabilidadApiClient
+
+<PageTitle>Libro Diario</PageTitle>
+
+<section class="module-page financial-page">
+    <header class="module-header">
+        <div>
+            <h1>Libro Diario</h1>
+            <p>Asientos posteados ordenados cronológicamente por empresa activa.</p>
+        </div>
+        <button class="primary-action rounded-xl-button" type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Consultando..." : "Consultar")
+        </button>
+    </header>
+
+    <section class="form-card financial-filters">
+        <label>
+            Desde
+            <InputDate class="soft-input" @bind-Value="desde" />
+        </label>
+        <label>
+            Hasta
+            <InputDate class="soft-input" @bind-Value="hasta" />
+        </label>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+
+    <section class="table-card">
+        <header class="section-header compact-section-header">
+            <div>
+                <h2>Movimientos oficiales</h2>
+                <p>Incluye documento soporte SRI, cuenta, debe y haber.</p>
+            </div>
+            <div class="summary-pill"><span>Total líneas</span><strong>@lineas.Count</strong></div>
+        </header>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Asiento</th>
+                        <th>Cuenta</th>
+                        <th>Detalle / concepto</th>
+                        <th>Documento SRI</th>
+                        <th class="amount-cell">Debe</th>
+                        <th class="amount-cell">Haber</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="7" class="empty-state">Cargando libro diario...</td></tr>
+                    }
+                    else if (lineas.Count == 0)
+                    {
+                        <tr><td colspan="7" class="empty-state">No existen asientos posteados en el rango seleccionado.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var linea in lineas)
+                        {
+                            <tr>
+                                <td>@linea.FechaContable.ToString("dd/MM/yyyy")</td>
+                                <td>@linea.NumeroAsiento</td>
+                                <td><strong>@linea.CuentaCodigo</strong> @linea.CuentaNombre</td>
+                                <td>@linea.Concepto</td>
+                                <td>@(linea.DocumentoSoporte ?? "—")</td>
+                                <td class="amount-cell">@linea.Debe.ToString("N2")</td>
+                                <td class="amount-cell">@linea.Haber.ToString("N2")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+
+@code {
+    private readonly List<LibroDiarioLineaResponse> lineas = [];
+    private DateTime desde = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime hasta = DateTime.Today;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            lineas.Clear();
+            lineas.AddRange(await ContabilidadApiClient.GetLibroDiarioAsync(desde, hasta));
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No se pudo consultar el libro diario.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,138 @@
+.subscription-shell {
+    min-height: calc(100vh - 3rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, #eef8ff 0%, #fff8ec 100%);
+}
+
+.subscription-card {
+    width: min(1120px, 100%);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #d6e8f6;
+    border-radius: 28px;
+    padding: 2rem;
+    box-shadow: 0 24px 70px rgba(15, 60, 95, 0.14);
+}
+
+.subscription-eyebrow {
+    color: #0f9f9a;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.subscription-card h1 {
+    color: #0b3557;
+    margin: 0.5rem 0;
+}
+
+.subscription-card p {
+    color: #536b85;
+    max-width: 760px;
+    line-height: 1.55;
+}
+
+.plans-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.plan-card {
+    border: 1px solid #d9e8f2;
+    border-radius: 22px;
+    padding: 1.25rem;
+    background: #f8fcff;
+}
+
+.plan-card h2 {
+    color: #073a61;
+    margin: 0 0 0.5rem;
+}
+
+.plan-price {
+    color: #0f9f9a;
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+}
+
+.plan-card ul {
+    color: #46617c;
+    padding-left: 1.1rem;
+    min-height: 150px;
+}
+
+.plan-action,
+.primary-action,
+.secondary-action {
+    border: 0;
+    border-radius: 18px;
+    padding: 0.85rem 1.25rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.plan-action,
+.primary-action {
+    color: white;
+    background: linear-gradient(135deg, #15aaa3, #39b8a8);
+}
+
+.secondary-action {
+    color: #0b4269;
+    background: #eef8ff;
+    border: 1px solid #cfe3f0;
+}
+
+.subscription-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.subscription-loading,
+.subscription-error {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-radius: 18px;
+    background: #eef8ff;
+    color: #0b4269;
+}
+
+.subscription-error {
+    background: #fff1f1;
+    color: #9c2f2f;
+}
+
+.portal-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.portal-header > div { flex: 1; min-width: min(100%, 260px); }
+.selected-plan { border-color: #159b95 !important; box-shadow: 0 0 0 2px #159b9526; }
+.plan-card { display: flex; flex-direction: column; }
+.plan-action { margin-top: auto; }
+.pending-payment { padding: 1.3rem; border: 1px solid #efd89d; border-radius: 1.2rem; background: #fff8e6; margin: 1.3rem 0; }
+.pending-badge { display: inline-block; padding: .4rem .75rem; border-radius: 2rem; background: #ffedba; color: #815b12; font-weight: 700; }
+.pending-detail { display: grid; gap: .4rem; padding-top: .8rem; margin-top: .8rem; border-top: 1px solid #efd89d; overflow-wrap: anywhere; }
+.subscription-active { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1.2rem; border-radius: 1rem; background: #e4f7ee; color: #18644f; }
+.payment-methods { border-top: 1px solid #d9e8f2; padding-top: 1.5rem; }
+.method-buttons { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+.small-note, .payment-methods small { font-size: .88rem; color: #627991; }
+.billing-modal { width: min(680px, 94vw); max-height: 90vh; overflow-y: auto; }
+.billing-modal fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
+.billing-modal .form-field { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.billing-modal .modal-actions { display: flex; flex-wrap: wrap; gap: .8rem; justify-content: flex-end; }
+.billing-modal ::deep .form-control { width: 100%; }
+.billing-modal ::deep .validation-message, .billing-modal ::deep .validation-errors { color: #a03039; }
+.subscription-actions a, .subscription-active a { text-decoration: none; }
+button:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 640px) {
+    .subscription-shell { padding: .5rem; }
+    .subscription-card { padding: 1rem; }
+    .subscription-actions { flex-wrap: wrap; }
+    .plans-grid { grid-template-columns: 1fr; }
+    .method-buttons > *, .subscription-actions > * { flex: 1 1 100%; text-align: center; }
+}

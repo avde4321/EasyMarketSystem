@@ -1,0 +1,58 @@
+.product-maintenance-page .product-modal-card {
+    max-width: 980px;
+}
+
+.product-maintenance-page .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.product-maintenance-page .form-field {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.product-maintenance-page .form-field-wide {
+    grid-column: 1 / -1;
+}
+
+.product-maintenance-page .switch-field {
+    align-content: end;
+}
+
+.product-maintenance-page .switch-field label {
+    min-height: 3.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(73, 194, 211, 0.24);
+    border-radius: 16px;
+    background: rgba(236, 247, 252, 0.78);
+}
+
+.product-maintenance-page .modal-message {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 16px;
+    color: #8a4f15;
+    background: rgba(255, 233, 186, 0.7);
+    border: 1px solid rgba(230, 171, 72, 0.25);
+}
+
+.product-maintenance-page .status-muted {
+    background: rgba(220, 226, 233, 0.7);
+    color: #61758b;
+}
+
+.product-maintenance-page .status-activo-fijo {
+    background: rgba(229, 221, 255, 0.72);
+    color: #5a4e92;
+}
+
+@media (max-width: 760px) {
+    .product-maintenance-page .form-grid {
+        grid-template-columns: 1fr;
+    }
+}

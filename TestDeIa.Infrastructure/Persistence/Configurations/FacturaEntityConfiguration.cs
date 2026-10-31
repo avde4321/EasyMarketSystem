@@ -12,8 +12,11 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
 
         builder.HasKey(factura => factura.Id);
 
+        builder.Property(factura => factura.EmpresaId)
+            .IsRequired();
+
         builder.Property(factura => factura.Secuencial)
-            .UseIdentityColumn();
+            .IsRequired();
 
         builder.Property(factura => factura.Establecimiento)
             .HasMaxLength(3)
@@ -70,6 +73,12 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasMaxLength(300)
             .IsRequired();
 
+        builder.Property(factura => factura.BodegaId)
+            .IsRequired();
+
+        builder.Property(factura => factura.UsuarioId)
+            .IsRequired();
+
         builder.Property(factura => factura.ClienteDireccion)
             .HasMaxLength(300);
 
@@ -88,6 +97,7 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .IsRequired();
 
         builder.Property(factura => factura.Estado)
+            .HasConversion<string>()
             .HasMaxLength(30)
             .IsRequired();
 
@@ -95,13 +105,17 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
             .HasMaxLength(300);
 
         builder.Property(factura => factura.ClaveAcceso)
-            .HasMaxLength(80);
+            .HasMaxLength(49)
+            .IsRequired();
 
         builder.Property(factura => factura.NumeroAutorizacion)
             .HasMaxLength(80);
 
         builder.Property(factura => factura.MensajeEstado)
-            .HasMaxLength(400);
+            .HasColumnType("nvarchar(max)");
+
+        builder.Property(factura => factura.XmlGenerado)
+            .HasColumnType("nvarchar(max)");
 
         builder.Property(factura => factura.XmlFirmado)
             .HasColumnType("nvarchar(max)");
@@ -114,16 +128,36 @@ public sealed class FacturaEntityConfiguration : IEntityTypeConfiguration<Factur
         builder.Property(factura => factura.SubtotalIva15).HasPrecision(18, 2);
         builder.Property(factura => factura.IvaTotal).HasPrecision(18, 2);
         builder.Property(factura => factura.Total).HasPrecision(18, 2);
+        builder.Property(factura => factura.MontoRecibido).HasPrecision(18, 2);
+        builder.Property(factura => factura.VueltoEntregado).HasPrecision(18, 2);
 
         builder.Property(factura => factura.ProcessingNode)
             .HasMaxLength(100);
 
-        builder.Property(factura => factura.RowVersion)
-            .IsRowVersion();
+        builder.Property(factura => factura.InventarioAplicado)
+            .HasDefaultValue(false);
 
-        builder.HasIndex(factura => new { factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.AmbienteSri, factura.Establecimiento, factura.PuntoEmision, factura.Secuencial })
             .IsUnique();
 
-        builder.HasIndex(factura => new { factura.Estado, factura.CreatedAt });
+        builder.HasOne<BodegaEntity>()
+            .WithMany()
+            .HasForeignKey(factura => factura.BodegaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<CajaSesionEntity>()
+            .WithMany()
+            .HasForeignKey(factura => factura.CajaSesionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.ClaveAcceso })
+            .IsUnique();
+
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.FechaEmision });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Estado });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Secuencial });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.ClienteId });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.Estado, factura.CreatedAt });
+        builder.HasIndex(factura => new { factura.EmpresaId, factura.CajaSesionId, factura.CreatedAt });
     }
 }

@@ -1,16 +1,20 @@
 @page "/facturacion/monitor"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.FacturacionMonitor)]
 @implements IAsyncDisposable
+
+<ProcessingOverlay IsVisible="@(isGeneratingNotaCredito || isLoadingNotaCreditoOrigen || busyFacturaId.HasValue)" Title="Procesando comprobante" Message="Espera hasta que termine la generación o descarga del documento." />
 
 <PageTitle>Monitor de Comprobantes</PageTitle>
 
+<ErrorBoundary>
+<ChildContent>
 <section class="module-page">
     <header class="module-header">
         <div>
             <h1>Monitor de Comprobantes</h1>
             <p>Seguimiento en tiempo real del estado de facturas ante el SRI.</p>
         </div>
-        <button class="secondary-action" @onclick="LoadMonitorAsync">Actualizar</button>
+        <button class="secondary-action" @onclick="() => LoadMonitorAsync()">Actualizar</button>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -19,52 +23,280 @@
     }
 
     <section class="table-card">
+        <div class="table-toolbar">
+            <InputText class="form-control search-control" @bind-Value="searchTerm" placeholder="Buscar por numero, cliente, identificacion, pago o estado..." />
+            <InputSelect class="form-control document-filter" @bind-Value="tipoDocumentoFiltro">
+                <option value="">Todos</option>
+                <option value="01">Facturas</option>
+                <option value="04">Notas de crédito</option>
+            </InputSelect>
+            <InputSelect class="form-control document-filter" @bind-Value="estadoSriFiltro">
+                <option value="">Todos los estados</option>
+                <option value="GENERADO">Generado/Firmado</option>
+                <option value="EN_PROCESO">En proceso</option>
+                <option value="AUTORIZADO">Autorizado</option>
+                <option value="NO_AUTORIZADO">Devuelta/No autorizado</option>
+            </InputSelect>
+            <label class="date-filter">
+                <span>Desde</span>
+                <input class="form-control" type="datetime-local" @bind="fechaDesde" />
+            </label>
+            <label class="date-filter">
+                <span>Hasta</span>
+                <input class="form-control" type="datetime-local" @bind="fechaHasta" />
+            </label>
+            <InputSelect class="form-control page-size-filter" @bind-Value="pageSize" @bind-Value:after="SearchAsync">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </InputSelect>
+            <button class="secondary-action" type="button" @onclick="SearchAsync">Buscar</button>
+            <button class="ghost-button" type="button" @onclick="() => LoadMonitorAsync()">Refrescar lista</button>
+        </div>
+        <div class="monitor-summary">
+            <span class="summary-chip">Total: @totalCount</span>
+            <span class="summary-chip summary-pending">Pendientes (página): @facturas.Count(factura => new[] { "PENDIENTE", "GENERADO", "NO_FIRMADO", "FIRMADO", "EN_PROCESO", "EN PROCESO" }.Contains(factura.Estado.ToUpperInvariant()))</span>
+            <span class="summary-chip summary-success">Autorizadas: @facturas.Count(factura => factura.Estado.Equals("Autorizado", StringComparison.OrdinalIgnoreCase))</span>
+            <span class="summary-chip">Notas crédito: @facturas.Count(factura => factura.TipoDocumentoId == "04")</span>
+        </div>
         @if (isLoading)
         {
-            <p><em>Cargando comprobantes...</em></p>
+            <div class="skeleton-list" aria-label="Cargando comprobantes">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+            </div>
         }
         else if (facturas.Count == 0)
         {
-            <div class="empty-state">Todavia no hay facturas emitidas.</div>
+            <div class="empty-state">No se encontraron comprobantes para los filtros seleccionados.</div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Numero</th>
-                        <th>Cliente</th>
-                        <th>Pago</th>
-                        <th>Estado</th>
-                        <th>Total</th>
-                        <th>Emision</th>
-                        <th>Autorizacion</th>
-                        <th>Mensaje</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var factura in facturas)
-                    {
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
                         <tr>
-                            <td>@factura.NumeroComprobante</td>
-                            <td>
-                                <strong>@factura.ClienteNombre</strong>
-                                <small>@factura.ClienteTipoIdentificacion</small>
-                                <small>@factura.ClienteIdentificacion</small>
-                            </td>
-                            <td>@factura.FormaPago</td>
-                            <td><span class="status-pill status-@factura.Estado.ToLowerInvariant()">@factura.Estado</span></td>
-                            <td>
-                                <strong>@factura.Total.ToString("0.00")</strong>
-                                <small>Sub: @factura.Subtotal.ToString("0.00") | IVA: @factura.IvaTotal.ToString("0.00")</small>
-                            </td>
-                            <td>@factura.FechaEmision.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                            <td>@(factura.FechaAutorizacion?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
-                            <td>@factura.MensajeEstado</td>
+                            <th>Numero</th>
+                            <th>Tipo</th>
+                            <th>Cliente</th>
+                            <th>Pago</th>
+                            <th>Estado</th>
+                            <th>Total</th>
+                            <th>Emision</th>
+                            <th>Autorizacion</th>
+                            <th>Mensaje</th>
+                            <th>Documentos</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var factura in VisibleFacturas)
+                        {
+                            <tr>
+                                <td data-label="Numero">@factura.NumeroComprobante</td>
+                                <td data-label="Tipo">
+                                    <span class="status-pill doc-type-@factura.TipoDocumentoId">@factura.TipoDocumentoNombre</span>
+                                </td>
+                                <td data-label="Cliente">
+                                    <strong>@factura.ClienteNombre</strong>
+                                    <small>@factura.ClienteTipoIdentificacion</small>
+                                    <small>@factura.ClienteIdentificacion</small>
+                                </td>
+                                <td data-label="Pago">@factura.FormaPago</td>
+                                <td data-label="Estado"><span class="status-pill @GetEstadoCssClass(factura.Estado)">@GetEstadoLabel(factura.Estado)</span></td>
+                                <td data-label="Total">
+                                    <strong>@FormatMoney(factura.Total)</strong>
+                                    <small>Sub: @FormatMoney(factura.Subtotal) | IVA: @FormatMoney(factura.IvaTotal)</small>
+                                </td>
+                                <td data-label="Emision">@FormatDate(factura.FechaEmision)</td>
+                                <td data-label="Autorizacion">@(factura.FechaAutorizacion.HasValue ? FormatDate(factura.FechaAutorizacion.Value) : "-")</td>
+                                <td data-label="Mensaje">
+                                    <button class="table-action message-eye-button" type="button"
+                                            title="Ver mensaje del comprobante" aria-label="Ver mensaje del comprobante"
+                                            disabled="@string.IsNullOrWhiteSpace(factura.MensajeEstado)"
+                                            @onclick="() => mensajeSeleccionado = factura">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    </button>
+                                </td>
+                                <td data-label="Documentos">
+                                    <div class="table-actions">
+                                        @if (factura.TipoDocumentoId == "01" && string.IsNullOrWhiteSpace(factura.NumeroAutorizacion))
+                                        {
+                                            <a class="table-action" href="@($"/facturacion/reprocesar/{factura.Id}")">Reprocesar</a>
+                                        }
+                                        <button class="table-action"
+                                                @onclick="() => DownloadXmlGeneradoAsync(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            @GetXmlGeneradoLabel(factura.Id)
+                                        </button>
+                                        <button class="table-action"
+                                                @onclick="() => DownloadXmlFirmadoAsync(factura)"
+                                                disabled="@(!factura.TieneXmlFirmado || IsBusyFor(factura.Id))">
+                                            @GetXmlFirmadoLabel(factura.Id)
+                                        </button>
+                                        <button class="table-action primary"
+                                                @onclick="() => DownloadRideAsync(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            @GetRideLabel(factura.Id)
+                                        </button>
+                                        <button class="table-action whatsapp-row-action"
+                                                @onclick="() => OpenWhatsAppModal(factura)"
+                                                disabled="@IsBusyFor(factura.Id)">
+                                            WhatsApp
+                                        </button>
+                                        <button class="table-action note-action"
+                                                @onclick="() => OpenNotaCreditoAsync(factura)"
+                                                disabled="@(!CanCreateNotaCredito(factura) || IsBusyFor(factura.Id))">
+                                            Nota crédito
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="table-footer">
+                <span class="table-count">@totalCount comprobante(s) encontrados</span>
+                <div class="pager-actions">
+                    <button class="ghost-button" type="button" @onclick="GoToPreviousPageAsync" disabled="@(!CanGoPrevious)">Anterior</button>
+                    <span class="pager-meta">Pagina @PageNumber de @TotalPages</span>
+                    <button class="ghost-button" type="button" @onclick="GoToNextPageAsync" disabled="@(!CanGoNext)">Siguiente</button>
+                </div>
+            </footer>
         }
     </section>
+
+    @if (mensajeSeleccionado is not null)
+    {
+        <div class="modal-backdrop" @onkeydown="CerrarMensajeConTeclado">
+            <section class="modal-card sri-message-modal" role="dialog" aria-modal="true" aria-labelledby="sriMessageTitle">
+                <header class="modal-header">
+                    <div>
+                        <h2 id="sriMessageTitle">Mensaje del comprobante</h2>
+                        <p>@mensajeSeleccionado.NumeroComprobante · @mensajeSeleccionado.Estado</p>
+                    </div>
+                    <button class="icon-button" type="button" aria-label="Cerrar mensaje" @onclick="() => mensajeSeleccionado = null">x</button>
+                </header>
+                <div class="sri-message-content">@mensajeSeleccionado.MensajeEstado</div>
+                <footer class="modal-actions">
+                    <button class="primary-action" type="button" autofocus @onclick="() => mensajeSeleccionado = null">Cerrar</button>
+                </footer>
+            </section>
+        </div>
+    }
+
+    @if (showNotaCreditoModal)
+    {
+        <div class="modal-backdrop">
+            <section class="modal-card nota-credito-modal" role="dialog" aria-modal="true" aria-labelledby="notaCreditoTitle">
+                <header class="modal-header">
+                    <div>
+                        <span class="page-kicker">DOCUMENTO ELECTRONICO</span>
+                        <h2 id="notaCreditoTitle">Crear nota de crédito</h2>
+                        <p>Selecciona los items a devolver de la factura autorizada.</p>
+                    </div>
+                    <button class="icon-button" type="button" @onclick="CloseNotaCreditoModal" disabled="@isGeneratingNotaCredito">x</button>
+                </header>
+
+                @if (isLoadingNotaCreditoOrigen)
+                {
+                    <p><em>Cargando detalle de factura...</em></p>
+                }
+                else if (notaCreditoOrigen is not null)
+                {
+                    <section class="note-origin-card client-lookup-panel carousel-pane active-pane">
+                        <div>
+                            <small>Factura origen</small>
+                            <strong>@notaCreditoOrigen.NumeroComprobante</strong>
+                        </div>
+                        <div>
+                            <small>Cliente</small>
+                            <strong>@notaCreditoOrigen.ClienteNombre</strong>
+                        </div>
+                        <div>
+                            <small>Total</small>
+                            <strong>$ @notaCreditoOrigen.Total.ToString("0.00")</strong>
+                        </div>
+                    </section>
+
+                    <label class="form-label" for="motivoNotaCredito">Motivo de modificación</label>
+                    <InputTextArea id="motivoNotaCredito"
+                                   class="form-control"
+                                   @bind-Value="notaCreditoMotivo"
+                                   placeholder="Ej: Devolución parcial de mercadería por solicitud del cliente" />
+
+                    <div class="lookup-table-scroll note-items-scroll">
+                        <table class="data-table responsive-table lookup-table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Facturado</th>
+                                    <th>Devuelto</th>
+                                    <th>Disponible</th>
+                                    <th>Cantidad NC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detalle in notaCreditoOrigen.Detalles)
+                                {
+                                    <tr>
+                                        <td data-label="Producto">
+                                            <strong>@detalle.NombreProducto</strong>
+                                            <small>@detalle.CodigoProducto</small>
+                                        </td>
+                                        <td data-label="Facturado">@detalle.CantidadFacturada.ToString("0.####")</td>
+                                        <td data-label="Devuelto">@detalle.CantidadDevuelta.ToString("0.####")</td>
+                                        <td data-label="Disponible"><span class="status-pill">@detalle.CantidadDisponible.ToString("0.####")</span></td>
+                                        <td data-label="Cantidad NC">
+                                            <input class="form-control note-quantity"
+                                                   type="number"
+                                                   min="0"
+                                                   max="@detalle.CantidadDisponible"
+                                                   step="0.0001"
+                                                   value="@GetNotaCreditoCantidad(detalle.FacturaDetalleId)"
+                                                   @oninput="eventArgs => OnNotaCreditoCantidadChanged(detalle.FacturaDetalleId, eventArgs)"
+                                                   disabled="@(detalle.CantidadDisponible <= 0m || isGeneratingNotaCredito)" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <footer class="modal-actions">
+                        <button class="ghost-button" type="button" @onclick="CloseNotaCreditoModal" disabled="@isGeneratingNotaCredito">Cancelar</button>
+                        <button class="primary-action"
+                                type="button"
+                                @onclick="CrearNotaCreditoAsync"
+                                disabled="@isGeneratingNotaCredito">
+                            @(isGeneratingNotaCredito ? "Generando..." : "Generar nota de crédito")
+                        </button>
+                    </footer>
+                }
+            </section>
+        </div>
+    }
+
+    <WhatsAppSendModal IsOpen="@showWhatsAppModal"
+                       DocumentoId="@selectedWhatsAppFactura?.Id"
+                       TipoDocumento="@(selectedWhatsAppFactura?.TipoDocumentoNombre ?? "Comprobante")"
+                       ClienteNombre="@(selectedWhatsAppFactura?.ClienteNombre ?? "Cliente")"
+                       NumeroTelefono=""
+                       LinkPdfRide="@SelectedComprobanteRideLink"
+                       LinkXml="@SelectedComprobanteXmlLink"
+                       OnClose="CloseWhatsAppModal" />
 </section>
+</ChildContent>
+<ErrorContent Context="exception">
+    <section class="module-page">
+        <div class="alert-message">
+            No se pudo mostrar la pantalla de comprobantes. Actualiza la página o intenta nuevamente.
+        </div>
+    </section>
+</ErrorContent>
+</ErrorBoundary>

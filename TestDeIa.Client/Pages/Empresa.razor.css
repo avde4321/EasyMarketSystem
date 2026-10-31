@@ -1,3 +1,7 @@
+.empresa-page .table-card {
+    overflow: visible;
+}
+
 .empresa-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -6,10 +10,112 @@
     grid-column: 1 / -1;
 }
 
-.module-actions {
-    margin-top: 1.25rem;
+.empresa-header-actions {
     display: flex;
-    justify-content: flex-end;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.empresa-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.empresa-workflow-modal {
+    width: min(100%, 1080px);
+    max-width: 1080px;
+}
+
+.empresa-point-modal {
+    width: min(100%, 760px);
+    max-width: 760px;
+}
+
+.workflow-header {
+    margin-bottom: 1.25rem;
+}
+
+.empresa-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.empresa-stepper .workflow-step {
+    border: 1px solid rgba(18, 74, 117, 0.12);
+    background: linear-gradient(180deg, #f8fcff, #edf5fb);
+    border-radius: 1rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+    color: var(--brand-blue);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.empresa-stepper .workflow-step:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(63, 122, 166, 0.12);
+}
+
+.empresa-stepper .workflow-step.is-active {
+    border-color: rgba(31, 150, 145, 0.38);
+    background: linear-gradient(180deg, #eefaf7, #dff4ee);
+    box-shadow: 0 16px 30px rgba(31, 150, 145, 0.12);
+}
+
+.empresa-stepper .workflow-step.is-done {
+    border-color: rgba(76, 146, 211, 0.26);
+    background: linear-gradient(180deg, #f2f9ff, #e4f0fb);
+}
+
+.empresa-stepper .workflow-step-index {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(18, 74, 117, 0.08);
+    font-weight: 800;
+}
+
+.empresa-stepper .workflow-step.is-active .workflow-step-index {
+    background: rgba(31, 150, 145, 0.16);
+}
+
+.empresa-stepper .workflow-step-text {
+    font-weight: 800;
+}
+
+.empresa-workflow-carousel {
+    min-height: 24rem;
+}
+
+.workflow-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.workflow-table-scroll {
+    max-height: 24rem;
+    overflow: auto;
+}
+
+.workflow-actions {
+    margin-top: 1.2rem;
+}
+
+.nested-modal-backdrop {
+    z-index: 22;
+    background: rgba(11, 37, 58, 0.46);
+}
+
+.inline-modal-actions {
+    margin-top: 1rem;
 }
 
 .file-hint {
@@ -19,17 +125,23 @@
     font-size: 0.84rem;
 }
 
-.status-banner {
-    margin-bottom: 1rem;
-    padding: 0.9rem 1rem;
-    border-radius: 0.9rem;
-    background: #edf8f1;
-    color: #204b39;
-    border: 1px solid #cce7d9;
+@media (max-width: 1080px) {
+    .empresa-summary-grid,
+    .empresa-stepper {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 900px) {
-    .empresa-grid {
+    .empresa-grid,
+    .empresa-summary-grid,
+    .empresa-stepper {
         grid-template-columns: 1fr;
+    }
+
+    .empresa-header-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
     }
 }

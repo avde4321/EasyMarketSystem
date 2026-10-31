@@ -1,0 +1,8 @@
+.notice { padding: 1rem; border-radius: 1rem; background: #fff5dd; color: #715018; }
+.numeracion-modal { width: min(680px, 94vw); max-height: 90vh; overflow-y: auto; }
+.numeracion-modal label { display: block; margin: 1rem 0; }
+.numeracion-modal .input-control { display: block; width: 100%; margin-top: .5rem; }
+.modal-header, .modal-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.modal-actions { justify-content: flex-end; margin-top: 1.5rem; }
+.table-card { overflow-x: auto; }
+small { display: block; overflow-wrap: anywhere; }

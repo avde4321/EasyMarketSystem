@@ -1,12 +1,25 @@
 using System.Net;
 using System.Net.Http.Json;
 using TestDeIa.Shared.Requests.Facturacion;
+using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Facturacion;
 
 namespace TestDeIa.Client.Services.Facturacion;
 
 public sealed class FacturacionApiClient
 {
+    public async Task<FacturaProcesamientoResponse?> GetProcesamientoAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/facturacion/facturas/{id}/procesamiento");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo consultar el documento."));
+        return await response.Content.ReadFromJsonAsync<FacturaProcesamientoResponse>();
+    }
+    public async Task<FacturaProcesamientoResponse?> ReprocesarAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/facturacion/facturas/{id}/reprocesar", null);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo reprocesar el documento."));
+        return await response.Content.ReadFromJsonAsync<FacturaProcesamientoResponse>();
+    }
     private readonly HttpClient httpClient;
 
     public FacturacionApiClient(HttpClient httpClient)
@@ -14,18 +27,31 @@ public sealed class FacturacionApiClient
         this.httpClient = httpClient;
     }
 
-    public async Task<IReadOnlyCollection<PosClienteResponse>> SearchClientesAsync(string term)
+    public async Task<PagedResultResponse<PosClienteResponse>> SearchClientesAsync(string term, int skip, int take)
     {
         var encodedTerm = Uri.EscapeDataString(term);
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosClienteResponse>>(
-            $"api/facturacion/clientes?term={encodedTerm}") ?? Array.Empty<PosClienteResponse>();
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<PosClienteResponse>>(
+            $"api/facturacion/clientes?term={encodedTerm}&skip={skip}&take={take}") ?? new PagedResultResponse<PosClienteResponse> { Skip = skip, Take = take };
     }
 
-    public async Task<IReadOnlyCollection<PosProductoResponse>> SearchProductosAsync(string term)
+    public async Task<PagedResultResponse<PosProductoResponse>> SearchProductosAsync(string term, int skip, int take, Guid? bodegaId = null)
     {
         var encodedTerm = Uri.EscapeDataString(term);
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosProductoResponse>>(
-            $"api/facturacion/productos?term={encodedTerm}") ?? Array.Empty<PosProductoResponse>();
+        var bodegaQuery = bodegaId.HasValue && bodegaId.Value != Guid.Empty ? $"&bodegaId={bodegaId.Value}" : string.Empty;
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<PosProductoResponse>>(
+            $"api/facturacion/productos?term={encodedTerm}&skip={skip}&take={take}{bodegaQuery}") ?? new PagedResultResponse<PosProductoResponse> { Skip = skip, Take = take };
+    }
+
+    public async Task<IReadOnlyCollection<PosPuntoEmisionResponse>> GetPuntosEmisionAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosPuntoEmisionResponse>>("api/facturacion/puntos-emision")
+            ?? Array.Empty<PosPuntoEmisionResponse>();
+    }
+
+    public async Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync()
+    {
+        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<PosOperadorResponse>>("api/facturacion/operadores")
+            ?? Array.Empty<PosOperadorResponse>();
     }
 
     public async Task<(bool Succeeded, string? ErrorMessage, FacturaEmissionResponse? Data)> EmitirFacturaAsync(EmitirFacturaRequest request)
@@ -37,23 +63,138 @@ public sealed class FacturacionApiClient
             return (true, null, await response.Content.ReadFromJsonAsync<FacturaEmissionResponse>());
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Message ?? "No se pudo emitir la factura.", null);
-        }
-
-        return (false, "No se pudo emitir la factura.", null);
+        return (false, await ReadErrorAsync(response, $"No se pudo emitir la factura (HTTP {(int)response.StatusCode})."), null);
     }
 
-    public async Task<IReadOnlyCollection<FacturaMonitorResponse>> GetMonitorAsync()
+    public async Task<PagedResultResponse<FacturaMonitorResponse>> GetMonitorAsync(
+        string? term,
+        string? tipoDocumentoId,
+        string? estadoSriId,
+        DateTime fechaDesde,
+        DateTime fechaHasta,
+        int skip,
+        int take)
     {
-        return await httpClient.GetFromJsonAsync<IReadOnlyCollection<FacturaMonitorResponse>>("api/facturacion/monitor")
-            ?? Array.Empty<FacturaMonitorResponse>();
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        var tipoDocumentoQuery = string.IsNullOrWhiteSpace(tipoDocumentoId) ? string.Empty : $"&tipoDocumentoId={Uri.EscapeDataString(tipoDocumentoId)}";
+        var estadoQuery = string.IsNullOrWhiteSpace(estadoSriId) ? string.Empty : $"&estadoSriId={Uri.EscapeDataString(estadoSriId)}";
+        var fechaQuery = $"&fechaDesde={Uri.EscapeDataString(fechaDesde.ToString("O"))}&fechaHasta={Uri.EscapeDataString(fechaHasta.ToString("O"))}";
+        var response = await httpClient.GetAsync($"api/facturacion/monitor?term={encodedTerm}&skip={skip}&take={take}{tipoDocumentoQuery}{estadoQuery}{fechaQuery}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadFromJsonAsync<PagedResultResponse<FacturaMonitorResponse>>()
+                ?? new PagedResultResponse<FacturaMonitorResponse> { Skip = skip, Take = take };
+        }
+
+        throw new HttpRequestException(await ReadErrorAsync(response, "No se pudo cargar el monitor de comprobantes."));
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, NotaCreditoOrigenResponseDto? Data)> GetNotaCreditoOrigenAsync(Guid facturaId)
+    {
+        var response = await httpClient.GetAsync($"api/facturacion/facturas/{facturaId}/nota-credito-origen");
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<NotaCreditoOrigenResponseDto>());
+        }
+
+        return (false, await ReadErrorAsync(response, "No se pudo cargar la factura origen."), null);
+    }
+
+    public async Task<(bool Succeeded, string? ErrorMessage, NotaCreditoResponseDto? Data)> CrearNotaCreditoAsync(NotaCreditoRequestDto request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/facturacion/notas-credito", request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadFromJsonAsync<NotaCreditoResponseDto>());
+        }
+
+        return (false, await ReadErrorAsync(response, "No se pudo generar la nota de credito."), null);
+    }
+
+    public async Task<LiquidacionComisionResponse> GetLiquidacionComisionesAsync(DateOnly desde, DateOnly hasta, Guid? operadorId = null)
+    {
+        var operadorQuery = operadorId.HasValue && operadorId.Value != Guid.Empty
+            ? $"&operadorId={operadorId.Value}"
+            : string.Empty;
+        return await httpClient.GetFromJsonAsync<LiquidacionComisionResponse>($"api/facturacion/comisiones/liquidacion?desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}{operadorQuery}")
+            ?? new LiquidacionComisionResponse { Desde = desde, Hasta = hasta };
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetRidePdfAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/ride");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteRidePdfAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/ride");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlGeneradoAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-generado");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteXmlGeneradoAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/xml-generado");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetXmlFirmadoAsync(Guid facturaId)
+    {
+        return GetFileAsync($"api/reporteria/facturas/{facturaId}/xml-firmado");
+    }
+
+    public Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetComprobanteXmlFirmadoAsync(Guid comprobanteId)
+    {
+        return GetFileAsync($"api/reporteria/comprobantes/{comprobanteId}/xml-firmado");
+    }
+
+    private async Task<(bool Succeeded, string? ErrorMessage, byte[]? FileBytes)> GetFileAsync(string url)
+    {
+        var response = await httpClient.GetAsync(url);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null, await response.Content.ReadAsByteArrayAsync());
+        }
+
+        var errorMessage = "No se pudo descargar el documento.";
+
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            errorMessage = error?.Message ?? errorMessage;
+        }
+        catch
+        {
+        }
+
+        return (false, errorMessage, null);
+    }
+
+    private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
+    {
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            return error?.Message ?? error?.Detail ?? error?.Title ?? fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private sealed class ApiError
     {
         public string? Message { get; set; }
+
+        public string? Title { get; set; }
+
+        public string? Detail { get; set; }
     }
 }

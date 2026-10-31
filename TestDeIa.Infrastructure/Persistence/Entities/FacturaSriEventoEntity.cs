@@ -8,7 +8,7 @@ public sealed class FacturaSriEventoEntity
 
     public FacturaEntity Factura { get; set; } = default!;
 
-    public string Estado { get; set; } = string.Empty;
+    public TestDeIa.Domain.Modules.Facturacion.Entities.FacturaEstado Estado { get; set; }
 
     public string Mensaje { get; set; } = string.Empty;
 

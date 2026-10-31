@@ -1,5 +1,7 @@
 namespace TestDeIa.Shared.Responses.Security;
 
+using TestDeIa.Shared.Responses.Empresa;
+
 public sealed class LoginResponse
 {
     public bool Succeeded { get; set; }
@@ -13,6 +15,12 @@ public sealed class LoginResponse
     public string? DisplayName { get; set; }
 
     public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
+
+    public IReadOnlyCollection<string> Permissions { get; set; } = Array.Empty<string>();
+
+    public Guid? ActiveEmpresaId { get; set; }
+
+    public IReadOnlyCollection<EmpresaOptionResponse> Empresas { get; set; } = Array.Empty<EmpresaOptionResponse>();
 
     public string? ErrorMessage { get; set; }
 }

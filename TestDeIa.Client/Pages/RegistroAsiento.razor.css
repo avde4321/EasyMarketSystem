@@ -1,0 +1,39 @@
+.registro-asiento-page {
+    gap: 1.2rem;
+}
+
+.registro-asiento-header {
+    align-items: center;
+}
+
+.registro-asiento-card {
+    border-radius: 26px;
+}
+
+.asiento-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 1rem;
+}
+
+.asiento-form-grid .full {
+    grid-column: 1 / -1;
+}
+
+.asiento-detail-scroll {
+    margin-top: 0.4rem;
+}
+
+.pastel-entry-table select,
+.pastel-entry-table input {
+    min-width: 0;
+}
+
+.asiento-totals-grid {
+    margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+    .asiento-form-grid {
+        grid-template-columns: 1fr;
+    }
+}

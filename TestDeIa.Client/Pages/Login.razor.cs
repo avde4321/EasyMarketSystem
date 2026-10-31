@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using TestDeIa.Client.Security;
+using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Shared.Requests.Security;
 
 namespace TestDeIa.Client.Pages;
@@ -15,6 +16,9 @@ public partial class Login
 
     [Inject]
     private NavigationManager NavigationManager { get; set; } = default!;
+
+    [Inject]
+    private EmpresaSessionService EmpresaSessionService { get; set; } = default!;
 
     private readonly LoginRequest loginRequest = new();
     private bool isBusy;
@@ -37,6 +41,16 @@ public partial class Login
 
             var provider = (TokenAuthenticationStateProvider)AuthenticationStateProvider;
             await provider.MarkUserAsAuthenticatedAsync(response.Token);
+
+            if (response.ActiveEmpresaId.HasValue)
+            {
+                await EmpresaSessionService.SetEmpresaIdAsync(response.ActiveEmpresaId.Value);
+            }
+            else
+            {
+                await EmpresaSessionService.ClearEmpresaIdAsync();
+            }
+
             NavigationManager.NavigateTo("/");
         }
         catch (HttpRequestException)

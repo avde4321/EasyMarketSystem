@@ -1,0 +1,57 @@
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-card {
+    border: 1px solid rgba(125, 184, 176, 0.35);
+    background: linear-gradient(135deg, rgba(236, 250, 247, 0.95), rgba(255, 248, 230, 0.9));
+    border-radius: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.summary-card span {
+    display: block;
+    color: #58708a;
+    font-size: 0.82rem;
+}
+
+.summary-card strong {
+    color: #0d4266;
+    font-size: 1.1rem;
+}
+
+.financial-group-title {
+    background: rgba(213, 237, 234, 0.7);
+    font-weight: 800;
+    color: #0d4266;
+}
+
+.financial-tree-table .group-row {
+    font-weight: 700;
+}
+
+.tree-toggle {
+    width: 1.55rem;
+    height: 1.55rem;
+    margin-right: 0.45rem;
+    border: 1px solid rgba(125, 184, 176, 0.45);
+    border-radius: 999px;
+    background: #edf9f7;
+    color: #0d4266;
+    font-weight: 800;
+}
+
+.account-code {
+    display: inline-block;
+    min-width: 6.5rem;
+    color: #2a9d8f;
+    font-weight: 800;
+}
+
+.amount-cell {
+    text-align: right;
+    white-space: nowrap;
+}

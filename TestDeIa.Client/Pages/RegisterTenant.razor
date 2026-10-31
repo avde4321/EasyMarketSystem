@@ -1,0 +1,138 @@
+@page "/register-tenant"
+@page "/registro"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+<PageTitle>Registra tu empresa | EasyMarket Systems</PageTitle>
+<ProcessingOverlay IsVisible="@isBusy" Title="Creando tu empresa" Message="Estamos preparando tu cuenta y configuración inicial. Espera hasta que termine el proceso." />
+
+<main class="register-shell">
+    <section class="register-panel" aria-labelledby="register-title" aria-busy="@isBusy">
+        <header class="register-header">
+            <img src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
+            <a href="/login">Ya tengo una cuenta</a>
+            <h1 id="register-title">Comienza con tu empresa</h1>
+            <p>Tu espacio de trabajo, separado y seguro. Configura al administrador y los datos de tu empresa.</p>
+        </header>
+
+        <EditForm Model="request" OnValidSubmit="RegisterAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <fieldset disabled="@(isBusy || registrationCompleted)">
+                <legend>Datos del administrador</legend>
+                <div class="register-grid">
+                    <div class="form-field">
+                        <label for="owner-name">Nombre completo</label>
+                        <InputText id="owner-name" class="form-control" autocomplete="name" maxlength="150" @bind-Value="request.NombreCompleto" />
+                        <ValidationMessage For="@(() => request.NombreCompleto)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="owner-email">Correo electrónico</label>
+                        <InputText id="owner-email" class="form-control" type="email" autocomplete="email" maxlength="180" @bind-Value="request.Email" />
+                        <small>Será tu usuario para iniciar sesión.</small>
+                        <ValidationMessage For="@(() => request.Email)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="owner-password">Contraseña</label>
+                        <InputText id="owner-password" class="form-control" type="password" autocomplete="new-password" maxlength="128" aria-describedby="password-help" @bind-Value="request.Password" />
+                        <small id="password-help">Mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo.</small>
+                        <ValidationMessage For="@(() => request.Password)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="owner-phone">Teléfono</label>
+                        <InputText id="owner-phone" class="form-control" type="tel" autocomplete="tel" placeholder="+593991234567" maxlength="40" @bind-Value="request.Telefono" />
+                        <ValidationMessage For="@(() => request.Telefono)" />
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset disabled="@(isBusy || registrationCompleted)">
+                <legend>Datos fiscales de la empresa</legend>
+                <div class="register-grid">
+                    <div class="form-field">
+                        <label for="company-ruc">RUC</label>
+                        <InputText id="company-ruc" class="form-control" inputmode="numeric" maxlength="13" placeholder="13 dígitos" @bind-Value="request.Ruc" />
+                        <ValidationMessage For="@(() => request.Ruc)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="company-name">Razón social</label>
+                        <InputText id="company-name" class="form-control" autocomplete="organization" maxlength="300" @bind-Value="request.RazonSocial" />
+                        <ValidationMessage For="@(() => request.RazonSocial)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="company-trade">Nombre comercial <small>(opcional)</small></label>
+                        <InputText id="company-trade" class="form-control" maxlength="300" @bind-Value="request.NombreComercial" />
+                        <ValidationMessage For="@(() => request.NombreComercial)" />
+                    </div>
+                    <div class="form-field">
+                        <label for="company-address">Dirección</label>
+                        <InputText id="company-address" class="form-control" autocomplete="street-address" maxlength="250" @bind-Value="request.Direccion" />
+                        <ValidationMessage For="@(() => request.Direccion)" />
+                    </div>
+                </div>
+                <label class="register-check" for="company-accounting">
+                    <InputCheckbox id="company-accounting" @bind-Value="request.ObligadoLlevarContabilidad" /> Obligado a llevar contabilidad
+                </label>
+            </fieldset>
+
+            <fieldset disabled="@(isBusy || registrationCompleted)">
+                <legend>Tu plan de trabajo</legend>
+                @if (isLoadingPlans)
+                {
+                    <p role="status">Cargando planes disponibles…</p>
+                }
+                else if (plans.Count == 0)
+                {
+                    <div class="register-notice" role="alert">
+                        <p>@(plansError ?? "No hay planes disponibles en este momento.")</p>
+                        <button type="button" class="secondary-action" @onclick="LoadPlansAsync">Volver a cargar planes</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-field">
+                        <label for="subscription-plan">Plan</label>
+                        <InputSelect id="subscription-plan" class="form-control" @bind-Value="request.PlanId">
+                            <option value="0">Selecciona un plan</option>
+                            @foreach (var plan in plans)
+                            {
+                                <option value="@plan.Id">@plan.Nombre — @Price(plan)</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => request.PlanId)" />
+                    </div>
+                    @if (SelectedPlan is { } selected)
+                    {
+                        <div class="plan-summary">
+                            <strong>@selected.Nombre</strong>
+                            <span>Facturas/mes: @Limit(selected.LimiteFacturasMensuales)</span>
+                            <span>Usuarios: @Limit(selected.LimiteUsuarios)</span>
+                            <span>Sucursales: @Limit(selected.LimiteSucursales)</span>
+                            <span>SRI: @(selected.PermiteModuloSRI ? "Incluido" : "No incluido")</span>
+                        </div>
+                    }
+                }
+                <InputRadioGroup @bind-Value="request.EsDemo">
+                    <div class="subscription-options">
+                        <label><InputRadio Value="@true" /> Demo gratuita por 15 días</label>
+                        <label><InputRadio Value="@false" /> Plan de pago</label>
+                    </div>
+                </InputRadioGroup>
+                <p class="subscription-explanation">
+                    @(request.EsDemo ? "Prueba el plan seleccionado durante 15 días. No se realiza ningún cobro al registrarte." : "Tu cuenta quedará pendiente de pago por 3 días. Las operaciones se habilitarán cuando se confirme el pago; este formulario no realiza cobros.")
+                </p>
+            </fieldset>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="register-error" role="alert">@errorMessage</div>
+            }
+            <div class="register-actions">
+                <a class="secondary-action" href="/login">Volver a iniciar sesión</a>
+                <button type="submit" class="primary-action" disabled="@(isBusy || isLoadingPlans || plans.Count == 0 || request.PlanId == 0 || registrationCompleted)">
+                    @(isBusy ? "Registrando empresa…" : registrationCompleted ? "Empresa registrada" : "Registrar empresa y comenzar")
+                </button>
+            </div>
+        </EditForm>
+    </section>
+</main>

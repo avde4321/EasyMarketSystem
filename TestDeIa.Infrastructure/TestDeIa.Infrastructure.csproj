@@ -17,7 +17,21 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+    <PackageReference Include="Microsoft.ML" Version="4.0.1" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriLiquidacionV100.xsd" LogicalName="TestDeIa.Infrastructure.SriLiquidacionV100.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriLiquidacionV110.xsd" LogicalName="TestDeIa.Infrastructure.SriLiquidacionV110.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriRetencionV200.xsd" LogicalName="TestDeIa.Infrastructure.SriRetencionV200.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\xmldsig-core-schema.xsd" LogicalName="TestDeIa.Infrastructure.xmldsig-core-schema.xsd" />
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriFacturaV110.xsd">
+      <LogicalName>TestDeIa.Infrastructure.SriFacturaV110.xsd</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Adapters\Out\Facturacion\Schemas\SriNotaCreditoV110.xsd">
+      <LogicalName>TestDeIa.Infrastructure.SriNotaCreditoV110.xsd</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <PropertyGroup>

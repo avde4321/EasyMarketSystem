@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <AutoRefresh>0</AutoRefresh>
+  <ConsumeContainerWhitespace>true</ConsumeContainerWhitespace>
+  <DataSources>
+    <DataSource Name="FacturaDataSource">
+      <ConnectionProperties>
+        <DataProvider>System.Data.DataSet</DataProvider>
+        <ConnectString />
+      </ConnectionProperties>
+      <rd:DataSourceID>987dcd43-f3d2-4cee-8337-a07abbbfa4cc</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="DetalleItems">
+      <Query>
+        <DataSourceName>FacturaDataSource</DataSourceName>
+        <CommandText />
+      </Query>
+      <Fields>
+        <Field Name="CodigoPrincipal"><DataField>CodigoPrincipal</DataField></Field>
+        <Field Name="CodigoAuxiliar"><DataField>CodigoAuxiliar</DataField></Field>
+        <Field Name="Cantidad"><DataField>Cantidad</DataField></Field>
+        <Field Name="Descripcion"><DataField>Descripcion</DataField></Field>
+        <Field Name="DetalleAdicional1"><DataField>DetalleAdicional1</DataField></Field>
+        <Field Name="DetalleAdicional2"><DataField>DetalleAdicional2</DataField></Field>
+        <Field Name="DetalleAdicional3"><DataField>DetalleAdicional3</DataField></Field>
+        <Field Name="PrecioUnitario"><DataField>PrecioUnitario</DataField></Field>
+        <Field Name="Subsidio"><DataField>Subsidio</DataField></Field>
+        <Field Name="PrecioSinSubsidio"><DataField>PrecioSinSubsidio</DataField></Field>
+        <Field Name="Descuento"><DataField>Descuento</DataField></Field>
+        <Field Name="PrecioTotal"><DataField>PrecioTotal</DataField></Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="TotalesItems">
+      <Query>
+        <DataSourceName>FacturaDataSource</DataSourceName>
+        <CommandText />
+      </Query>
+      <Fields>
+        <Field Name="Label"><DataField>Label</DataField></Field>
+        <Field Name="Valor"><DataField>Valor</DataField></Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="OuterFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value />
+                    <Style />
+                  </TextRun>
+                </TextRuns>
+              </Paragraph>
+            </Paragraphs>
+            <Top>0.2cm</Top>
+            <Left>0.15cm</Left>
+            <Height>24.6cm</Height>
+            <Width>19.55cm</Width>
+            <Style>
+              <Border>
+                <Color>#2B2B2B</Color>
+                <Style>Solid</Style>
+              </Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="WatermarkTextBox">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>=Parameters!WatermarkText.Value</Value>
+                    <Style>
+                      <FontFamily>Arial</FontFamily>
+                      <FontSize>18pt</FontSize>
+                      <Color>#D7DEE6</Color>
+                      <FontWeight>Bold</FontWeight>
+                    </Style>
+                  </TextRun>
+                </TextRuns>
+                <Style>
+                  <TextAlign>Center</TextAlign>
+                </Style>
+              </Paragraph>
+            </Paragraphs>
+            <Top>0.45cm</Top>
+            <Left>2cm</Left>
+            <Height>0.8cm</Height>
+            <Width>15.8cm</Width>
+            <Style />
+          </Textbox>
+          <Image Name="BannerImage">
+            <Source>External</Source>
+            <Value>=Parameters!BannerImagePath.Value</Value>
+            <Sizing>FitProportional</Sizing>
+            <Top>0.8cm</Top>
+            <Left>0.55cm</Left>
+            <Height>3.9cm</Height>
+            <Width>6.2cm</Width>
+            <Style />
+          </Image>
+          <Textbox Name="RightHeaderFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>0.7cm</Top>
+            <Left>7cm</Left>
+            <Height>6.2cm</Height>
+            <Width>11.9cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="RightHeaderText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>= "R.U.C.:      " &amp; Parameters!EmisorRuc.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>10pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>F A C T U R A</Value><Style><FontFamily>Arial</FontFamily><FontSize>14pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "No.   " &amp; Parameters!NumeroComprobante.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>9pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>NÚMERO DE AUTORIZACIÓN</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>=Parameters!NumeroAutorizacion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "FECHA Y HORA DE AUTORIZACIÓN    " &amp; Parameters!FechaAutorizacion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "AMBIENTE:   " &amp; UCase(Parameters!AmbienteSri.Value)</Value><Style><FontFamily>Arial</FontFamily><FontSize>10pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "EMISIÓN:   " &amp; Parameters!EmisionTipo.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>10pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>CLAVE DE ACCESO</Value><Style><FontFamily>Arial</FontFamily><FontSize>10pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>=Parameters!ClaveAcceso.Value</Value><Style><FontFamily>Consolas</FontFamily><FontSize>7pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>0.95cm</Top>
+            <Left>7.25cm</Left>
+            <Height>5.7cm</Height>
+            <Width>11.35cm</Width>
+            <Style />
+          </Textbox>
+          <Textbox Name="IssuerFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>4.95cm</Top>
+            <Left>0.55cm</Left>
+            <Height>3.6cm</Height>
+            <Width>6.15cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="IssuerText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>=Parameters!EmisorNombreComercial.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>9pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>=Parameters!EmisorRazonSocial.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Dirección Matriz: " &amp; Parameters!EmisorDireccionMatriz.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Dirección Sucursal: " &amp; Parameters!EmisorDireccionSucursal.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Contribuyente Especial Nro: " &amp; Parameters!ContribuyenteEspecial.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "OBLIGADO A LLEVAR CONTABILIDAD: " &amp; Parameters!ObligadoContabilidad.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>5.15cm</Top>
+            <Left>0.8cm</Left>
+            <Height>3.15cm</Height>
+            <Width>5.65cm</Width>
+            <Style />
+          </Textbox>
+          <Textbox Name="ClienteFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>8.85cm</Top>
+            <Left>0.55cm</Left>
+            <Height>1.65cm</Height>
+            <Width>18.35cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="ClienteText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>= "Razón Social / Nombres y Apellidos: " &amp; Parameters!ClienteNombre.Value &amp; "        Identificación: " &amp; Parameters!ClienteIdentificacion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Fecha Emisión: " &amp; Parameters!FechaEmision.Value &amp; "        Guía Remisión: " &amp; Parameters!GuiaRemision.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Dirección: " &amp; Parameters!ClienteDireccion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>9.05cm</Top>
+            <Left>0.75cm</Left>
+            <Height>1.25cm</Height>
+            <Width>17.95cm</Width>
+            <Style />
+          </Textbox>
+          <Tablix Name="DetalleTablix">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>1.15cm</Width></TablixColumn>
+                <TablixColumn><Width>1.05cm</Width></TablixColumn>
+                <TablixColumn><Width>0.8cm</Width></TablixColumn>
+                <TablixColumn><Width>2.55cm</Width></TablixColumn>
+                <TablixColumn><Width>1.05cm</Width></TablixColumn>
+                <TablixColumn><Width>1.05cm</Width></TablixColumn>
+                <TablixColumn><Width>1.05cm</Width></TablixColumn>
+                <TablixColumn><Width>1.2cm</Width></TablixColumn>
+                <TablixColumn><Width>1cm</Width></TablixColumn>
+                <TablixColumn><Width>1.15cm</Width></TablixColumn>
+                <TablixColumn><Width>0.95cm</Width></TablixColumn>
+                <TablixColumn><Width>1.55cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.75cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="Hdr1"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Cod. Principal</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr2"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Cod. Auxiliar</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr3"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Cant</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr4"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Descripción</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr5"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Detalle Adic.</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr6"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Detalle Adic.</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr7"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Detalle Adic.</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr8"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Precio Unitario</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr9"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Subsidio</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr10"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Precio Sin Subsidio</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr11"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Desc.</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Hdr12"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Precio Total</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.7cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="Det1"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!CodigoPrincipal.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det2"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!CodigoAuxiliar.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det3"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Cantidad.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det4"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Descripcion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det5"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DetalleAdicional1.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det6"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DetalleAdicional2.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det7"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DetalleAdicional3.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det8"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!PrecioUnitario.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det9"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Subsidio.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det10"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!PrecioSinSubsidio.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det11"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Descuento.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="Det12"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!PrecioTotal.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>6pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy><TablixMembers><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /></TablixMembers></TablixColumnHierarchy>
+            <TablixRowHierarchy><TablixMembers><TablixMember /><TablixMember><Group Name="DetalleGroup" /></TablixMember></TablixMembers></TablixRowHierarchy>
+            <DataSetName>DetalleItems</DataSetName>
+            <Top>10.95cm</Top>
+            <Left>0.55cm</Left>
+            <Height>1.45cm</Height>
+            <Width>16.95cm</Width>
+            <Style />
+          </Tablix>
+          <Textbox Name="InfoFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>12.75cm</Top>
+            <Left>0.55cm</Left>
+            <Height>4.15cm</Height>
+            <Width>12.9cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="InfoText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>Información Adicional</Value><Style><FontFamily>Arial</FontFamily><FontSize>10pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Dirección     " &amp; Parameters!ClienteDireccion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Email         " &amp; Parameters!ClienteEmail.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Teléfono      " &amp; Parameters!ClienteTelefono.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Observación   " &amp; Parameters!Observacion.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>13cm</Top>
+            <Left>0.8cm</Left>
+            <Height>3.6cm</Height>
+            <Width>12.4cm</Width>
+            <Style />
+          </Textbox>
+          <Tablix Name="TotalesTablix">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>3.95cm</Width></TablixColumn>
+                <TablixColumn><Width>1.8cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.42cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="TotalLabel"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Label.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize></Style></TextRun></TextRuns></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border><PaddingLeft>2pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="TotalValue"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!Valor.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize></Style></TextRun></TextRuns><Style><TextAlign>Right</TextAlign></Style></Paragraph></Paragraphs><Style><Border><Color>#2B2B2B</Color><Style>Solid</Style></Border><PaddingRight>2pt</PaddingRight></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy><TablixMembers><TablixMember /><TablixMember /></TablixMembers></TablixColumnHierarchy>
+            <TablixRowHierarchy><TablixMembers><TablixMember><Group Name="TotalsGroup" /></TablixMember></TablixMembers></TablixRowHierarchy>
+            <DataSetName>TotalesItems</DataSetName>
+            <Top>12.75cm</Top>
+            <Left>13.75cm</Left>
+            <Height>4.65cm</Height>
+            <Width>5.75cm</Width>
+            <Style />
+          </Tablix>
+          <Textbox Name="PaymentFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>17.1cm</Top>
+            <Left>0.55cm</Left>
+            <Height>0.72cm</Height>
+            <Width>5.55cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="PaymentText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>= "Forma de Pago: " &amp; Parameters!FormaPago.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "Valor: " &amp; Parameters!Total.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>17.18cm</Top>
+            <Left>0.75cm</Left>
+            <Height>0.55cm</Height>
+            <Width>5.1cm</Width>
+            <Style />
+          </Textbox>
+          <Textbox Name="SubsidioFrame">
+            <CanGrow>false</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs><Paragraph><TextRuns><TextRun><Value /><Style /></TextRun></TextRuns></Paragraph></Paragraphs>
+            <Top>17.55cm</Top>
+            <Left>13.75cm</Left>
+            <Height>1.95cm</Height>
+            <Width>5.75cm</Width>
+            <Style>
+              <Border><Color>#2B2B2B</Color><Style>Solid</Style></Border>
+            </Style>
+          </Textbox>
+          <Textbox Name="SubsidioText">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>= "VALOR TOTAL SIN SUBSIDIO       " &amp; Parameters!ValorTotalSinSubsidio.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>= "AHORRO POR SUBSIDIO:          " &amp; Parameters!AhorroSubsidio.Value</Value><Style><FontFamily>Arial</FontFamily><FontSize>8.5pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+              <Paragraph><TextRuns><TextRun><Value>(Incluye IVA cuando corresponda)</Value><Style><FontFamily>Arial</FontFamily><FontSize>7pt</FontSize><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Top>17.8cm</Top>
+            <Left>13.95cm</Left>
+            <Height>1.5cm</Height>
+            <Width>5.3cm</Width>
+            <Style />
+          </Textbox>
+        </ReportItems>
+        <Height>25cm</Height>
+        <Style />
+      </Body>
+      <Width>20cm</Width>
+      <Page>
+        <PageHeight>29.7cm</PageHeight>
+        <PageWidth>21cm</PageWidth>
+        <LeftMargin>0.2cm</LeftMargin>
+        <RightMargin>0.2cm</RightMargin>
+        <TopMargin>0.2cm</TopMargin>
+        <BottomMargin>0.2cm</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="BannerImagePath"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>BannerImagePath</Prompt></ReportParameter>
+    <ReportParameter Name="NumeroComprobante"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>NumeroComprobante</Prompt></ReportParameter>
+    <ReportParameter Name="Estado"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>Estado</Prompt></ReportParameter>
+    <ReportParameter Name="ClaveAcceso"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClaveAcceso</Prompt></ReportParameter>
+    <ReportParameter Name="NumeroAutorizacion"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>NumeroAutorizacion</Prompt></ReportParameter>
+    <ReportParameter Name="FechaEmision"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>FechaEmision</Prompt></ReportParameter>
+    <ReportParameter Name="FechaAutorizacion"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>FechaAutorizacion</Prompt></ReportParameter>
+    <ReportParameter Name="EmisorRazonSocial"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisorRazonSocial</Prompt></ReportParameter>
+    <ReportParameter Name="EmisorNombreComercial"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisorNombreComercial</Prompt></ReportParameter>
+    <ReportParameter Name="EmisorRuc"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisorRuc</Prompt></ReportParameter>
+    <ReportParameter Name="EmisorDireccionMatriz"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisorDireccionMatriz</Prompt></ReportParameter>
+    <ReportParameter Name="EmisorDireccionSucursal"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisorDireccionSucursal</Prompt></ReportParameter>
+    <ReportParameter Name="AmbienteSri"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>AmbienteSri</Prompt></ReportParameter>
+    <ReportParameter Name="EmisionTipo"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>EmisionTipo</Prompt></ReportParameter>
+    <ReportParameter Name="ObligadoContabilidad"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ObligadoContabilidad</Prompt></ReportParameter>
+    <ReportParameter Name="ContribuyenteEspecial"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ContribuyenteEspecial</Prompt></ReportParameter>
+    <ReportParameter Name="ClienteNombre"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClienteNombre</Prompt></ReportParameter>
+    <ReportParameter Name="ClienteIdentificacion"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClienteIdentificacion</Prompt></ReportParameter>
+    <ReportParameter Name="ClienteDireccion"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClienteDireccion</Prompt></ReportParameter>
+    <ReportParameter Name="ClienteEmail"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClienteEmail</Prompt></ReportParameter>
+    <ReportParameter Name="ClienteTelefono"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ClienteTelefono</Prompt></ReportParameter>
+    <ReportParameter Name="FormaPago"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>FormaPago</Prompt></ReportParameter>
+    <ReportParameter Name="GuiaRemision"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>GuiaRemision</Prompt></ReportParameter>
+    <ReportParameter Name="Subtotal"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>Subtotal</Prompt></ReportParameter>
+    <ReportParameter Name="IvaTotal"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>IvaTotal</Prompt></ReportParameter>
+    <ReportParameter Name="Total"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>Total</Prompt></ReportParameter>
+    <ReportParameter Name="Observacion"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>Observacion</Prompt></ReportParameter>
+    <ReportParameter Name="WatermarkText"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>WatermarkText</Prompt></ReportParameter>
+    <ReportParameter Name="ValorTotalSinSubsidio"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>ValorTotalSinSubsidio</Prompt></ReportParameter>
+    <ReportParameter Name="AhorroSubsidio"><DataType>String</DataType><AllowBlank>true</AllowBlank><Nullable>true</Nullable><Prompt>AhorroSubsidio</Prompt></ReportParameter>
+  </ReportParameters>
+  <Language>es-EC</Language>
+  <rd:ReportUnitType>Cm</rd:ReportUnitType>
+  <rd:ReportID>7d5680f8-6ea6-4212-93cc-a6b3f8d2a309</rd:ReportID>
+</Report>

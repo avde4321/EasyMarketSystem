@@ -12,6 +12,10 @@ public sealed class FacturaMonitorResponse
 
     public string NumeroComprobante => $"{Establecimiento}-{PuntoEmision}-{Secuencial:000000000}";
 
+    public string TipoDocumentoId { get; set; } = "01";
+
+    public string TipoDocumentoNombre { get; set; } = "Factura";
+
     public string ClienteIdentificacion { get; set; } = string.Empty;
 
     public string ClienteTipoIdentificacion { get; set; } = string.Empty;
@@ -33,6 +37,10 @@ public sealed class FacturaMonitorResponse
     public string? NumeroAutorizacion { get; set; }
 
     public string? MensajeEstado { get; set; }
+
+    public bool TieneXmlGenerado { get; set; }
+
+    public bool TieneXmlFirmado { get; set; }
 
     public DateTimeOffset FechaEmision { get; set; }
 

@@ -1,0 +1,128 @@
+@page "/subscription-expired"
+@attribute [Authorize]
+
+<PageTitle>Renueva tu suscripción | EasyMarket Systems</PageTitle>
+<ProcessingOverlay IsVisible="@(isLoading || isSending)" Title="@(isSending ? "Registrando solicitud" : "Consultando suscripción")" Message="Espera hasta que termine la operación." />
+
+<section class="subscription-shell">
+    <div class="subscription-card" aria-busy="@(isLoading || isSending)">
+        <header class="portal-header">
+            <div>
+                <span class="subscription-eyebrow">Portal de renovación</span>
+                <h1>@(portal?.SuscripcionActiva == true ? "Tu suscripción está activa" : "Continúa creciendo con EasyMarket")</h1>
+                <p>Elige el plan de tu empresa y registra tu pago. Una referencia de transferencia no activa el servicio hasta su verificación.</p>
+            </div>
+            <button class="secondary-action" type="button" @onclick="LoadAsync" disabled="@(isLoading || isSending)">Actualizar estado</button>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(errorMessage)) { <div class="subscription-error" role="alert">@errorMessage</div> }
+        @if (!string.IsNullOrWhiteSpace(infoMessage)) { <div class="subscription-loading" role="status">@infoMessage</div> }
+        @if (portal?.SuscripcionActiva == true)
+        {
+            <div class="subscription-active" role="status">
+                <strong>Servicio habilitado</strong><span>Vigencia hasta @portal.FechaVencimiento?.ToString("dd/MM/yyyy").</span>
+                <a class="primary-action" href="/dashboard">Ir al Dashboard</a>
+            </div>
+        }
+        @if (HasPending)
+        {
+            <div class="pending-payment" role="status">
+                <span class="pending-badge">Pendiente de verificación</span>
+                <p>Tu pago está siendo verificado por el equipo administrativo. Se te notificará al activar el servicio.</p>
+                <p class="small-note">Puedes consultar aquí el estado actualizado. No necesitas registrar otra vez el mismo pago.</p>
+                @foreach (var payment in portal!.PagosPendientes)
+                {
+                    <div class="pending-detail" @key="payment.Id">
+                        <strong>@PlanName(payment.SaasPlanId) · @Money(payment.Monto)</strong>
+                        <span>Referencia: @payment.ComprobanteReferencia</span>
+                        <span>Fecha informada: @(payment.FechaPagoInformada?.ToString("dd/MM/yyyy") ?? "No informada")</span>
+                    </div>
+                }
+            </div>
+        }
+        else if (portal?.UltimoPago?.EstadoPago == "Rechazado")
+        { <div class="subscription-error" role="status">El último comprobante fue rechazado. Consulta al administrador y revisa los datos antes de registrar un nuevo pago.</div> }
+        @if (isLoading)
+        { <p role="status">Cargando planes y pagos de tu empresa…</p> }
+        else if (plans.Count == 0)
+        { <p>No hay planes disponibles en este momento. Usa «Actualizar estado» para volver a consultar.</p> }
+        else
+        {
+            <div class="plans-grid" aria-label="Planes disponibles">
+                @foreach (var plan in plans)
+                {
+                    <article class="plan-card @(selectedPlan?.Id == plan.Id ? "selected-plan" : "")" @key="plan.Id">
+                        <h2>@plan.Nombre</h2>
+                        <div class="plan-price">@(plan.PrecioMensual == 0 ? "Cotización personalizada" : $"{Money(plan.PrecioMensual)} / mes")</div>
+                        <ul>
+                            <li>Facturas mensuales: @Limit(plan.LimiteFacturasMensuales)</li>
+                            <li>Usuarios: @Limit(plan.LimiteUsuarios)</li>
+                            <li>Sucursales: @Limit(plan.LimiteSucursales)</li>
+                            <li>SRI: @(plan.PermiteModuloSRI ? "Incluido" : "No incluido")</li>
+                            <li>Kardex avanzado: @(plan.PermiteModuloKardexAvanzado ? "Incluido" : "No incluido")</li>
+                        </ul>
+                        <button class="plan-action" type="button" aria-pressed="@(selectedPlan?.Id == plan.Id)"
+                                disabled="@(!canManage || HasPending || !portalLoaded || isSending)" @onclick="() => SelectPlan(plan)">
+                            @(selectedPlan?.Id == plan.Id ? "Plan seleccionado" : "Seleccionar plan")
+                        </button>
+                    </article>
+                }
+            </div>
+        }
+        @if (!canManage && !isLoading) { <p class="subscription-loading">Solicita al administrador de tu empresa que gestione la renovación.</p> }
+        @if (selectedPlan is not null && !HasPending)
+        {
+            <section class="payment-methods" aria-label="Métodos de pago">
+                <h2>¿Cómo deseas pagar?</h2>
+                <p><strong>@selectedPlan.Nombre</strong> · @(selectedPlan.PrecioMensual > 0 ? Money(selectedPlan.PrecioMensual) + " por un mes" : "Requiere una cotización del equipo comercial")</p>
+                @if (selectedPlan.PrecioMensual > 0)
+                {
+                    <div class="method-buttons">
+                        <button class="primary-action" type="button" @onclick="OpenTransfer" disabled="@(isSending || !portalLoaded)">Registrar transferencia bancaria</button>
+                        <button class="secondary-action" type="button" @onclick="CheckoutAsync" disabled="@(isSending || !portalLoaded)">Pagar con tarjeta</button>
+                    </div>
+                    <small>La disponibilidad de tarjeta se consulta al backend. No se solicitarán datos de tarjeta sin una pasarela habilitada.</small>
+                }
+                else { <p>Solicita una propuesta comercial antes de realizar un depósito. No se registran pagos de importe cero.</p> }
+            </section>
+        }
+        <footer class="subscription-actions">
+            <a class="secondary-action" href="/empresa">Mis empresas</a>
+            <a class="secondary-action" href="/logout">Cerrar sesión / cambiar de cuenta</a>
+        </footer>
+    </div>
+</section>
+
+@if (showTransfer && selectedPlan is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card billing-modal" role="dialog" aria-modal="true" aria-labelledby="transfer-title" tabindex="-1" @ref="modalElement" @onkeydown="OnModalKeyDown">
+            <header class="modal-header">
+                <div><span class="page-kicker">Renovación SaaS</span><h2 id="transfer-title">Registrar transferencia</h2><p>@selectedPlan.Nombre · @Money(selectedPlan.PrecioMensual)</p></div>
+                <button class="icon-button" type="button" aria-label="Cerrar formulario" @onclick="CloseTransfer" disabled="@isSending">×</button>
+            </header>
+            <p>Realiza la transferencia a la cuenta indicada por el equipo administrativo. Si no tienes esos datos, solicítalos antes de pagar. Este formulario no transfiere dinero.</p>
+            <EditForm Model="transferForm" OnValidSubmit="SendTransferAsync">
+                <DataAnnotationsValidator /><ValidationSummary />
+                <fieldset disabled="@isSending">
+                    <label class="form-field" for="billing-reference"><span>Número de referencia / comprobante</span>
+                        <InputText id="billing-reference" class="form-control" maxlength="200" autocomplete="off" @bind-Value="transferForm.Referencia" />
+                        <ValidationMessage For="@(() => transferForm.Referencia)" />
+                    </label>
+                    <label class="form-field" for="billing-date"><span>Fecha del pago</span>
+                        <InputDate id="billing-date" class="form-control" max="@TodayEcuador.ToString("yyyy-MM-dd")" @bind-Value="transferForm.FechaPago" />
+                        <ValidationMessage For="@(() => transferForm.FechaPago)" />
+                    </label>
+                    <label class="form-field" for="billing-notes"><span>Observaciones (opcional)</span>
+                        <InputTextArea id="billing-notes" class="form-control" maxlength="2000" @bind-Value="transferForm.Observaciones" />
+                    </label>
+                </fieldset>
+                @if (!string.IsNullOrWhiteSpace(transferError)) { <div class="subscription-error" role="alert">@transferError</div> }
+                <p class="small-note">Tu solicitud quedará pendiente. Solo se habilitará el servicio cuando se confirme la acreditación.</p>
+                <footer class="modal-actions">
+                    <button class="ghost-button" type="button" @onclick="CloseTransfer" disabled="@isSending">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSending">@(isSending ? "Registrando…" : "Enviar comprobante para revisión")</button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}

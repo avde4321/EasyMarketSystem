@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Security;
 
 namespace TestDeIa.Infrastructure.Persistence.Configurations;
 
@@ -23,12 +24,62 @@ public sealed class SecurityRoleEntityConfiguration : IEntityTypeConfiguration<S
         builder.HasIndex(role => role.NormalizedName)
             .IsUnique();
 
-        builder.HasData(new SecurityRoleEntity
-        {
-            Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            Name = "Administrador",
-            NormalizedName = "ADMINISTRADOR",
-            IsActive = true
-        });
+        builder.HasData(
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.SuperAdministradorRoleId,
+                Name = SecurityRoleNames.SuperAdministrador,
+                NormalizedName = SecurityRoleNames.SuperAdministrador.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.AdministradorEmpresaRoleId,
+                Name = SecurityRoleNames.AdministradorEmpresa,
+                NormalizedName = SecurityRoleNames.AdministradorEmpresa.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.AdministradorRoleId,
+                Name = SecurityRoleNames.Administrador,
+                NormalizedName = SecurityRoleNames.Administrador.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.GerenteRoleId,
+                Name = SecurityRoleNames.Gerente,
+                NormalizedName = SecurityRoleNames.Gerente.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.CajeroRoleId,
+                Name = SecurityRoleNames.Cajero,
+                NormalizedName = SecurityRoleNames.Cajero.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.AsesorComercialRoleId,
+                Name = SecurityRoleNames.AsesorComercial,
+                NormalizedName = SecurityRoleNames.AsesorComercial.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.BodegueroRoleId,
+                Name = SecurityRoleNames.Bodeguero,
+                NormalizedName = SecurityRoleNames.Bodeguero.ToUpperInvariant(),
+                IsActive = true
+            },
+            new SecurityRoleEntity
+            {
+                Id = SecuritySeedIds.ContadorRoleId,
+                Name = SecurityRoleNames.Contador,
+                NormalizedName = SecurityRoleNames.Contador.ToUpperInvariant(),
+                IsActive = true
+            });
     }
 }

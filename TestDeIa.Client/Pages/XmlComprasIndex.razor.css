@@ -1,0 +1,58 @@
+.xml-compras-page .upload-dropzone {
+    align-items: center;
+    background: linear-gradient(135deg, #f4fffb, #fff9e9);
+    border: 1px dashed #74c8bd;
+    border-radius: 28px;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+    padding: 1.4rem;
+}
+
+.hidden-file-input {
+    display: none;
+}
+
+.access-key {
+    font-family: Consolas, monospace;
+    font-size: .78rem;
+    max-width: 260px;
+    word-break: break-all;
+}
+
+.xml-mapping-modal {
+    width: min(1180px, 96vw);
+}
+
+.xml-financial-summary {
+    background: linear-gradient(135deg, #f2fffb, #fff8e8);
+    border: 1px solid #d5eee8;
+    border-radius: 22px;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin: 1rem 0;
+    padding: 1rem;
+}
+
+.xml-financial-summary div {
+    display: grid;
+    gap: .25rem;
+}
+
+.xml-financial-summary span,
+.xml-financial-summary small {
+    color: #647f95;
+}
+
+.xml-financial-summary strong {
+    color: #073d65;
+}
+
+.mapped-product,
+.create-hint {
+    color: #0b8b72;
+    display: block;
+    font-weight: 800;
+    margin-top: .5rem;
+}

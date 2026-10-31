@@ -1,0 +1,24 @@
+namespace TestDeIa.Infrastructure.Persistence.Entities;
+
+public sealed class ProductoBodegaEntity : ITenantEntity
+{
+    public Guid ProductoId { get; set; }
+
+    public ProductoEntity Producto { get; set; } = default!;
+
+    public Guid BodegaId { get; set; }
+
+    public BodegaEntity Bodega { get; set; } = default!;
+
+    public Guid EmpresaId { get; set; }
+
+    public decimal StockActual { get; set; }
+
+    public decimal StockMinimo { get; set; }
+
+    public decimal StockMaximo { get; set; }
+
+    public bool EsActivo { get; set; } = true;
+
+    public byte[] RowVersion { get; set; } = null!;
+}

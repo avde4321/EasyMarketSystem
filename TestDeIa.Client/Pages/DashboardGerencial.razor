@@ -1,0 +1,264 @@
+@attribute [Authorize(Roles = "Administrador,Gerente")]
+
+<section class="dashboard-page dashboard-gerencial">
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+    else if (isLoading)
+    {
+        <section class="dashboard-section">
+            <div class="empty-state">Cargando analitica gerencial...</div>
+        </section>
+    }
+    else
+    {
+        <section class="kpi-grid kpi-grid-extended">
+            <article class="kpi-card sales-card">
+                <span class="kpi-label">Ventas facturadas</span>
+                <strong>@overview.ResumenFinanciero.TotalVentasFacturadas.ToString("C2")</strong>
+                <small>Emitidas durante el mes en curso.</small>
+            </article>
+
+            <article class="kpi-card inventory-sales-card">
+                <span class="kpi-label">Venta de inventario</span>
+                <strong>@overview.ResumenFinanciero.VentasInventario.ToString("C2")</strong>
+                <small>Bienes inventariables facturados.</small>
+            </article>
+
+            <article class="kpi-card services-card">
+                <span class="kpi-label">Ingresos por servicios</span>
+                <strong>@overview.ResumenFinanciero.IngresosPorServicios.ToString("C2")</strong>
+                <small>Servicios e intangibles facturados.</small>
+            </article>
+
+            <article class="kpi-card purchases-card">
+                <span class="kpi-label">Compras registradas</span>
+                <strong>@overview.ResumenFinanciero.TotalComprasRegistradas.ToString("C2")</strong>
+                <small>Ingresos operativos contabilizados.</small>
+            </article>
+
+            <article class="kpi-card margin-card">
+                <span class="kpi-label">Margen estimado</span>
+                <strong>@overview.ResumenFinanciero.MargenGananciaEstimado.ToString("C2")</strong>
+                <small>Ventas menos costo promedio estimado.</small>
+            </article>
+
+            <article class="kpi-card alerts-card">
+                <span class="kpi-label">Alertas IA</span>
+                <strong>@overview.AlertasPredictivas.Count</strong>
+                <small>Productos con riesgo de desabastecimiento.</small>
+            </article>
+        </section>
+
+        <section class="dashboard-section charts-section">
+            <header class="section-header">
+                <div>
+                    <h2>Balances visuales</h2>
+                    <p>Lectura rapida de ventas, compras, margen y participacion operativa.</p>
+                </div>
+            </header>
+
+            <div class="charts-grid">
+                <article class="chart-card">
+                    <h3>Balance financiero mensual</h3>
+                    <div class="bar-chart">
+                        @foreach (var item in GetFinancialBars())
+                        {
+                            <div class="bar-row">
+                                <span>@item.Label</span>
+                                <div class="bar-track">
+                                    <div class="bar-fill @item.CssClass" style="width: @item.Width%"></div>
+                                </div>
+                                <strong>@item.Amount.ToString("C2")</strong>
+                            </div>
+                        }
+                    </div>
+                </article>
+
+                <article class="chart-card">
+                    <h3>Participacion de ventas</h3>
+                    <div class="donut-chart" style="--inventory-share:@GetInventoryShare(); --service-share:@GetServiceShare();">
+                        <div class="donut-hole">
+                            <strong>@overview.ResumenFinanciero.TotalVentasFacturadas.ToString("C0")</strong>
+                            <span>Total ventas</span>
+                        </div>
+                    </div>
+                    <div class="chart-legend">
+                        <span><i class="legend-dot inventory-dot"></i>Inventario @GetInventoryShare().ToString("0.#")%</span>
+                        <span><i class="legend-dot service-dot"></i>Servicios @GetServiceShare().ToString("0.#")%</span>
+                    </div>
+                </article>
+
+                <article class="chart-card chart-card-wide">
+                    <h3>Productividad por usuario</h3>
+                    <div class="seller-bars">
+                        @if (overview.ProductividadUsuarios.Count == 0)
+                        {
+                            <div class="empty-state soft-success-state">Sin ventas suficientes para graficar productividad.</div>
+                        }
+                        else
+                        {
+                            @foreach (var vendedor in overview.ProductividadUsuarios)
+                            {
+                                <div class="seller-row">
+                                    <span>@vendedor.Usuario</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill seller-fill" style="width: @GetSellerWidth(vendedor.TotalVentas)%"></div>
+                                    </div>
+                                    <strong>@vendedor.TotalVentas.ToString("C2")</strong>
+                                </div>
+                            }
+                        }
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="dashboard-main-grid">
+            <section class="dashboard-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Comparativa interanual</h2>
+                        <p>Ventas del mes actual contra el mismo mes del anio anterior.</p>
+                    </div>
+                    <span class="trend-pill @GetTrendClass()">@overview.ComparativoInteranual.PorcentajeVariacion.ToString("0.##")%</span>
+                </header>
+                <div class="comparison-grid">
+                    <div>
+                        <span>Mes actual</span>
+                        <strong>@overview.ComparativoInteranual.MesActual.ToString("C2")</strong>
+                    </div>
+                    <div>
+                        <span>Mismo mes anio anterior</span>
+                        <strong>@overview.ComparativoInteranual.MismoMesAnioAnterior.ToString("C2")</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dashboard-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Productividad por vendedor / cajero</h2>
+                        <p>Ranking mensual por usuario.</p>
+                    </div>
+                </header>
+
+                @if (overview.ProductividadUsuarios.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">Aun no hay ventas para ranking de productividad.</div>
+                }
+                else
+                {
+                    <div class="productivity-list">
+                        @foreach (var vendedor in overview.ProductividadUsuarios)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@vendedor.Usuario</strong>
+                                    <small>@vendedor.Comprobantes comprobantes</small>
+                                </div>
+                                <span>@vendedor.TotalVentas.ToString("C2")</span>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="dashboard-section top-products-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Top 5 productos mas vendidos</h2>
+                        <p>Ranking comercial del mes con cantidad, venta y margen estimado.</p>
+                    </div>
+                </header>
+                <DashboardTopProductosTable Productos="overview.TopProductos" />
+            </section>
+
+            <section class="dashboard-section top-services-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Top 5 servicios mas vendidos</h2>
+                        <p>Lectura mensual de servicios con barras de participacion.</p>
+                    </div>
+                </header>
+
+                @if (overview.TopServicios.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">Todavia no hay servicios facturados para consolidar un ranking.</div>
+                }
+                else
+                {
+                    <div class="service-bars">
+                        @foreach (var servicio in overview.TopServicios)
+                        {
+                            <article class="service-bar-card">
+                                <div class="service-bar-head">
+                                    <div>
+                                        <strong>@servicio.Nombre</strong>
+                                        <small>@servicio.Codigo</small>
+                                    </div>
+                                    <span>@servicio.TotalVendido.ToString("C2")</span>
+                                </div>
+                                <div class="service-bar-track" aria-hidden="true">
+                                    <div class="service-bar-fill" style="width: @GetTopServiceWidth(servicio)%"></div>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="dashboard-section predictive-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Inteligencia, prediccion y stock minimo</h2>
+                        <p>Estimacion local con ML.NET sobre consumo historico por producto y bodega.</p>
+                    </div>
+                    <a class="secondary-link" href="inventario/consulta">Ver inventario</a>
+                </header>
+
+                @if (overview.AlertasPredictivas.Count == 0)
+                {
+                    <div class="empty-state soft-success-state">No hay alertas predictivas relevantes para la empresa activa.</div>
+                }
+                else
+                {
+                    <div class="predictive-grid">
+                        @foreach (var alerta in overview.AlertasPredictivas)
+                        {
+                            <article class="prediction-card @GetRiskCssClass(alerta.Riesgo)">
+                                <div class="prediction-head">
+                                    <span class="risk-pill">@alerta.Riesgo</span>
+                                    <span class="prediction-bodega">@alerta.BodegaNombre</span>
+                                </div>
+                                <strong>@alerta.NombreProducto</strong>
+                                <small>@alerta.CodigoProducto</small>
+                                <p>Stock @alerta.StockActual.ToString("0.##") / minimo @alerta.StockMinimo.ToString("0.##") · dias estimados @(alerta.DiasStockEstimados >= 999m ? "sin dato" : alerta.DiasStockEstimados.ToString("0.0"))</p>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="dashboard-section strategies-section">
+                <header class="section-header">
+                    <div>
+                        <h2>Estrategias de negocio</h2>
+                        <p>Sugerencias automaticas segun rotacion, margen y stock.</p>
+                    </div>
+                </header>
+
+                <div class="strategy-list">
+                    @foreach (var estrategia in overview.EstrategiasNegocio)
+                    {
+                        <article class="@GetStrategyCssClass(estrategia.Severidad)">
+                            <strong>@estrategia.Titulo</strong>
+                            <p>@estrategia.Detalle</p>
+                        </article>
+                    }
+                </div>
+            </section>
+        </section>
+    }
+</section>

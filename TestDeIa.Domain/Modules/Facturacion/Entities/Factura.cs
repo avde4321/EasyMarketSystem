@@ -4,6 +4,7 @@ public sealed class Factura
 {
     public Factura(
         Guid id,
+        Guid empresaId,
         long secuencial,
         string establecimiento,
         string puntoEmision,
@@ -27,7 +28,7 @@ public sealed class Factura
         string? clienteTelefono,
         string formaPago,
         string formaPagoSriCodigo,
-        string estado,
+        FacturaEstado estado,
         decimal subtotal,
         decimal totalDescuento,
         decimal subtotalIva0,
@@ -40,11 +41,14 @@ public sealed class Factura
         string? claveAcceso,
         string? numeroAutorizacion,
         string? mensajeEstado,
+        string? xmlGenerado,
+        string? xmlFirmado,
         DateTimeOffset fechaEmision,
         DateTimeOffset? fechaAutorizacion,
         IReadOnlyCollection<FacturaDetalle> detalles)
     {
         Id = id;
+        EmpresaId = empresaId;
         Secuencial = secuencial;
         Establecimiento = establecimiento;
         PuntoEmision = puntoEmision;
@@ -81,12 +85,16 @@ public sealed class Factura
         ClaveAcceso = claveAcceso;
         NumeroAutorizacion = numeroAutorizacion;
         MensajeEstado = mensajeEstado;
+        XmlGenerado = xmlGenerado;
+        XmlFirmado = xmlFirmado;
         FechaEmision = fechaEmision;
         FechaAutorizacion = fechaAutorizacion;
         Detalles = detalles;
     }
 
     public Guid Id { get; }
+
+    public Guid EmpresaId { get; }
 
     public long Secuencial { get; }
 
@@ -134,7 +142,7 @@ public sealed class Factura
 
     public string FormaPagoSriCodigo { get; }
 
-    public string Estado { get; }
+    public FacturaEstado Estado { get; }
 
     public decimal Subtotal { get; }
 
@@ -159,6 +167,10 @@ public sealed class Factura
     public string? NumeroAutorizacion { get; }
 
     public string? MensajeEstado { get; }
+
+    public string? XmlGenerado { get; }
+
+    public string? XmlFirmado { get; }
 
     public DateTimeOffset FechaEmision { get; }
 

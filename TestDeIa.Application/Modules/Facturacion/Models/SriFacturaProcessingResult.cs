@@ -2,7 +2,7 @@ namespace TestDeIa.Application.Modules.Facturacion.Models;
 
 public sealed class SriFacturaProcessingResult
 {
-    public string EstadoFinal { get; set; } = "Autorizado";
+    public Domain.Modules.Facturacion.Entities.FacturaEstado EstadoFinal { get; set; } = Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO;
 
     public string ClaveAcceso { get; set; } = string.Empty;
 
@@ -10,7 +10,13 @@ public sealed class SriFacturaProcessingResult
 
     public string Mensaje { get; set; } = string.Empty;
 
-    public string XmlFirmado { get; set; } = string.Empty;
+    public string? XmlGenerado { get; set; }
+
+    public string? XmlFirmado { get; set; }
+
+    public string? AuditoriaJson { get; set; }
+
+    public TimeSpan? RetryDelay { get; set; }
 
     public DateTimeOffset FechaRespuesta { get; set; }
 }

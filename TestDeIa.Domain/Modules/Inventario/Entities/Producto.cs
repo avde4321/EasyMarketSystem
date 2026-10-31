@@ -7,12 +7,20 @@ public sealed class Producto
         string codigo,
         string nombre,
         string? descripcion,
+        Guid? categoriaId,
+        string unidadMedida,
+        string naturalezaItem,
         string codigoIva,
         decimal porcentajeIva,
         decimal precioVenta,
+        decimal costoReferencial,
         decimal stockActual,
-        decimal stockMinimo,
+        decimal? stockMinimo,
         decimal costoPromedio,
+        bool controlaStock,
+        bool aplicaComision,
+        string? tipoComision,
+        decimal? valorComision,
         bool isActive,
         DateTimeOffset createdAt,
         DateTimeOffset? updatedAt)
@@ -21,12 +29,20 @@ public sealed class Producto
         Codigo = codigo;
         Nombre = nombre;
         Descripcion = descripcion;
+        CategoriaId = categoriaId;
+        UnidadMedida = unidadMedida;
+        NaturalezaItem = naturalezaItem;
         CodigoIva = codigoIva;
         PorcentajeIva = porcentajeIva;
         PrecioVenta = precioVenta;
+        CostoReferencial = costoReferencial;
         StockActual = stockActual;
         StockMinimo = stockMinimo;
         CostoPromedio = costoPromedio;
+        ControlaStock = controlaStock;
+        AplicaComision = aplicaComision;
+        TipoComision = tipoComision;
+        ValorComision = valorComision;
         IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -40,17 +56,33 @@ public sealed class Producto
 
     public string? Descripcion { get; }
 
+    public Guid? CategoriaId { get; }
+
+    public string UnidadMedida { get; }
+
+    public string NaturalezaItem { get; }
+
     public string CodigoIva { get; }
 
     public decimal PorcentajeIva { get; }
 
     public decimal PrecioVenta { get; }
 
+    public decimal CostoReferencial { get; }
+
     public decimal StockActual { get; }
 
-    public decimal StockMinimo { get; }
+    public decimal? StockMinimo { get; }
 
     public decimal CostoPromedio { get; }
+
+    public bool ControlaStock { get; }
+
+    public bool AplicaComision { get; }
+
+    public string? TipoComision { get; }
+
+    public decimal? ValorComision { get; }
 
     public bool IsActive { get; }
 
@@ -58,3 +90,4 @@ public sealed class Producto
 
     public DateTimeOffset? UpdatedAt { get; }
 }
+

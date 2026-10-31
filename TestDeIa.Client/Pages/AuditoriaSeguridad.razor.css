@@ -1,0 +1,32 @@
+.compact-message {
+    margin-bottom: 1rem;
+}
+
+.audit-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.audit-pill-success {
+    background: rgba(70, 184, 134, 0.16);
+    color: #1c7c59;
+}
+
+.audit-pill-warning {
+    background: rgba(255, 184, 0, 0.16);
+    color: #946400;
+}
+
+.audit-pill-danger {
+    background: rgba(255, 105, 97, 0.16);
+    color: #b14a44;
+}
+
+.audit-pill-soft {
+    background: rgba(73, 194, 211, 0.12);
+    color: #2f5277;
+}

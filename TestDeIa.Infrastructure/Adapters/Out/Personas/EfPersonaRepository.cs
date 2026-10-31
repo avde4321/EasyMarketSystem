@@ -1,38 +1,86 @@
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
 using TestDeIa.Domain.Modules.Personas.Entities;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Shared.Personas;
+using TestDeIa.Shared.Responses.Common;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Personas;
 
 public sealed class EfPersonaRepository : IPersonaRepository
 {
     private readonly TestDeIaDbContext dbContext;
+    private readonly ITenantContextAccessor tenantContextAccessor;
 
-    public EfPersonaRepository(TestDeIaDbContext dbContext)
+    public EfPersonaRepository(TestDeIaDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
     {
         this.dbContext = dbContext;
+        this.tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<IReadOnlyCollection<Persona>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var personas = await dbContext.Personas
-            .AsNoTracking()
+        var personas = await BaseQuery()
             .Where(persona => !persona.IsSystemRecord)
-            .OrderBy(persona => persona.Apellidos)
-            .ThenBy(persona => persona.Nombres)
+            .OrderBy(persona => persona.RazonSocialONombresCompletos)
             .ToListAsync(cancellationToken);
 
         return personas.Select(MapToDomain).ToArray();
     }
 
+    public async Task<PagedResultResponse<Persona>> GetPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var normalizedTerm = term?.Trim();
+        var query = BaseQuery()
+            .Where(persona => !persona.IsSystemRecord);
+
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(persona =>
+                persona.TipoIdentificacion.Contains(normalizedTerm) ||
+                persona.Identificacion.Contains(normalizedTerm) ||
+                persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                (persona.NombreComercial != null && persona.NombreComercial.Contains(normalizedTerm)) ||
+                (persona.CorreoElectronicoPrincipal != null && persona.CorreoElectronicoPrincipal.Contains(normalizedTerm)) ||
+                (persona.TelefonoCelular != null && persona.TelefonoCelular.Contains(normalizedTerm)) ||
+                (persona.Cliente != null && "Cliente".Contains(normalizedTerm)) ||
+                (persona.Empleado != null && "Empleado".Contains(normalizedTerm)) ||
+                (persona.Proveedor != null && "Proveedor".Contains(normalizedTerm)) ||
+                (persona.SecurityUser != null && "Usuario".Contains(normalizedTerm)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var personas = await query
+            .OrderBy(persona => persona.RazonSocialONombresCompletos)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultResponse<Persona>
+        {
+            Items = personas.Select(MapToDomain).ToArray(),
+            TotalCount = totalCount,
+            Skip = skip,
+            Take = take
+        };
+    }
+
     public async Task<Persona?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var persona = await dbContext.Personas
-            .AsNoTracking()
+        var persona = await BaseQuery()
+            .FirstOrDefaultAsync(current => current.Id == id && !current.IsSystemRecord, cancellationToken);
+
+        return persona is null ? null : MapToDomain(persona);
+    }
+
+    public async Task<Persona?> FindByIdentificacionAsync(string identificacion, CancellationToken cancellationToken = default)
+    {
+        var normalizedIdentificacion = identificacion.Trim();
+        var persona = await BaseQuery()
             .FirstOrDefaultAsync(
-                current => current.Id == id && !current.IsSystemRecord,
+                current => !current.IsSystemRecord && current.Identificacion == normalizedIdentificacion,
                 cancellationToken);
 
         return persona is null ? null : MapToDomain(persona);
@@ -47,7 +95,6 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
         return dbContext.Personas.AnyAsync(
             persona =>
-                !persona.IsSystemRecord &&
                 persona.Identificacion == normalizedIdentificacion &&
                 (!excludedId.HasValue || persona.Id != excludedId.Value),
             cancellationToken);
@@ -57,17 +104,26 @@ public sealed class EfPersonaRepository : IPersonaRepository
     {
         var entity = MapToEntity(persona);
         dbContext.Personas.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SyncSpecializedPersonRecordAsync(entity, cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (entity.Identificacion == "9999999999999" &&
+            exception.InnerException is Microsoft.Data.SqlClient.SqlException sql &&
+            sql.Errors.Cast<Microsoft.Data.SqlClient.SqlError>().Any(error =>
+                error.Number is 2601 or 2627 && error.Message.Contains("IX_Personas_EmpresaId_Identificacion", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Esta empresa ya tiene registrado un consumidor final. Utiliza el registro existente.", exception);
+        }
 
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken) ?? MapToDomain(entity);
     }
 
     public async Task<Persona?> UpdateAsync(Persona persona, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Personas
-            .FirstOrDefaultAsync(
-                current => current.Id == persona.Id && !current.IsSystemRecord,
-                cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == persona.Id && !current.IsSystemRecord, cancellationToken);
 
         if (entity is null)
         {
@@ -76,17 +132,142 @@ public sealed class EfPersonaRepository : IPersonaRepository
 
         entity.TipoIdentificacion = persona.TipoIdentificacion;
         entity.Identificacion = persona.Identificacion;
-        entity.Nombres = persona.Nombres;
-        entity.Apellidos = persona.Apellidos;
+        entity.RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos;
+        entity.NombreComercial = persona.NombreComercial;
+        entity.DireccionPrincipal = persona.DireccionPrincipal;
+        entity.RegionCodigo = persona.RegionCodigo;
+        entity.ProvinciaCodigo = persona.ProvinciaCodigo;
+        entity.CiudadCodigo = persona.CiudadCodigo;
+        entity.SectorCodigo = persona.SectorCodigo;
         entity.FechaNacimiento = persona.FechaNacimiento;
-        entity.Email = persona.Email;
-        entity.Telefono = persona.Telefono;
-        entity.Direccion = persona.Direccion;
+        entity.CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal;
+        entity.TelefonoCelular = persona.TelefonoCelular;
+        entity.Genero = persona.Genero;
+        entity.EsPersonaJuridica = persona.EsPersonaJuridica;
+        entity.EsEmpresa = persona.EsEmpresa;
         entity.IsActive = persona.IsActive;
         entity.UpdatedAt = persona.UpdatedAt;
 
+        await SyncSpecializedPersonRecordAsync(entity, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return MapToDomain(entity);
+        return await GetByIdAsync(entity.Id, cancellationToken);
+    }
+
+    private async Task SyncSpecializedPersonRecordAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        if (entity.EsEmpresa)
+        {
+            await RemovePersonaNaturalAsync(entity.Id, cancellationToken);
+            await UpsertEmpresaClienteAsync(entity, cancellationToken);
+            return;
+        }
+
+        await RemoveEmpresaClienteAsync(entity.Id, cancellationToken);
+        await UpsertPersonaNaturalAsync(entity, cancellationToken);
+    }
+
+    private async Task UpsertPersonaNaturalAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        var personaNatural = await dbContext.PersonasNaturales
+            .FirstOrDefaultAsync(current => current.Id == entity.Id, cancellationToken);
+
+        var nameParts = SplitPersonName(entity.RazonSocialONombresCompletos);
+        if (personaNatural is null)
+        {
+            personaNatural = new PersonaNaturalEntity
+            {
+                Id = entity.Id
+            };
+            dbContext.PersonasNaturales.Add(personaNatural);
+        }
+
+        personaNatural.EmpresaId = entity.EmpresaId;
+        personaNatural.PrimerNombre = nameParts.PrimerNombre;
+        personaNatural.SegundoNombre = nameParts.SegundoNombre;
+        personaNatural.PrimerApellido = nameParts.PrimerApellido;
+        personaNatural.SegundoApellido = nameParts.SegundoApellido;
+        personaNatural.TipoDocumento = ResolveTipoDocumento(entity.TipoIdentificacion);
+        personaNatural.NumeroDocumento = entity.Identificacion;
+        personaNatural.TieneRuc = entity.TipoIdentificacion == "04";
+        personaNatural.Email = entity.CorreoElectronicoPrincipal;
+        personaNatural.Telefono = entity.TelefonoCelular;
+        personaNatural.Direccion = entity.DireccionPrincipal;
+    }
+
+    private async Task UpsertEmpresaClienteAsync(PersonaEntity entity, CancellationToken cancellationToken)
+    {
+        var empresaCliente = await dbContext.EmpresasCliente
+            .FirstOrDefaultAsync(current => current.Id == entity.Id, cancellationToken);
+
+        if (empresaCliente is null)
+        {
+            empresaCliente = new EmpresaClienteEntity
+            {
+                Id = entity.Id
+            };
+            dbContext.EmpresasCliente.Add(empresaCliente);
+        }
+
+        empresaCliente.EmpresaId = entity.EmpresaId;
+        empresaCliente.RazonSocial = entity.RazonSocialONombresCompletos;
+        empresaCliente.NombreComercial = entity.NombreComercial;
+        empresaCliente.Ruc = entity.Identificacion;
+        empresaCliente.EmailFacturacion = entity.CorreoElectronicoPrincipal;
+        empresaCliente.Telefono = entity.TelefonoCelular;
+        empresaCliente.DireccionMatriz = entity.DireccionPrincipal;
+    }
+
+    private async Task RemovePersonaNaturalAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var personaNatural = await dbContext.PersonasNaturales
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        if (personaNatural is not null)
+        {
+            dbContext.PersonasNaturales.Remove(personaNatural);
+        }
+    }
+
+    private async Task RemoveEmpresaClienteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var empresaCliente = await dbContext.EmpresasCliente
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+
+        if (empresaCliente is not null)
+        {
+            dbContext.EmpresasCliente.Remove(empresaCliente);
+        }
+    }
+
+    private static TipoDocumentoPersonaNatural ResolveTipoDocumento(string tipoIdentificacion)
+    {
+        return tipoIdentificacion switch
+        {
+            "04" => TipoDocumentoPersonaNatural.RucNatural,
+            "06" => TipoDocumentoPersonaNatural.Pasaporte,
+            _ => TipoDocumentoPersonaNatural.Cedula
+        };
+    }
+
+    private static (string PrimerNombre, string? SegundoNombre, string PrimerApellido, string? SegundoApellido) SplitPersonName(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return (
+            parts.ElementAtOrDefault(0) ?? fullName,
+            parts.ElementAtOrDefault(1),
+            parts.ElementAtOrDefault(2) ?? "-",
+            parts.ElementAtOrDefault(3));
+    }
+
+    private IQueryable<PersonaEntity> BaseQuery()
+    {
+        return dbContext.Personas
+            .AsNoTracking()
+            .Include(persona => persona.Cliente)
+            .Include(persona => persona.Empleado)
+            .Include(persona => persona.Proveedor)
+            .Include(persona => persona.SecurityUser);
     }
 
     private static Persona MapToDomain(PersonaEntity entity)
@@ -95,33 +276,76 @@ public sealed class EfPersonaRepository : IPersonaRepository
             entity.Id,
             entity.TipoIdentificacion,
             entity.Identificacion,
-            entity.Nombres,
-            entity.Apellidos,
+            entity.RazonSocialONombresCompletos,
+            entity.NombreComercial,
+            entity.DireccionPrincipal,
+            entity.TelefonoCelular,
+            entity.CorreoElectronicoPrincipal,
             entity.FechaNacimiento,
-            entity.Email,
-            entity.Telefono,
-            entity.Direccion,
+            entity.Genero,
+            entity.EsPersonaJuridica,
+            entity.EsEmpresa,
+            ResolvePersonaRoles(entity),
             entity.IsActive,
             entity.CreatedAt,
-            entity.UpdatedAt);
+            entity.UpdatedAt,
+            entity.RegionCodigo,
+            entity.ProvinciaCodigo,
+            entity.CiudadCodigo,
+            entity.SectorCodigo);
     }
 
-    private static PersonaEntity MapToEntity(Persona persona)
+    private PersonaEntity MapToEntity(Persona persona)
     {
         return new PersonaEntity
         {
             Id = persona.Id,
+            EmpresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para la persona."),
             TipoIdentificacion = persona.TipoIdentificacion,
             Identificacion = persona.Identificacion,
-            Nombres = persona.Nombres,
-            Apellidos = persona.Apellidos,
+            RazonSocialONombresCompletos = persona.RazonSocialONombresCompletos,
+            NombreComercial = persona.NombreComercial,
+            DireccionPrincipal = persona.DireccionPrincipal,
+            RegionCodigo = persona.RegionCodigo,
+            ProvinciaCodigo = persona.ProvinciaCodigo,
+            CiudadCodigo = persona.CiudadCodigo,
+            SectorCodigo = persona.SectorCodigo,
             FechaNacimiento = persona.FechaNacimiento,
-            Email = persona.Email,
-            Telefono = persona.Telefono,
-            Direccion = persona.Direccion,
+            CorreoElectronicoPrincipal = persona.CorreoElectronicoPrincipal,
+            TelefonoCelular = persona.TelefonoCelular,
+            Genero = persona.Genero,
+            EsPersonaJuridica = persona.EsPersonaJuridica,
+            EsEmpresa = persona.EsEmpresa,
             IsActive = persona.IsActive,
             CreatedAt = persona.CreatedAt,
             UpdatedAt = persona.UpdatedAt
         };
+    }
+
+    private static string[] ResolvePersonaRoles(PersonaEntity entity)
+    {
+        var roles = new List<string>();
+
+        if (entity.Cliente is not null)
+        {
+            roles.Add("Cliente");
+        }
+
+        if (entity.Empleado is not null)
+        {
+            roles.Add("Empleado");
+        }
+
+        if (entity.Proveedor is not null)
+        {
+            roles.Add("Proveedor");
+        }
+
+        if (entity.SecurityUser is not null)
+        {
+            roles.Add("Usuario");
+        }
+
+        return roles.ToArray();
     }
 }

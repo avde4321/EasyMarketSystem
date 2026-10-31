@@ -2,6 +2,8 @@
 @attribute [AllowAnonymous]
 @layout EmptyLayout
 
+<ProcessingOverlay IsVisible="@(isBusy)" Title="Procesando" Message="Espera hasta que termine la operación." />
+
 <PageTitle>Login</PageTitle>
 
 <section class="login-shell">
@@ -37,9 +39,11 @@
             </button>
         </EditForm>
 
-        <div class="login-demo">
+        <p><a href="/register-tenant">¿Aún no tienes cuenta? Registra tu empresa</a></p>
+
+        @* <div class="login-demo">
             <span>Usuario: admin</span>
             <span>Contrasena: Admin123*</span>
-        </div>
+        </div> *@
     </div>
 </section>

@@ -1,0 +1,158 @@
+@attribute [Authorize(Roles = "Bodeguero")]
+
+<section class="dashboard-page dashboard-bodeguero">
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message">@errorMessage</div>
+    }
+    else if (isLoading)
+    {
+        <section class="dashboard-section">
+            <div class="empty-state">Cargando estatus de bodegas...</div>
+        </section>
+    }
+    else
+    {
+        <section class="warehouse-kpi-grid">
+            <article class="warehouse-kpi-card">
+                <span>Entradas del día</span>
+                <strong>@overview.EntradasDia.ToString("0.####")</strong>
+                <small>Unidades ingresadas hoy.</small>
+            </article>
+            <article class="warehouse-kpi-card">
+                <span>Salidas del día</span>
+                <strong>@overview.SalidasDia.ToString("0.####")</strong>
+                <small>Unidades despachadas hoy.</small>
+            </article>
+            <article class="warehouse-kpi-card">
+                <span>Movimiento mensual</span>
+                <strong>@((overview.EntradasMes + overview.SalidasMes).ToString("0.####"))</strong>
+                <small>Entradas + salidas del mes.</small>
+            </article>
+            <article class="warehouse-kpi-card accent">
+                <span>Valor inventario</span>
+                <strong>@overview.ValorInventario.ToString("C2")</strong>
+                <small>@overview.BodegasActivas bodegas activas · @overview.ItemsCriticos ítems críticos.</small>
+            </article>
+        </section>
+
+        <section class="dashboard-section">
+            <header class="section-header">
+                <div>
+                    <h2>Estatus por bodega</h2>
+                    <p>Stock, valorización y mercadería movilizada en el día y mes actual.</p>
+                </div>
+            </header>
+
+            @if (overview.Bodegas.Count == 0)
+            {
+                <div class="empty-state">No hay bodegas activas para la empresa actual.</div>
+            }
+            else
+            {
+                <div class="warehouse-grid">
+                    @foreach (var bodega in overview.Bodegas)
+                    {
+                        <article class="warehouse-card">
+                            <header>
+                                <div>
+                                    <span>@bodega.Codigo</span>
+                                    <strong>@bodega.Nombre</strong>
+                                </div>
+                                @if (bodega.EsPrincipal)
+                                {
+                                    <span class="main-pill">Principal</span>
+                                }
+                            </header>
+
+                            <div class="warehouse-stats">
+                                <div>
+                                    <small>Items con stock</small>
+                                    <strong>@bodega.ItemsConStock</strong>
+                                </div>
+                                <div>
+                                    <small>Críticos</small>
+                                    <strong>@bodega.ItemsCriticos</strong>
+                                </div>
+                                <div>
+                                    <small>Stock total</small>
+                                    <strong>@bodega.StockTotal.ToString("0.####")</strong>
+                                </div>
+                                <div>
+                                    <small>Valor</small>
+                                    <strong>@bodega.ValorInventario.ToString("C2")</strong>
+                                </div>
+                            </div>
+
+                            <div class="movement-bars">
+                                <div>
+                                    <span>Día entrada/salida</span>
+                                    <strong>@bodega.EntradasDia.ToString("0.##") / @bodega.SalidasDia.ToString("0.##")</strong>
+                                </div>
+                                <div class="movement-bar-track">
+                                    <div class="movement-bar-fill in" style="width:@GetBodegaMovementWidth(bodega.EntradasDia)%"></div>
+                                </div>
+                                <div class="movement-bar-track">
+                                    <div class="movement-bar-fill out" style="width:@GetBodegaMovementWidth(bodega.SalidasDia)%"></div>
+                                </div>
+                                <div>
+                                    <span>Mes entrada/salida</span>
+                                    <strong>@bodega.EntradasMes.ToString("0.##") / @bodega.SalidasMes.ToString("0.##")</strong>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="dashboard-section">
+            <header class="section-header">
+                <div>
+                    <h2>Mercadería movilizada por ítem</h2>
+                    <p>Ranking mensual con lectura del movimiento del día para cada producto y bodega.</p>
+                </div>
+            </header>
+
+            @if (overview.ItemsMovilizados.Count == 0)
+            {
+                <div class="empty-state">Aún no hay movimientos de Kardex en el mes actual.</div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Bodega</th>
+                                <th>Entradas día</th>
+                                <th>Salidas día</th>
+                                <th>Entradas mes</th>
+                                <th>Salidas mes</th>
+                                <th>Total mes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in overview.ItemsMovilizados)
+                            {
+                                <tr>
+                                    <td data-label="Producto">
+                                        <strong>@item.NombreProducto</strong>
+                                        <small>@item.CodigoProducto</small>
+                                    </td>
+                                    <td data-label="Bodega">@item.BodegaNombre</td>
+                                    <td data-label="Entradas día">@item.EntradasDia.ToString("0.####")</td>
+                                    <td data-label="Salidas día">@item.SalidasDia.ToString("0.####")</td>
+                                    <td data-label="Entradas mes">@item.EntradasMes.ToString("0.####")</td>
+                                    <td data-label="Salidas mes">@item.SalidasMes.ToString("0.####")</td>
+                                    <td data-label="Total mes"><span class="total-pill">@item.MovimientoTotalMes.ToString("0.####")</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</section>

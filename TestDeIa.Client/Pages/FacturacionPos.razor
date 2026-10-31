@@ -1,24 +1,77 @@
 @page "/facturacion/pos"
-@attribute [Authorize]
+@attribute [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
 @implements IDisposable
+
+<ProcessingOverlay IsVisible="@(isSubmitting || isCreatingClienteExtension || isSyncingOfflineQueue)" Title="Procesando" Message="Espera hasta que termine la operación." />
 
 <PageTitle>Punto de Venta</PageTitle>
 
-<section class="module-page pos-page">
-    <header class="module-header">
+<section class="module-page pos-page pastel-pos-page pos-invoice-page">
+    <header class="module-header pos-header pos-invoice-header">
         <div>
-            <h1>Punto de Venta</h1>
-            <p>Emision rapida de facturas con cola asincrona hacia el SRI.</p>
+            <span class="eyebrow-label">Documento electronico</span>
+            <h1>Factura interactiva POS</h1>
+            <p>Arma el documento por lineas, valida bodega, calcula vuelto y registra el cobro para arqueo.</p>
         </div>
-        <div class="pos-summary">
+        <div class="network-status-badge @(isOnline ? "is-online" : "is-offline")">
+            @(isOnline ? "EN LINEA" : "MODO CONTINGENCIA OFFLINE")
+        </div>
+        <div class="pos-summary pastel-summary">
             <span>Items: @cartItems.Count</span>
-            <strong>Total: @GetCartTotal().ToString("0.00")</strong>
+            <strong>$ @GetCartTotal().ToString("0.00")</strong>
         </div>
     </header>
 
+    <section class="invoice-context-card">
+        <div class="context-pill-group invoice-context-grid">
+            <div class="context-pill context-pill-primary">
+                <span>Cliente</span>
+                <strong>@(selectedCliente?.NombreCompleto ?? "Consumidor / buscar cliente")</strong>
+                <small>@(selectedCliente?.Identificacion ?? "Sin seleccion")</small>
+            </div>
+            <div class="context-pill context-pill-primary">
+                <span>Documento</span>
+                <strong>@($"{selectedPuntoEmision?.Establecimiento ?? "---"}-{selectedPuntoEmision?.PuntoEmision ?? "---"}-#########")</strong>
+                <small>Factura electronica</small>
+            </div>
+            <div class="context-pill context-pill-soft">
+                <span>Caja y bodega</span>
+                <strong>@(selectedPuntoEmision?.BodegaNombre ?? "Sin bodega")</strong>
+                <small>@(hasCajaVencida ? "Caja pendiente de cierre" : hasCajaActiva ? "Caja abierta" : "Caja cerrada")</small>
+            </div>
+            <div class="context-pill context-pill-soft">
+                <span>Punto de venta</span>
+                <strong>@(selectedPuntoEmision?.DisplayName ?? "Sin seleccionar")</strong>
+                <small>@(selectedPuntoEmision?.DireccionEstablecimiento ?? "Sin direccion")</small>
+            </div>
+        </div>
+        <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenOperationalContextModal">
+            @(selectedPuntoEmision is null ? "Seleccionar punto" : "Cambiar punto")
+        </button>
+    </section>
+
+    @if (isCajaLoading)
+    {
+        <div class="status-banner">Validando estado de caja...</div>
+    }
+    else if (!hasCajaActiva)
+    {
+        <div class="alert-message">
+            Esta caja no esta abierta para tu usuario. Debes abrirla antes de buscar clientes, cargar productos o facturar.
+            <button class="inline-link button-link" type="button" @onclick="GoToControlCaja">Ir a control de caja</button>
+        </div>
+    }
+    else if (hasCajaVencida)
+    {
+        <div class="alert-message">
+            Tienes una caja abierta de un dia anterior. Debes cerrarla antes de operar el POS y abrir una nueva caja con la fecha correcta.
+            <button class="inline-link button-link" type="button" @onclick="GoToControlCaja">Cerrar caja pendiente</button>
+        </div>
+    }
+
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
-        <div class="status-banner">@statusMessage</div>
+        <div class="status-banner dynamic-status-banner">@statusMessage</div>
     }
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -26,161 +79,354 @@
         <div class="alert-message">@errorMessage</div>
     }
 
-    <section class="pos-grid">
-        <div class="pos-column">
-            <section class="table-card">
-                <header class="section-header">
-                    <div>
-                        <h2>Cliente</h2>
-                        <p>Busca por cedula, RUC o nombre.</p>
+    <section class="pos-invoice-shell">
+        <main class="invoice-workspace">
+            <section class="invoice-search-card">
+                <div class="invoice-search-column">
+                    <span class="eyebrow-label">Cliente</span>
+                    <div class="search-row compact-search-row">
+                        <InputText class="form-control rounded-control" @bind-Value="clienteSearchTerm" placeholder="Cedula, RUC o nombre" />
+                        <button class="secondary-action rounded-xl-button" @onclick="SearchClientesAsync" disabled="@(!CanOperateSearch)">Buscar</button>
                     </div>
-                </header>
 
-                <div class="search-row">
-                    <InputText class="form-control" @bind-Value="clienteSearchTerm" placeholder="Ej. 0923 o Delgado" />
-                    <button class="secondary-action" @onclick="SearchClientesAsync">Buscar</button>
+                    @if (selectedCliente is not null)
+                    {
+                        <div class="selected-card selected-client-card invoice-selected-client">
+                            <strong>@selectedCliente.NombreCompleto</strong>
+                            <span>@selectedCliente.Identificacion · @selectedCliente.TipoIdentificacion</span>
+                            <small>@(selectedCliente.HasClienteExtension ? "Cliente habilitado" : "Persona sin rol cliente en esta empresa")</small>
+                            @if (!selectedCliente.HasClienteExtension)
+                            {
+                                <button class="secondary-action rounded-xl-button" type="button" @onclick="ActivarClienteExtensionAsync" disabled="@isCreatingClienteExtension">
+                                    @(isCreatingClienteExtension ? "Activando..." : "Activar como cliente")
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (clienteResults.Count > 0)
+                    {
+                        <div class="result-list soft-result-list client-results-list invoice-results-list">
+                            @foreach (var cliente in clienteResults)
+                            {
+                                <button class="result-item soft-client-item" @onclick="() => SelectCliente(cliente)">
+                                    <strong>@cliente.NombreCompleto</strong>
+                                    <span>@cliente.Identificacion</span>
+                                    <small>@(cliente.HasClienteExtension ? "Cliente disponible" : "Solo persona registrada")</small>
+                                </button>
+                            }
+                        </div>
+
+                        <div class="inline-pager">
+                            <button class="ghost-button" type="button" @onclick="PreviousClientesAsync" disabled="@(!CanGoPreviousClientes)">Anterior</button>
+                            <span class="pager-meta">Mostrando @clienteResults.Count de @clienteTotalCount</span>
+                            <button class="ghost-button" type="button" @onclick="NextClientesAsync" disabled="@(!CanGoNextClientes)">Siguiente</button>
+                        </div>
+                    }
                 </div>
 
-                @if (selectedCliente is not null)
-                {
-                    <div class="selected-card">
-                        <strong>@selectedCliente.NombreCompleto</strong>
-                        <span>@selectedCliente.Identificacion</span>
-                        <small>@selectedCliente.TipoIdentificacion</small>
-                        <small>@selectedCliente.Email</small>
-                        <small>@selectedCliente.Telefono</small>
-                        <small>@selectedCliente.Direccion</small>
+                <div class="invoice-search-column">
+                    <span class="eyebrow-label">Producto / escaner</span>
+                    <div class="search-row compact-search-row">
+                        <InputText class="form-control rounded-control" @bind-Value="productoSearchTerm" placeholder="Codigo de barra, SKU, servicio o nombre" />
+                        <button class="primary-action rounded-xl-button" @onclick="SearchProductosAsync" disabled="@(!CanOperateSearch)">Buscar</button>
                     </div>
-                }
-                else if (clienteResults.Count > 0)
-                {
-                    <div class="result-list">
-                        @foreach (var cliente in clienteResults)
-                        {
-                            <button class="result-item" @onclick="() => SelectCliente(cliente)">
-                                <strong>@cliente.NombreCompleto</strong>
-                                <span>@cliente.Identificacion</span>
-                                <small>@cliente.TipoIdentificacion</small>
-                            </button>
-                        }
-                    </div>
-                }
-            </section>
 
-            <section class="table-card">
-                <header class="section-header">
-                    <div>
-                        <h2>Productos</h2>
-                        <p>Busqueda por codigo o nombre.</p>
-                    </div>
-                </header>
+                    @if (productoResults.Count > 0)
+                    {
+                        <div class="quick-products-grid">
+                            @foreach (var producto in productoResults)
+                            {
+                                <button class="quick-product-card" type="button" @onclick="() => AddProducto(producto)" disabled="@(!CanOperateSearch)">
+                                    <div class="quick-product-main">
+                                        <strong>@producto.Nombre</strong>
+                                        <span>@producto.Codigo</span>
+                                    </div>
+                                    <div class="quick-product-meta">
+                                        <small>@(producto.ControlaStock ? $"Stock bodega: {producto.StockActual:0.##}" : "Servicio")</small>
+                                        <b>$ @producto.PrecioVenta.ToString("0.00")</b>
+                                    </div>
+                                </button>
+                            }
+                        </div>
 
-                <div class="search-row">
-                    <InputText class="form-control" @bind-Value="productoSearchTerm" placeholder="Ej. SKU o nombre" />
-                    <button class="secondary-action" @onclick="SearchProductosAsync">Buscar</button>
+                        <div class="inline-pager">
+                            <button class="ghost-button" type="button" @onclick="PreviousProductosAsync" disabled="@(!CanGoPreviousProductos)">Anterior</button>
+                            <span class="pager-meta">Mostrando @productoResults.Count de @productoTotalCount</span>
+                            <button class="ghost-button" type="button" @onclick="NextProductosAsync" disabled="@(!CanGoNextProductos)">Siguiente</button>
+                        </div>
+                    }
                 </div>
-
-                @if (productoResults.Count > 0)
-                {
-                    <div class="result-list">
-                        @foreach (var producto in productoResults)
-                        {
-                            <button class="result-item product-item" @onclick="() => AddProducto(producto)">
-                                <div>
-                                    <strong>@producto.Nombre</strong>
-                                    <span>@producto.Codigo</span>
-                                </div>
-                                <div class="price-meta">
-                                    <strong>@producto.PrecioVenta.ToString("0.00")</strong>
-                                    <small>Stock: @producto.StockActual.ToString("0.##")</small>
-                                </div>
-                            </button>
-                        }
-                    </div>
-                }
             </section>
-        </div>
 
-        <div class="pos-column wide">
-            <section class="table-card">
-                <header class="section-header">
+            <section class="invoice-detail-card">
+                <header class="cart-section-header">
                     <div>
-                        <h2>Carrito</h2>
-                        <p>El cobro registra localmente y libera el puesto de caja al instante.</p>
+                        <span class="eyebrow-label">Detalle de factura</span>
+                        <h2>Lineas del documento</h2>
                     </div>
+                    <span class="invoice-line-counter">@cartItems.Count linea(s)</span>
                 </header>
 
                 @if (cartItems.Count == 0)
                 {
-                    <div class="empty-state">Agrega productos para comenzar una venta.</div>
+                    <div class="empty-state pos-empty-state">Agrega productos para comenzar a llenar la factura.</div>
                 }
                 else
                 {
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>Cant.</th>
-                                <th>P. unit</th>
-                                <th>IVA</th>
-                                <th>Total</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in cartItems)
-                            {
+                    <div class="invoice-table-wrapper">
+                        <table class="invoice-lines-table">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        <strong>@item.Nombre</strong>
-                                        <small>@item.Codigo</small>
-                                    </td>
-                                    <td>
-                                        <InputNumber class="quantity-input" @bind-Value="item.Cantidad" @bind-Value:after="StateHasChanged" />
-                                    </td>
-                                    <td>@item.PrecioVenta.ToString("0.00")</td>
-                                    <td>@item.PorcentajeIva.ToString("0.##")%</td>
-                                    <td>@item.Total.ToString("0.00")</td>
-                                    <td>
-                                        <button class="ghost-button" @onclick="() => RemoveProducto(item.ProductoId)">Quitar</button>
-                                    </td>
+                                    <th>Codigo</th>
+                                    <th>Producto / Servicio</th>
+                                    <th>Cantidad</th>
+                                    <th>Precio</th>
+                                    <th>IVA</th>
+                                    <th>Total</th>
+                                    <th></th>
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in cartItems)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@item.Codigo</strong>
+                                            <small class="item-type-badge @(item.IsService ? "service-item-badge" : "goods-item-badge")">@(item.IsService ? "Servicio" : "Bien")</small>
+                                        </td>
+                                        <td>
+                                            <strong>@item.Nombre</strong>
+                                            @if (item.IsService)
+                                            {
+                                                <label class="service-operator-inline">
+                                                    Operador
+                                                    <InputSelect class="form-control rounded-control operator-select" @bind-Value="item.UsuarioIdOperador">
+                                                        <option value="">Selecciona un operador</option>
+                                                        @foreach (var operador in operadores)
+                                                        {
+                                                            <option value="@operador.UsuarioId">@operador.NombreCompleto</option>
+                                                        }
+                                                    </InputSelect>
+                                                </label>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="cart-quantity-block invoice-quantity">
+                                                <button class="qty-action qty-soft" type="button" @onclick="() => DecrementQuantity(item)">-</button>
+                                                <InputNumber class="quantity-input soft-quantity-input" @bind-Value="item.Cantidad" @bind-Value:after="StateHasChanged" />
+                                                <button class="qty-action qty-soft" type="button" @onclick="() => IncrementQuantity(item)">+</button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (item.IsService && canEditServicePrice)
+                                            {
+                                                <InputNumber class="form-control compact-price-input" @bind-Value="item.PrecioVenta" @bind-Value:after="StateHasChanged" />
+                                            }
+                                            else
+                                            {
+                                                <span>$ @item.PrecioVenta.ToString("0.00")</span>
+                                            }
+                                        </td>
+                                        <td>@item.PorcentajeIva.ToString("0.##")%</td>
+                                        <td><strong>$ @item.Total.ToString("0.00")</strong></td>
+                                        <td><button class="remove-action compact-remove" type="button" @onclick="() => RemoveProducto(item.RowId)">Quitar</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 }
+            </section>
+        </main>
 
-                <div class="checkout-panel">
-                    <div class="checkout-fields">
-                        <div class="form-field">
-                            <label>Forma de pago</label>
-                            <InputSelect class="form-control" @bind-Value="formaPago">
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta de credito">Tarjeta de credito</option>
-                                <option value="Tarjeta de debito">Tarjeta de debito</option>
-                                <option value="Transferencia">Transferencia</option>
-                                <option value="Dinero electronico">Dinero electronico</option>
-                                <option value="Tarjeta prepago">Tarjeta prepago</option>
-                                <option value="Compensacion">Compensacion</option>
-                                <option value="Endoso de titulos">Endoso de titulos</option>
-                            </InputSelect>
-                        </div>
-                        <div class="form-field full">
-                            <label>Observacion</label>
-                            <InputText class="form-control" @bind-Value="observacion" />
-                        </div>
-                    </div>
-
-                    <div class="totals-box">
-                        <span>Subtotal: @GetCartSubtotal().ToString("0.00")</span>
-                        <span>IVA: @GetCartIva().ToString("0.00")</span>
-                        <strong>Total: @GetCartTotal().ToString("0.00")</strong>
-                        <button class="primary-action" @onclick="CobrarAsync" disabled="@isSubmitting">
-                            @(isSubmitting ? "Registrando..." : "Cobrar")
-                        </button>
-                    </div>
+        <aside class="invoice-checkout-panel">
+            <section class="checkout-block">
+                <span class="eyebrow-label">Totales</span>
+                <div class="totals-card invoice-totals-card">
+                    <div class="totals-line"><span>Subtotal</span><strong>$ @GetCartSubtotal().ToString("0.00")</strong></div>
+                    <div class="totals-line subtle-line"><span>Base 0%</span><strong>$ @GetCartSubtotalByRate(0m).ToString("0.00")</strong></div>
+                    <div class="totals-line subtle-line"><span>Base 5%</span><strong>$ @GetCartSubtotalByRate(5m).ToString("0.00")</strong></div>
+                    <div class="totals-line subtle-line"><span>Base 8%</span><strong>$ @GetCartSubtotalByRate(8m).ToString("0.00")</strong></div>
+                    <div class="totals-line subtle-line"><span>Base 15%</span><strong>$ @GetCartSubtotalByRate(15m).ToString("0.00")</strong></div>
+                    <div class="totals-line"><span>IVA</span><strong>$ @GetCartIva().ToString("0.00")</strong></div>
+                    <div class="totals-line total-highlight"><span>Total factura</span><strong>$ @GetCartTotal().ToString("0.00")</strong></div>
                 </div>
             </section>
-        </div>
+
+            <section class="checkout-block">
+                <span class="eyebrow-label">Forma de pago</span>
+                <InputSelect class="form-control rounded-control" @bind-Value="formaPago">
+                    @foreach (var item in formasPago)
+                    {
+                        <option value="@item.Codigo">@item.Nombre</option>
+                    }
+                </InputSelect>
+            </section>
+
+            @if (IsCashPayment)
+            {
+                <section class="checkout-block cash-settlement-card">
+                    <span class="eyebrow-label">Cuadre de efectivo</span>
+                    <label class="form-field">
+                        <span>Efectivo recibido</span>
+                        <InputNumber class="form-control rounded-control cash-input" @bind-Value="efectivoRecibido" @bind-Value:after="StateHasChanged" />
+                    </label>
+                    <div class="cash-denominations">
+                        <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(5m)">$5</button>
+                        <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(10m)">$10</button>
+                        <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(20m)">$20</button>
+                        <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(50m)">$50</button>
+                        <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(100m)">$100</button>
+                    </div>
+                    <div class="cash-actions">
+                        <button type="button" class="secondary-action rounded-xl-button" @onclick="SetExactCash">Pago exacto</button>
+                        <button type="button" class="secondary-action rounded-xl-button" @onclick="ClearCash">Limpiar</button>
+                    </div>
+                    <div class="change-display @(IsCashPaymentCovered ? "is-covered" : "is-pending")">
+                        <span>@(IsCashPaymentCovered ? "Vuelto a entregar" : "Pendiente por recibir")</span>
+                        <strong>$ @((IsCashPaymentCovered ? VueltoCalculado : MontoPendienteEfectivo).ToString("0.00"))</strong>
+                    </div>
+                    <small class="cash-note">Para arqueo se registra como ingreso el total neto de la venta; el recibido y vuelto quedan como trazabilidad.</small>
+                </section>
+            }
+
+            <section class="checkout-block">
+                <span class="eyebrow-label">Observacion</span>
+                <InputText class="form-control rounded-control" @bind-Value="observacion" placeholder="Comentario interno opcional" />
+            </section>
+
+            <button class="checkout-button" type="button" @onclick="CobrarAsync" disabled="@isSubmitting">
+                @(isSubmitting ? "Generando factura..." : isOnline ? "Emitir factura" : "Guardar venta offline")
+            </button>
+
+            @if (lastFactura is not null)
+            {
+                <section class="checkout-block post-sale-actions">
+                    <span class="eyebrow-label">Acciones de la ultima venta</span>
+                    <strong>@lastFactura.NumeroComprobante</strong>
+                    <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenLastFacturaWhatsApp">
+                        Enviar WhatsApp
+                    </button>
+                    <button class="secondary-action rounded-xl-button" type="button" @onclick="OpenPagoQrModal">
+                        Generar QR de cobro
+                    </button>
+                </section>
+            }
+        </aside>
     </section>
 </section>
+
+<WhatsAppSendModal IsOpen="@showWhatsAppModal"
+                   DocumentoId="@lastFactura?.FacturaId"
+                   TipoDocumento="Factura"
+                   ClienteNombre="@(selectedCliente?.NombreCompleto ?? "Cliente")"
+                   NumeroTelefono="@selectedCliente?.Telefono"
+                   LinkPdfRide="@LastFacturaRideLink"
+                   LinkXml="@LastFacturaXmlLink"
+                   OnClose="CloseWhatsAppModal" />
+
+<PagoQrModal IsOpen="@showPagoQrModal"
+             FacturaId="@lastFactura?.FacturaId"
+             Monto="@lastFacturaTotal"
+             Concepto="@($"Factura {lastFactura?.NumeroComprobante ?? "POS"}")"
+             TelefonoCliente="@selectedCliente?.Telefono"
+             EmailCliente="@selectedCliente?.Email"
+             OnPagoAprobado="OnPagoDigitalAprobadoAsync"
+             OnClose="ClosePagoQrModal" />
+
+@if (showPosInfoModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow pos-context-modal pos-info-modal">
+            <header class="modal-header pos-context-header">
+                <div>
+                    <span class="eyebrow-label danger-eyebrow">Atencion</span>
+                    <h2>@(posInfoModalTitle ?? "Informacion")</h2>
+                    <p>@posInfoModalMessage</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="ClosePosInfoModal" aria-label="Cerrar aviso">x</button>
+            </header>
+
+            <footer class="modal-actions pos-context-actions">
+                <button class="primary-action" type="button" @onclick="ClosePosInfoModal">Cerrar</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (showCajaRequiredModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow pos-context-modal pos-caja-required-modal">
+            <header class="modal-header pos-context-header">
+                <div>
+                    <span class="eyebrow-label danger-eyebrow">Atencion</span>
+                    <h2>@CajaModalTitle</h2>
+                    <p>@CajaModalMessage</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseCajaRequiredModal" aria-label="Ir a control de caja">x</button>
+            </header>
+
+            @if (hasCajaVencida && cajaActiva is not null)
+            {
+                <div class="caja-required-summary">
+                    <span>Fecha de apertura pendiente</span>
+                    <strong>@cajaActiva.FechaApertura.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                    <small>Primero cierra esta caja; luego abre la caja de hoy.</small>
+                </div>
+            }
+            else
+            {
+                <div class="caja-required-summary">
+                    <span>Estado actual</span>
+                    <strong>Caja cerrada</strong>
+                    <small>El POS queda bloqueado hasta abrir la caja.</small>
+                </div>
+            }
+
+            <footer class="modal-actions pos-context-actions">
+                <button class="secondary-action" type="button" @onclick="GoToControlCaja">Cancelar e ir a caja</button>
+                <button class="primary-action" type="button" @onclick="GoToControlCaja">@CajaModalActionText</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (showOperationalContextModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card narrow pos-context-modal">
+            <header class="modal-header pos-context-header">
+                <div>
+                    <h2>Selecciona tu punto de venta</h2>
+                    <p>El POS queda bloqueado hasta que definas con que establecimiento, punto de emision y bodega trabajara esta caja.</p>
+                </div>
+                <button class="icon-button" type="button" @onclick="CloseOperationalContextModal" aria-label="Cerrar modal" disabled="@(!HasOperationalContext)">x</button>
+            </header>
+
+            @if (puntosEmision.Count == 0)
+            {
+                <div class="empty-state">No hay puntos de emision configurados para la empresa activa.</div>
+            }
+            else
+            {
+                <div class="result-list soft-result-list pos-context-list">
+                    @foreach (var punto in puntosEmision)
+                    {
+                        <button class="result-item pos-context-item @(selectedPuntoEmision?.DisplayName == punto.DisplayName ? "is-selected-context" : string.Empty)" type="button" @onclick="() => SelectPuntoEmision(punto)">
+                            <strong>@punto.DisplayName</strong>
+                            <span>@(string.IsNullOrWhiteSpace(punto.DireccionEstablecimiento) ? "Sin direccion registrada" : punto.DireccionEstablecimiento)</span>
+                            <small>@($"Bodega: {punto.BodegaNombre ?? "Sin asignar"}")</small>
+                            <small>@(punto.IsDefault ? "Predeterminado" : "Disponible")</small>
+                        </button>
+                    }
+                </div>
+            }
+
+            <footer class="modal-actions pos-context-actions">
+                <button class="secondary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Cerrar</button>
+                <button class="primary-action" type="button" @onclick="CloseOperationalContextModal" disabled="@(!HasOperationalContext)">Usar este punto</button>
+            </footer>
+        </section>
+    </div>
+}

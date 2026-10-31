@@ -1,0 +1,35 @@
+.processing-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: grid;
+    place-items: center;
+    background: rgba(20, 48, 67, .42);
+    backdrop-filter: blur(4px);
+    padding: 1.5rem;
+}
+.processing-dialog {
+    width: min(100%, 490px);
+    padding: 2.25rem;
+    border: 1px solid #d0e5ef;
+    border-radius: 26px;
+    background: #f8fcff;
+    color: #15364e;
+    text-align: center;
+    box-shadow: 0 24px 64px #12354a33;
+    outline: none;
+}
+.processing-dialog p { color: #516f87; line-height: 1.6; }
+.processing-spinner {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 1.5rem;
+    border: 5px solid #d9efef;
+    border-top-color: #169d99;
+    border-radius: 50%;
+    animation: processing-spin .85s linear infinite;
+}
+@keyframes processing-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .processing-spinner { animation-duration: 2.5s; }
+}

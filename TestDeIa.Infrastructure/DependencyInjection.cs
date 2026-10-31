@@ -1,19 +1,62 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
+using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
+using TestDeIa.Application.Modules.Catalogos.Ports.Out;
+using TestDeIa.Application.Modules.Caja.Ports.Out;
+using TestDeIa.Application.Modules.ActivosFijos.Ports.Out;
+using TestDeIa.Application.Modules.Compras.Ports.In;
+using TestDeIa.Application.Modules.Compras.Ports.Out;
+using TestDeIa.Application.Modules.Dashboard.Ports.Out;
+using TestDeIa.Application.Modules.Empleados.Ports.Out;
 using TestDeIa.Application.Modules.Empresa.Ports.Out;
+using TestDeIa.Application.Modules.Facturacion.Ports.In;
 using TestDeIa.Application.Modules.Facturacion.Ports.Out;
+using TestDeIa.Application.Modules.Financiero.Ports.Out;
 using TestDeIa.Application.Modules.Inventario.Ports.Out;
+using TestDeIa.Application.Modules.Integraciones.Ports.In;
+using TestDeIa.Application.Modules.OfflinePos.Ports.In;
 using TestDeIa.Application.Modules.Personas.Ports.Out;
+using TestDeIa.Application.Modules.Proformas.Ports.In;
+using TestDeIa.Application.Modules.Reporteria.Ports.In;
+using TestDeIa.Application.Modules.Reporteria.Ports.Out;
+using TestDeIa.Application.Modules.Retenciones.Ports.In;
+using TestDeIa.Application.Modules.Saas.Ports.In;
+using TestDeIa.Application.Modules.Sri.Ports.In;
+using TestDeIa.Application.Modules.Sri.Ports.Out;
+using TestDeIa.Application.Modules.Tesoreria.Ports.In;
+using TestDeIa.Application.Modules.XmlSri.Ports.In;
 using TestDeIa.Application.Modules.Security.Ports.Out;
 using TestDeIa.Infrastructure.Adapters.Out.Clientes;
+using TestDeIa.Infrastructure.Adapters.Out.Contabilidad;
+using TestDeIa.Infrastructure.Adapters.Out.Catalogos;
+using TestDeIa.Infrastructure.Adapters.Out.Caja;
+using TestDeIa.Infrastructure.Adapters.Out.ActivosFijos;
+using TestDeIa.Infrastructure.Adapters.Out.Compras;
+using TestDeIa.Infrastructure.Adapters.Out.Dashboard;
+using TestDeIa.Infrastructure.Adapters.Out.Empleados;
 using TestDeIa.Infrastructure.Adapters.Out.Empresa;
 using TestDeIa.Infrastructure.Adapters.Out.Facturacion;
+using TestDeIa.Infrastructure.Adapters.Out.Financiero;
 using TestDeIa.Infrastructure.Adapters.Out.Inventario;
+using TestDeIa.Infrastructure.Adapters.Out.Integraciones;
+using TestDeIa.Infrastructure.Adapters.Out.OfflinePos;
 using TestDeIa.Infrastructure.Adapters.Out.Personas;
+using TestDeIa.Infrastructure.Adapters.Out.Proformas;
+using TestDeIa.Infrastructure.Adapters.Out.Reporteria;
+using TestDeIa.Infrastructure.Adapters.Out.Retenciones;
+using TestDeIa.Infrastructure.Adapters.Out.Saas;
 using TestDeIa.Infrastructure.Adapters.Out.Security;
+using TestDeIa.Infrastructure.Adapters.Out.Sri;
+using TestDeIa.Infrastructure.Adapters.Out.Tesoreria;
+using TestDeIa.Infrastructure.Adapters.Out.XmlSri;
 using TestDeIa.Infrastructure.Persistence;
+using TestDeIa.Infrastructure.Persistence.Tenancy;
+using TestDeIa.Infrastructure.Security;
+using TestDeIa.Infrastructure.Options;
 
 namespace TestDeIa.Infrastructure;
 
@@ -26,20 +69,102 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+        services.AddOptions<DeploymentSettingsOptions>()
+            .Bind(configuration.GetSection(DeploymentSettingsOptions.SectionName))
+            .Validate(x => string.Equals(x.Mode, "SaaS", StringComparison.OrdinalIgnoreCase) || x.IsOnPremise,
+                "DeploymentSettings:Mode debe ser SaaS u OnPremise.")
+            .Validate(x => x.OnPremiseEmpresaId != Guid.Empty, "OnPremiseEmpresaId no puede ser Guid.Empty.")
+            .ValidateOnStart();
+        services.Configure<SriSoapOptions>(configuration.GetSection(SriSoapOptions.SectionName));
+        services.Configure<IntegracionesOptions>(configuration.GetSection(IntegracionesOptions.SectionName));
+        services.Configure<DocumentoStorageOptions>(configuration.GetSection(DocumentoStorageOptions.SectionName));
+        services.Configure<SriOutboxOptions>(configuration.GetSection(SriOutboxOptions.SectionName));
         services.AddDbContext<TestDeIaDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        services.AddSingleton<IPasswordHashService, Sha256PasswordHashService>();
+        services.AddScoped<IPasswordHashService, Sha256PasswordHashService>();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+        services.AddScoped<ICatalogoRepository, EfCatalogoRepository>();
+        services.AddScoped<ICajaSesionRepository, EfCajaSesionRepository>();
         services.AddScoped<ISecurityUserRepository, EfSecurityUserRepository>();
         services.AddScoped<ISecurityTokenGenerator, JwtSecurityTokenGenerator>();
         services.AddScoped<IClienteRepository, EfClienteRepository>();
+        services.AddScoped<IActivoFijoRepository, EfActivoFijoRepository>();
+        services.AddScoped<IContabilidadRepository, EfContabilidadRepository>();
+        services.AddScoped<ICompraRepository, EfCompraRepository>();
+        services.AddScoped<IFacturaProveedorAnalyzer, FacturaProveedorAnalyzer>();
+        services.AddScoped<IReporteComprasConsolidadoService, ReporteComprasConsolidadoService>();
+        services.AddScoped<IEstudioMercadoRepository, EfEstudioMercadoRepository>();
+        services.AddScoped<ICuentaPorPagarRepository, EfCuentaPorPagarRepository>();
+        services.AddScoped<IDashboardAnalyticsRepository, EfDashboardAnalyticsRepository>();
+        services.AddSingleton<ICompraBackgroundQueue, CompraBackgroundQueue>();
+        services.AddSingleton<IInventarioPredictivoService, InventarioPredictivoService>();
+        services.AddSingleton<IEstudioMercadoAnaliticoService, EstudioMercadoAnaliticoService>();
+        services.AddScoped<IProveedorRepository, EfProveedorRepository>();
+        services.AddScoped<IEmpleadoRepository, EfEmpleadoRepository>();
         services.AddScoped<IEmpresaRepository, EfEmpresaRepository>();
+        services.AddScoped<IApplicationTransactionRunner, ApplicationTransactionRunner>();
+        services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ITenantOnboardingService, TestDeIa.Infrastructure.Adapters.Out.Saas.TenantOnboardingService>();
+        services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ISaasBillingService, TestDeIa.Infrastructure.Adapters.Out.Saas.SaasBillingService>();
+        services.AddScoped<TestDeIa.Application.Modules.Empresa.Ports.In.INumeracionService, NumeracionService>();
+        services.AddScoped<ICertificadoDigitalEmpresaRepository, EfCertificadoDigitalEmpresaRepository>();
+        services.AddSingleton<CatalogoNiifSeed>();
+        services.AddScoped<GeoEcuadorSeed>();
+        services.AddScoped<DbInitializer>();
+        services.AddScoped<SaasSuperAdminBootstrapper>();
+        services.AddScoped<IFinancieroReportesRepository, EfFinancieroReportesRepository>();
         services.AddScoped<IPersonaRepository, EfPersonaRepository>();
+        services.AddScoped<IReporteVentasRepository, EfReporteVentasRepository>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IConsolidacionContableService, ConsolidacionContableService>();
+        services.AddScoped<IReporteService, ReporteService>();
+        services.AddScoped<IBancoParserService, BancoParserService>();
+        services.AddScoped<IConciliacionService, ConciliacionService>();
+        services.AddScoped<ITesoreriaService, TesoreriaService>();
+        services.AddScoped<IConciliacionTestService, ConciliacionTestService>();
+        services.AddScoped<IBancoParserTestService, BancoParserTestService>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
+        services.AddScoped<IComisionesRepository, EfComisionesRepository>();
+        services.AddScoped<IProformaService, ProformaService>();
+        services.AddScoped<IRetencionService, RetencionService>();
+        services.AddScoped<ISaaSQuotaValidationService, SaaSQuotaValidationService>();
+        services.AddScoped<IRetencionSriTestService, RetencionSriTestService>();
+        services.AddScoped<IXmlSriParserService, XmlSriParserService>();
+        services.AddScoped<IXmlComprasTestService, XmlComprasTestService>();
+        services.AddScoped<IOfflineSyncService, OfflineSyncService>();
+        services.AddScoped<IPosOfflineTestService, PosOfflineTestService>();
+        services.AddHttpClient<IWhatsAppService, WhatsAppService>();
+        services.AddHttpClient<IPasarelaPagoService, PayPhonePagoService>();
+        services.AddScoped<ITenantStorageService, LocalDocumentoStorageService>();
+        services.AddScoped<IDocumentoStorageService>(provider => provider.GetRequiredService<ITenantStorageService>());
+        services.AddScoped<ISriComprobanteProcessor, SriComprobanteProcessor>();
+        services.AddScoped<ISriStateEngineService, SriStateEngineService>();
+        services.AddSingleton<SriResponseParser>();
+        services.AddSingleton<ClaveAccesoService>();
+        services.AddSingleton<NotaCreditoXmlGenerator>();
+        services.AddSingleton<SriUrlResolverService>();
+        services.AddSingleton<SriFacturaXmlSchemaValidator>();
+        services.AddSingleton<SriNotaCreditoXmlSchemaValidator>();
+        services.AddSingleton<SriLiquidacionCompraXmlValidator>();
+        services.AddSingleton<SriXadesBesSigner>();
+        services.AddScoped<SriDocumentSubmissionService>();
+        services.AddScoped<TestDeIa.Infrastructure.Adapters.Out.Sri.SriXmlArtifactService>();
+        services.AddSingleton<SriDocumentSchemaValidator>();
+        services.AddSingleton<TestDeIa.Infrastructure.Adapters.Out.Retenciones.RetencionXmlGenerator>();
+        services.AddHttpClient<SriSoapClient>((serviceProvider, client) =>
+        {
+            var soapOptions = serviceProvider.GetRequiredService<IOptions<SriSoapOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(5, soapOptions.TimeoutSeconds));
+        });
         services.AddSingleton<IFacturaBackgroundQueue, FacturaBackgroundQueue>();
-        services.AddScoped<ISriFacturaProcessor, SimulatedSriFacturaProcessor>();
+        services.AddScoped<ISriCompraProcessor, SriCompraProcessor>();
+        services.AddScoped<ISriFacturaProcessor, SriFacturaProcessor>();
+        services.AddScoped<INotaCreditoService, NotaCreditoService>();
         services.AddHostedService<FacturacionBackgroundWorker>();
+        services.AddHostedService<CompraBackgroundWorker>();
+        services.AddHostedService<SriOutboxProcessorWorker>();
 
         return services;
     }

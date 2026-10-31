@@ -29,17 +29,24 @@ public sealed class FacturacionBackgroundWorker : BackgroundService
         {
             try
             {
-                var dequeueTask = backgroundQueue.DequeueAsync(stoppingToken).AsTask();
-                var timerTask = Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-                var completedTask = await Task.WhenAny(dequeueTask, timerTask);
+                using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                readTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+                Guid? queuedFacturaId = null;
+                try
+                {
+                    queuedFacturaId = await backgroundQueue.DequeueAsync(readTimeout.Token);
+                }
+                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                {
+                    // La lectura termina antes de iniciar otra; no quedan consumidores huérfanos.
+                }
 
                 using var scope = scopeFactory.CreateScope();
                 var coordinator = scope.ServiceProvider.GetRequiredService<IFacturacionBackgroundCoordinator>();
 
-                if (completedTask == dequeueTask)
+                if (queuedFacturaId.HasValue)
                 {
-                    var facturaId = await dequeueTask;
-                    await coordinator.ProcessFacturaAsync(facturaId, workerId, stoppingToken);
+                    await coordinator.ProcessFacturaAsync(queuedFacturaId.Value, workerId, stoppingToken);
                 }
                 else
                 {
@@ -52,7 +59,12 @@ public sealed class FacturacionBackgroundWorker : BackgroundService
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Error procesando la cola de facturacion.");
+                logger.LogError(
+                    exception,
+                    "Error procesando la cola de facturacion. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, Error: {Mensaje}",
+                    null,
+                    null,
+                    exception.Message);
                 await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
             }
         }
