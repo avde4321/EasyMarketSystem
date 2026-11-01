@@ -197,7 +197,10 @@ public sealed class EfInventarioRepository : IInventarioRepository
         decimal costoInicial,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         var entity = MapProductoEntity(producto);
         dbContext.Productos.Add(entity);
@@ -225,7 +228,11 @@ public sealed class EfInventarioRepository : IInventarioRepository
             }
         }
 
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
         return await GetProductoByIdAsync(entity.Id, cancellationToken) ?? MapProducto(entity);
     }
 

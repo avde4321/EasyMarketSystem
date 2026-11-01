@@ -98,7 +98,17 @@
                                 </button>
                                 @if (row.CrearNuevo)
                                 {
-                                    <small class="create-hint">Se heredara nombre, costo y tarifa IVA desde el XML.</small>
+                                    <div class="new-product-fields">
+                                        <label>
+                                            Código interno
+                                            <input class="input-control" maxlength="40" @bind="row.CodigoInternoNuevo" />
+                                        </label>
+                                        <label>
+                                            Precio de venta (defínelo; el XML solo informa el costo)
+                                            <input class="input-control" type="number" min="0.01" step="0.01" @bind="row.PrecioVentaNuevo" />
+                                        </label>
+                                        <small class="create-hint">El costo e IVA se toman del XML; el precio comercial lo defines tú. El stock se ingresará una sola vez en la bodega destino.</small>
+                                    </div>
                                 }
                             </td>
                         </tr>
@@ -109,7 +119,7 @@
 
         <footer class="modal-actions">
             <button class="ghost-button" type="button" @onclick="OnCancel">Cancelar</button>
-            <button class="primary-action" type="button" @onclick="ConfirmAsync" disabled="@(BodegaId == Guid.Empty)">Convertir a compra</button>
+            <button class="primary-action" type="button" @onclick="ConfirmAsync" disabled="@(!CanConfirm)">Convertir a compra</button>
         </footer>
     </section>
 </div>
@@ -124,6 +134,9 @@
     private Guid BodegaId { get; set; }
     private int FormaPagoCompra { get; set; } = 4;
     private List<XmlMappingRow> Rows { get; } = [];
+    private bool CanConfirm => BodegaId != Guid.Empty && Rows.Count > 0 && Rows.All(row =>
+        row.ProductoId != Guid.Empty ||
+        (row.CrearNuevo && !string.IsNullOrWhiteSpace(row.CodigoInternoNuevo) && row.CodigoInternoNuevo.Length <= 40 && row.PrecioVentaNuevo > 0));
 
     protected override void OnParametersSet()
     {
@@ -135,7 +148,8 @@
                 NombreProveedor = detail.Descripcion,
                 SearchTerm = $"{detail.CodigoPrincipal} {detail.Descripcion}".Trim(),
                 CostoSugerido = detail.Cantidad == 0 ? detail.PrecioUnitario : detail.PrecioTotalSinImpuesto / detail.Cantidad,
-                TarifaIva = detail.Impuestos.FirstOrDefault(current => current.Codigo == "2")?.Tarifa ?? 0m
+                TarifaIva = detail.Impuestos.FirstOrDefault(current => current.Codigo == "2")?.Tarifa ?? 0m,
+                CodigoInternoNuevo = BuildInternalCode(detail.CodigoPrincipal)
             }));
         }
 
@@ -184,17 +198,30 @@
             CrearProveedorSiNoExiste = true,
             FormaPagoCompra = (TestDeIa.Shared.Compras.FormaPagoCompra)FormaPagoCompra,
             MapeosProductos = Rows
-                .Where(row => row.ProductoId != Guid.Empty)
                 .Select(row => new MapeoProductoProveedorDto
                 {
                     CodigoProductoProveedor = row.CodigoProveedor,
                     NombreProductoProveedor = row.NombreProveedor,
                     ProductoId = row.ProductoId,
                     ProductoCodigoInterno = row.ProductoCodigoInterno,
-                    ProductoNombreInterno = row.ProductoNombreInterno
+                    ProductoNombreInterno = row.ProductoNombreInterno,
+                    CrearProductoNuevo = row.CrearNuevo,
+                    CodigoProductoInternoNuevo = row.CodigoInternoNuevo,
+                    PrecioVentaNuevo = row.PrecioVentaNuevo
                 })
                 .ToArray()
         });
+    }
+
+    private static string BuildInternalCode(string providerCode)
+    {
+        var normalized = new string(providerCode.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        if (normalized.Length > 30)
+        {
+            normalized = normalized[..30];
+        }
+
+        return $"XML-{normalized}";
     }
 
     private sealed class XmlMappingRow
@@ -208,6 +235,8 @@
         public string ProductoCodigoInterno { get; set; } = string.Empty;
         public string ProductoNombreInterno { get; set; } = string.Empty;
         public bool CrearNuevo { get; set; }
+        public string CodigoInternoNuevo { get; set; } = string.Empty;
+        public decimal PrecioVentaNuevo { get; set; }
         public List<PosProductoResponse> Results { get; set; } = [];
     }
 }

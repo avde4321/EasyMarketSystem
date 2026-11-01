@@ -4,12 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Compras.Ports.In;
+using TestDeIa.Application.Modules.Inventario.Ports.In;
 using TestDeIa.Application.Modules.XmlSri.Ports.In;
 using TestDeIa.Domain.Modules.XmlSri.Enums;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
 using TestDeIa.Shared.Compras;
 using TestDeIa.Shared.Requests.Compras;
+using TestDeIa.Shared.Requests.Inventario;
 using TestDeIa.Shared.Requests.XmlSri;
 using TestDeIa.Shared.Responses.Common;
 using TestDeIa.Shared.Responses.Compras;
@@ -21,6 +23,7 @@ public sealed class XmlSriParserService(
     TestDeIaDbContext dbContext,
     ITenantContextAccessor tenantContextAccessor,
     ICompraUseCase compraUseCase,
+    IInventarioUseCase inventarioUseCase,
     ILogger<XmlSriParserService> logger) : IXmlSriParserService
 {
     public XmlSriParserResultDto ParsearXmlFacturaSri(string xmlContent)
@@ -195,6 +198,11 @@ public sealed class XmlSriParserService(
     {
         await EnsureFacturaCompraXmlLogTableAsync(cancellationToken);
 
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
         var log = await dbContext.FacturaCompraXmlLogs
             .FirstOrDefaultAsync(current => current.Id == request.FacturaCompraXmlLogId, cancellationToken)
             ?? throw new InvalidOperationException("El XML de compra no existe o no pertenece a la empresa activa.");
@@ -208,14 +216,27 @@ public sealed class XmlSriParserService(
         var empresaId = tenantContextAccessor.EmpresaId ?? log.EmpresaId;
         var proveedorId = request.ProveedorId ?? await ResolveProveedorIdAsync(empresaId, parsed, request.CrearProveedorSiNoExiste, cancellationToken);
         var mapByProviderCode = request.MapeosProductos
-            .Where(current => current.ProductoId != Guid.Empty)
+            .Where(current => !string.IsNullOrWhiteSpace(current.CodigoProductoProveedor))
             .GroupBy(current => current.CodigoProductoProveedor.Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First().ProductoId, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         var detalles = new List<RegistrarCompraDetalleRequest>();
         foreach (var item in parsed.Detalles)
         {
-            var productoId = await ResolveProductoIdAsync(item, mapByProviderCode, cancellationToken);
+            Guid? productoId;
+            if (mapByProviderCode.TryGetValue(item.CodigoPrincipal.Trim(), out var mapping) && mapping.CrearProductoNuevo)
+            {
+                productoId = await CrearProductoDesdeXmlAsync(item, mapping, cancellationToken);
+            }
+            else if (mapping is not null && mapping.ProductoId != Guid.Empty)
+            {
+                productoId = await ResolveProductoMapeadoAsync(mapping.ProductoId, empresaId, cancellationToken);
+            }
+            else
+            {
+                productoId = await ResolveProductoIdAsync(item, empresaId, cancellationToken);
+            }
+
             if (!productoId.HasValue)
             {
                 log.EstadoProcesamiento = EstadoProcesamientoXmlSri.ErrorMapeo;
@@ -261,6 +282,11 @@ public sealed class XmlSriParserService(
         log.CompraId = compra.Id;
         log.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         return compra;
     }
@@ -415,19 +441,15 @@ public sealed class XmlSriParserService(
 
     private async Task<Guid?> ResolveProductoIdAsync(
         XmlSriDetalleFacturaDto item,
-        IReadOnlyDictionary<string, Guid> mapByProviderCode,
+        Guid empresaId,
         CancellationToken cancellationToken)
     {
-        if (mapByProviderCode.TryGetValue(item.CodigoPrincipal.Trim(), out var mappedId))
-        {
-            return mappedId;
-        }
-
         var codigo = item.CodigoPrincipal.Trim();
         var descripcion = item.Descripcion.Trim();
         var producto = await dbContext.Productos
             .AsNoTracking()
             .Where(current =>
+                current.EmpresaId == empresaId &&
                 current.IsActive &&
                 (current.Codigo == codigo ||
                  current.Nombre == descripcion ||
@@ -438,6 +460,79 @@ public sealed class XmlSriParserService(
             .FirstOrDefaultAsync(cancellationToken);
 
         return producto?.Id;
+    }
+
+    private async Task<Guid?> ResolveProductoMapeadoAsync(
+        Guid productoId,
+        Guid empresaId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Productos
+            .AsNoTracking()
+            .Where(current => current.Id == productoId && current.EmpresaId == empresaId && current.IsActive)
+            .Select(current => (Guid?)current.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<Guid> CrearProductoDesdeXmlAsync(
+        XmlSriDetalleFacturaDto item,
+        MapeoProductoProveedorDto mapping,
+        CancellationToken cancellationToken)
+    {
+        var codigo = mapping.CodigoProductoInternoNuevo.Trim();
+        if (string.IsNullOrWhiteSpace(codigo) || codigo.Length > 40)
+        {
+            throw new InvalidOperationException("Ingresa un código interno de producto válido (máximo 40 caracteres).");
+        }
+
+        if (mapping.PrecioVentaNuevo <= 0)
+        {
+            throw new InvalidOperationException($"Define un precio de venta mayor que cero para el producto {item.Descripcion}.");
+        }
+
+        var impuestoIva = item.Impuestos.FirstOrDefault(current => current.Codigo == "2");
+        var tarifaIva = impuestoIva?.Tarifa ?? 0m;
+        var codigoIva = tarifaIva switch
+        {
+            0m => "IVA_0",
+            5m => "IVA_5",
+            8m => "IVA_8",
+            15m => "IVA_15",
+            _ => throw new InvalidOperationException($"La tarifa IVA {tarifaIva}% del producto {item.Descripcion} no está configurada en el catálogo de EasyMarket.")
+        };
+
+        var costoUnitario = item.Cantidad == 0
+            ? item.PrecioUnitario
+            : Math.Round(item.PrecioTotalSinImpuesto / item.Cantidad, 6, MidpointRounding.AwayFromZero);
+        var nombre = item.Descripcion.Trim();
+        var descripcion = $"Creado desde factura de proveedor. Código proveedor: {item.CodigoPrincipal}. {nombre}";
+
+        var producto = await inventarioUseCase.CreateProductoAsync(new ProductoRequest
+        {
+            Codigo = codigo,
+            Nombre = nombre.Length <= 160 ? nombre : nombre[..160],
+            Descripcion = descripcion.Length <= 300 ? descripcion : descripcion[..300],
+            UnidadMedida = "Unidad",
+            NaturalezaItem = "Mercaderia",
+            CodigoIva = codigoIva,
+            PorcentajeIva = tarifaIva,
+            PrecioVenta = mapping.PrecioVentaNuevo,
+            CostoReferencial = costoUnitario,
+            CostoInicial = 0m,
+            StockInicial = 0m,
+            StockMinimo = 0m,
+            ControlaStock = true,
+            IsActive = true
+        }, cancellationToken);
+
+        logger.LogInformation(
+            "Producto creado desde factura XML de proveedor. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}, ProductoId: {ProductoId}, CodigoProveedor: {CodigoProveedor}",
+            tenantContextAccessor.EmpresaId,
+            tenantContextAccessor.UserId,
+            producto.Id,
+            item.CodigoPrincipal);
+
+        return producto.Id;
     }
 
     private static FacturaCompraXmlLogEntity BuildLogEntity(XmlSriParserResultDto parsed, Guid empresaId, string originalXml)

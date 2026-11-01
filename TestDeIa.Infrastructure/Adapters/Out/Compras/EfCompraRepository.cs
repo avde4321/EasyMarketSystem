@@ -31,7 +31,10 @@ public sealed class EfCompraRepository : ICompraRepository
 
     public async Task<Compra> CreateAsync(Compra compra, CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         var secuencial = compra.Secuencial;
         string? claveAccesoGenerada = compra.ClaveAccesoGenerada;
@@ -96,7 +99,10 @@ public sealed class EfCompraRepository : ICompraRepository
 
         await CreateActivosFijosAsync(entity, cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         var persisted = await dbContext.Compras
             .AsNoTracking()
