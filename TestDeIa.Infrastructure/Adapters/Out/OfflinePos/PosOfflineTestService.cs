@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.OfflinePos.Ports.In;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Shared.Requests.OfflinePos;
@@ -10,6 +11,7 @@ namespace TestDeIa.Infrastructure.Adapters.Out.OfflinePos;
 
 public sealed class PosOfflineTestService(
     TestDeIaDbContext dbContext,
+    ITenantContextAccessor tenantContextAccessor,
     ILogger<PosOfflineTestService> logger) : IPosOfflineTestService
 {
     public async Task<DiagnosticSuiteResultResponse> EjecutarSuiteAsync(CancellationToken cancellationToken = default)
@@ -114,6 +116,7 @@ public sealed class PosOfflineTestService(
         }
     }
 
+    /// <summary>Prueba idempotencia solo contra facturas de la empresa activa; el filtro global se omite únicamente con EmpresaId y marcador local explícitos.</summary>
     public async Task<DiagnosticTestResultResponse> IdempotenciaTestAsync(CancellationToken cancellationToken = default)
     {
         var watch = Stopwatch.StartNew();
@@ -131,7 +134,7 @@ public sealed class PosOfflineTestService(
             var existingCount = await dbContext.Facturas
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .CountAsync(current => current.Observacion != null && current.Observacion.Contains(marker), cancellationToken);
+                .CountAsync(current => current.EmpresaId == sample.EmpresaId && current.Observacion != null && current.Observacion.Contains(marker), cancellationToken);
 
             var repeatedQueue = new[] { venta, venta };
             var uniqueAfterServerCheck = repeatedQueue
@@ -164,12 +167,19 @@ public sealed class PosOfflineTestService(
         }
     }
 
+    /// <summary>Busca datos de prueba solo dentro del tenant autenticado; sin tenant retorna null y no consulta otras empresas.</summary>
     private async Task<SampleOfflineData?> ResolveSampleDataAsync(CancellationToken cancellationToken, bool allowZeroStock = false)
     {
+        var empresaId = tenantContextAccessor.EmpresaId;
+        if (!empresaId.HasValue || empresaId.Value == Guid.Empty)
+        {
+            return null;
+        }
+
         var stockQuery = dbContext.ProductosBodega
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(current => current.Producto.IsActive && current.Producto.ControlaStock && current.Bodega.IsActive);
+            .Where(current => current.EmpresaId == empresaId.Value && current.Producto.IsActive && current.Producto.ControlaStock && current.Bodega.IsActive);
 
         if (!allowZeroStock)
         {

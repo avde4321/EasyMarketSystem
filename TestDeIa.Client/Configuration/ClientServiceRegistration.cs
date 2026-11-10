@@ -67,6 +67,7 @@ public static class ClientServiceRegistration
         services.AddScoped<ProveedoresApiClient>();
         services.AddScoped<EmpleadosApiClient>();
         services.AddScoped<EmpresaApiClient>();
+        services.AddScoped<EmpresaSmtpApiClient>();
         services.AddScoped<CertificadosDigitalesApiClient>();
         services.AddScoped<FacturacionApiClient>();
         services.AddScoped<FinancieroApiClient>();

@@ -6,6 +6,11 @@ namespace TestDeIa.Application.Modules.Retenciones.Ports.In;
 
 public interface IRetencionService
 {
+    Task<PagedResultResponse<CompraPendienteRetencionResponse>> GetComprasPendientesRetencionAsync(
+        string? term,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
     Task ActualizarParteRelacionadaAsync(Guid id, bool parteRelacionada, CancellationToken cancellationToken = default);
     Task<PagedResultResponse<ComprobanteRetencionResponse>> GetPagedAsync(
         string? term,

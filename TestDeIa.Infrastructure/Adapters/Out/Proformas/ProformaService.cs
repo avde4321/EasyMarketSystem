@@ -284,6 +284,7 @@ public sealed class ProformaService(
             ?? currentUserAccessor.GetRequiredEmpresaId();
     }
 
+    /// <summary>Calcula el secuencial dentro de la empresa que crea la proforma; el bypass siempre contiene filtro explícito por EmpresaId.</summary>
     private async Task<string> GenerateNextSecuencialAsync(Guid empresaId, CancellationToken cancellationToken)
     {
         var lastSecuencial = await dbContext.Proformas

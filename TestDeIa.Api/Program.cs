@@ -82,25 +82,7 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 });
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("BlazorClient", policy =>
-    {
-        var origins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? [];
-
-        if (origins.Length == 0 && !builder.Environment.IsDevelopment())
-        {
-            throw new InvalidOperationException("Configure Cors:AllowedOrigins para ambientes productivos.");
-        }
-
-        policy.WithOrigins(origins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .SetPreflightMaxAge(TimeSpan.FromHours(1));
-    });
-});
+CorsPolicyConfiguration.Register(builder.Services, builder.Configuration, builder.Environment.IsDevelopment());
 
 var jwtIssuer = builder.Configuration["Security:Jwt:Issuer"] ?? "TestDeIa";
 var jwtAudience = builder.Configuration["Security:Jwt:Audience"] ?? "TestDeIa.Client";
@@ -172,9 +154,10 @@ builder.Services.AddApiComposition(builder.Configuration);
 
 var app = builder.Build();
 
-await app.UseDatabaseInitializationAsync();
-await using (var bootstrapScope = app.Services.CreateAsyncScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    await app.UseDatabaseInitializationAsync();
+    await using var bootstrapScope = app.Services.CreateAsyncScope();
     await bootstrapScope.ServiceProvider.GetRequiredService<SaasSuperAdminBootstrapper>().EnsureAsync();
 }
 
@@ -192,7 +175,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 app.UseMiddleware<SecurityHeadersMiddleware>();
-app.UseCors("BlazorClient");
+app.UseCors(CorsPolicyConfiguration.BlazorClientPolicy);
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<TenantResolutionMiddleware>();
@@ -205,3 +188,5 @@ app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

@@ -349,11 +349,11 @@ public sealed class FacturaDocumentQueryService
         };
     }
 
-    public async Task<FacturaEmailNotificationDocument?> GetFacturaEmailNotificationDocumentAsync(Guid facturaId, CancellationToken cancellationToken)
+    public async Task<FacturaEmailNotificationDocument?> GetFacturaEmailNotificationDocumentAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken)
     {
         var factura = await dbContext.Facturas
             .AsNoTracking()
-            .FirstOrDefaultAsync(current => current.Id == facturaId, cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == facturaId && current.EmpresaId == empresaId, cancellationToken);
 
         if (factura is null || factura.Estado != FacturaEstado.AUTORIZADO)
         {

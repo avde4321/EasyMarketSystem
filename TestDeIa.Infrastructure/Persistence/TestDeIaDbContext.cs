@@ -60,6 +60,7 @@ public sealed class TestDeIaDbContext : DbContext
     public DbSet<EmpresaPuntoEmisionEntity> EmpresaPuntosEmision => Set<EmpresaPuntoEmisionEntity>();
     public DbSet<CertificadoDigitalEmpresaEntity> CertificadosDigitalesEmpresa => Set<CertificadoDigitalEmpresaEntity>();
     public DbSet<EmpresaConfiguracionServiciosEntity> EmpresaConfiguracionServicios => Set<EmpresaConfiguracionServiciosEntity>();
+    public DbSet<EmpresaSmtpConfiguracionEntity> EmpresaSmtpConfiguraciones => Set<EmpresaSmtpConfiguracionEntity>();
     public DbSet<TransaccionPagoDigitalEntity> TransaccionesPagosDigitales => Set<TransaccionPagoDigitalEntity>();
     public DbSet<WhatsAppNotificacionLogEntity> WhatsAppNotificacionesLog => Set<WhatsAppNotificacionLogEntity>();
 
@@ -104,6 +105,8 @@ public sealed class TestDeIaDbContext : DbContext
         modelBuilder.Entity<SaasFacturaCupoEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
         modelBuilder.Entity<NumeracionHistorialEntity>()
+            .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
+        modelBuilder.Entity<EmpresaSmtpConfiguracionEntity>()
             .HasQueryFilter(entity => tenantContextAccessor.IsSystemContext || entity.EmpresaId == tenantContextAccessor.EmpresaId);
 
         modelBuilder.Entity<PersonaEntity>()

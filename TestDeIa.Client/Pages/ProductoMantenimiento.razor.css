@@ -1,5 +1,23 @@
 .product-maintenance-page .product-modal-card {
     max-width: 980px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+.product-maintenance-page .product-tab-panel {
+    min-height: 18rem;
+    padding: 1.15rem 0 0.5rem;
+}
+
+.product-maintenance-page .form-field-hint {
+    grid-column: 1 / -1;
+    align-self: center;
+    margin: 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-soft);
+    background: var(--surface-2);
+    color: var(--text-muted);
 }
 
 .product-maintenance-page .form-grid {

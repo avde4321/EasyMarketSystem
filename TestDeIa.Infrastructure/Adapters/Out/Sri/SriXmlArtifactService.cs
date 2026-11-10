@@ -7,6 +7,7 @@ using TestDeIa.Infrastructure.Persistence.Entities;
 namespace TestDeIa.Infrastructure.Adapters.Out.Sri;
 public sealed class SriXmlArtifactService(TestDeIaDbContext dbContext, IDocumentoStorageService documentoStorageService)
 {
+    /// <summary>Lee metadata y contenido de un adjunto solo si coincide con la empresa, tipo e ID de entidad solicitados.</summary>
     public async Task<string?> ReadAsync(Guid empresaId, string entidadTipo, Guid entidadId, string tipoAdjunto, CancellationToken ct)
     {
         var metadata = await dbContext.DocumentosAdjuntos.IgnoreQueryFilters().AsNoTracking()
@@ -16,6 +17,7 @@ public sealed class SriXmlArtifactService(TestDeIaDbContext dbContext, IDocument
         var file = await documentoStorageService.ReadAsync(metadata.RutaStorage, metadata.EsCifrado, metadata.HashSHA256, ct);
         return Encoding.UTF8.GetString(file.Content);
     }
+    /// <summary>Persiste un XML de proceso SRI bajo el tenant explícito y evita duplicar el mismo tipo de adjunto activo.</summary>
     public async Task SaveAsync(
         Guid empresaId,
         string modulo,

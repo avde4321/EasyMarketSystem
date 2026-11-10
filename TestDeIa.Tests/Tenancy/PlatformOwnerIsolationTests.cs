@@ -11,6 +11,34 @@ namespace TestDeIa.Tests.Tenancy;
 
 public sealed class PlatformOwnerIsolationTests
 {
+    [Fact]
+    public async Task PlatformOwnerSeesOwnedCompanyWithoutMembershipButNeverCustomerCompany()
+    {
+        var actor = Guid.NewGuid();
+        var tenant = new TenantContextAccessor { IsSystemContext = true, UserId = actor };
+        await using var db = new TestDeIaDbContext(new DbContextOptionsBuilder<TestDeIaDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options, tenant);
+        var owned = new EmpresaEmisoraEntity { Id = Guid.NewGuid(), OwnerUserId = actor, Ruc = "0999999999001", RazonSocial = "Empresa propia" };
+        var customer = new EmpresaEmisoraEntity { Id = Guid.NewGuid(), OwnerUserId = Guid.NewGuid(), Ruc = "0999999999002", RazonSocial = "Empresa cliente" };
+        var user = new SecurityUserEntity { Id = actor, IsActive = true };
+        var role = new SecurityRoleEntity { Id = Guid.NewGuid(), Name = SecurityRoleNames.SuperAdministrador, IsActive = true };
+        db.EmpresasEmisoras.AddRange(owned, customer);
+        db.SecurityUserRoles.Add(new SecurityUserRoleEntity { UserId = actor, User = user, RoleId = role.Id, Role = role });
+        // Simula una empresa antigua sin SecurityUserEmpresa y una relación accidental
+        // de acceso a una empresa cliente. El propietario debe ver solo la de su propiedad.
+        db.SecurityUserEmpresas.Add(new SecurityUserEmpresaEntity { SecurityUserId = actor, EmpresaId = customer.Id, Empresa = customer });
+        await db.SaveChangesAsync();
+        tenant.IsSystemContext = false;
+
+        var repository = new TestDeIa.Infrastructure.Adapters.Out.Empresa.EfEmpresaRepository(
+            db, tenant, new TestDeIa.Infrastructure.Adapters.Out.Contabilidad.CatalogoNiifSeed());
+
+        var companies = await repository.GetMineAsync();
+
+        Assert.Single(companies);
+        Assert.Equal(owned.Id, companies.Single().Id);
+    }
+
     [Theory]
     [InlineData(true, false, 403)]
     [InlineData(true, true, 200)]

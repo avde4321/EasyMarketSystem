@@ -37,14 +37,18 @@ public static class JwtSigningKeyResolver
             return configuredKeys;
         }
 
-        var legacySecret = configuration["Security:Jwt:Secret"];
+        // SecretKey is the canonical single-key setting. Keep the old Secret alias only
+        // for deployments that have not yet moved to SigningKeys/SecretKey.
+        var legacySecret = configuration["Security:Jwt:SecretKey"]
+            ?? configuration["Jwt:SecretKey"]
+            ?? configuration["Security:Jwt:Secret"];
         if (!string.IsNullOrWhiteSpace(legacySecret))
         {
-            return [CreateSigningKey("legacy", legacySecret)];
+            return [CreateSigningKey("primary", legacySecret)];
         }
 
         throw new InvalidOperationException(
-            "Configure al menos una clave JWT en Security:Jwt:SigningKeys:0:Secret usando User Secrets, variables de entorno o Key Vault.");
+            "Falta la clave JWT. Configure Security:Jwt:SigningKeys:0:Secret o Security:Jwt:SecretKey mediante User Secrets, variables de entorno o Key Vault.");
     }
 
     public static JwtSigningKey ResolvePrimarySigningKey(IConfiguration configuration)

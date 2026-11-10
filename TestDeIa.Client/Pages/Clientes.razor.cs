@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Clientes;
 using TestDeIa.Client.Services.Personas;
@@ -13,6 +14,9 @@ namespace TestDeIa.Client.Pages;
 public partial class Clientes
 {
     [Inject]
+    private TestDeIa.Client.Services.PopupNotificationService PopupNotificationService { get; set; } = default!;
+
+    [Inject]
     private ClientesApiClient ClientesApiClient { get; set; } = default!;
 
     [Inject]
@@ -25,6 +29,8 @@ public partial class Clientes
     private readonly List<CatalogoItemResponse> tiposIdentificacion = [];
     private readonly List<PersonaResponse> personasCoincidentes = [];
     private ClienteRequest clienteRequest = new();
+    private static readonly string[] clientFormTabs = ["Identificación", "Contacto", "Facturación y crédito"];
+    private int activeClientTab;
     private Guid? editingClienteId;
     private bool isLoading = true;
     private bool isSaving;
@@ -135,6 +141,7 @@ public partial class Clientes
             TipoCliente = "Natural",
             EstadoCredito = "AlDia"
         };
+        activeClientTab = 0;
         errorMessage = null;
         statusMessage = null;
         personaSearchTerm = string.Empty;
@@ -174,6 +181,7 @@ public partial class Clientes
             Genero = cliente.Genero,
             IsActive = cliente.IsActive
         };
+        activeClientTab = 0;
         isEditorOpen = true;
         showClienteRoleForm = true;
         isClienteFromExistingPersona = false;
@@ -233,6 +241,7 @@ public partial class Clientes
     private void SeleccionarPersona(PersonaResponse persona)
     {
         clienteRequest = new ClienteRequest();
+        activeClientTab = 1;
         clienteRequest.TipoIdentificacion = persona.TipoIdentificacion;
         clienteRequest.TipoCliente = persona.EsPersonaJuridica ? TipoClienteCodes.Juridico : TipoClienteCodes.Natural;
         clienteRequest.Identificacion = persona.Identificacion;
@@ -271,6 +280,7 @@ public partial class Clientes
             EstadoCredito = "AlDia",
             IsActive = true
         };
+        activeClientTab = 0;
         personaSearchTerm = string.Empty;
         personasCoincidentes.Clear();
         errorMessage = null;
@@ -284,6 +294,17 @@ public partial class Clientes
         showClienteRoleForm = false;
         isClienteFromExistingPersona = false;
         statusMessage = "Selecciona una persona existente o crea un nuevo registro.";
+    }
+
+    private void OnInvalidClienteSubmit(EditContext context)
+    {
+        var identityFields = new[] { "TipoCliente", "TipoIdentificacion", "Identificacion", "RazonSocialONombresCompletos" };
+        var contactFields = new[] { "NombreComercial", "CorreoElectronicoPrincipal", "TelefonoCelular", "FechaNacimiento", "Genero", "DireccionPrincipal" };
+        activeClientTab = identityFields.Any(field => context.GetValidationMessages(new FieldIdentifier(clienteRequest, field)).Any())
+            ? 0
+            : contactFields.Any(field => context.GetValidationMessages(new FieldIdentifier(clienteRequest, field)).Any())
+                ? 1
+                : 2;
     }
 
     private async Task BuscarPersonaAsync()
@@ -340,6 +361,7 @@ public partial class Clientes
 
             CloseModal();
             await LoadClientesAsync();
+            await PopupNotificationService.ShowSuccessAsync("Cliente guardado correctamente.");
         }
         catch (HttpRequestException)
         {

@@ -36,6 +36,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         EnsureSubscriptionCanOperate(subscription.EstadoSuscripcion, subscription.FechaInicio, subscription.FechaVencimiento, useSubscriptionRequiredException: true);
     }
 
+    /// <summary>Cuenta reservas confirmadas y pendientes del tenant solicitado; todos los bypasses exigen EmpresaId para evitar contaminación de cupos.</summary>
     public async Task CanEmitirFacturaAsync(Guid empresaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
@@ -64,6 +65,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         }
     }
 
+    /// <summary>Cuenta membresías de una sola empresa; el filtro global se omite para lecturas de cuota y el EmpresaId es obligatorio.</summary>
     public async Task CanCrearUsuarioAsync(Guid empresaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
@@ -93,6 +95,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         }
     }
 
+    /// <summary>Cuenta puntos de emisión de una sola empresa; el filtro global se omite para lecturas de cuota y el EmpresaId es obligatorio.</summary>
     public async Task CanCrearSucursalAsync(Guid empresaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
@@ -131,15 +134,40 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         await dbContext.Database.ExecuteSqlInterpolatedAsync($"DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000; IF @r < 0 THROW 51000, 'No se pudo bloquear el cupo SaaS. Reintente la operacion.', 1;", cancellationToken);
     }
 
+    /// <summary>
+    /// Serializa globalmente la reserva del identificador de factura, cuya clave primaria es global.
+    /// Evita que dos empresas distintas superen simultáneamente la comprobación de propiedad.
+    /// </summary>
+    private async Task BloquearIdentificadorFacturaAsync(Guid facturaId, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory") return;
+        if (!dbContext.Database.IsSqlServer() || dbContext.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("La reserva de factura requiere SQL Server y una transacción activa.");
+
+        var resource = $"SAAS-FACTURA-ID:{facturaId:N}";
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000; IF @r < 0 THROW 51001, 'No se pudo reservar el identificador de factura. Reintente la operacion.', 1;",
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reserva cupo SaaS dentro de la transacción de facturación. Se omite el filtro global únicamente
+    /// en la tabla de reservas y cada acceso queda acotado por EmpresaId y FacturaId.
+    /// </summary>
     public async Task ReservarCupoFacturaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
         if (facturaId == Guid.Empty) throw new ArgumentException("La factura necesita un identificador estable.", nameof(facturaId));
         await BloquearCuotaAsync(empresaId, cancellationToken);
+        await BloquearIdentificadorFacturaAsync(facturaId, cancellationToken);
+
+        // FacturaId es la PK de la reserva: primero se resuelve globalmente para distinguir
+        // un reintento idempotente propio de un intento de reutilizar el ID de otro tenant.
+        // El filtro se omite solo para esta comprobación de unicidad; no se expone el tenant dueño.
         var reservation = await dbContext.SaasFacturaCupos.IgnoreQueryFilters()
             .SingleOrDefaultAsync(x => x.FacturaId == facturaId, cancellationToken);
         if (reservation is not null && reservation.EmpresaId != empresaId)
-            throw new UnauthorizedAccessException("La reserva no pertenece a la empresa.");
+            throw new UnauthorizedAccessException("El identificador de factura no está disponible para esta empresa.");
         if (reservation?.Estado is "RESERVADO" or "CONFIRMADO") return;
         await CanEmitirFacturaAsync(empresaId, cancellationToken);
         if (reservation is null)
@@ -152,6 +180,10 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Confirma el consumo únicamente para una factura autorizada del tenant indicado. Se omiten
+    /// filtros globales por tratarse de una escritura de sistema y cada consulta lleva EmpresaId explícito.
+    /// </summary>
     public async Task ConfirmarFacturaAutorizadaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
@@ -177,6 +209,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         await SincronizarContadorAsync(empresaId, cancellationToken);
     }
 
+    /// <summary>Libera una reserva solo si la factura rechazada y la reserva pertenecen al EmpresaId recibido.</summary>
     public async Task LiberarCupoFacturaAsync(Guid empresaId, Guid facturaId, CancellationToken cancellationToken = default)
     {
         if (!Deployment.QuotasEnabled) return;
@@ -193,6 +226,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
         }
     }
 
+    /// <summary>Reconstruye el contador agregado de una empresa; todos los bypasses incluyen el EmpresaId.</summary>
     private async Task SincronizarContadorAsync(Guid empresaId, CancellationToken ct)
     {
         var period = MonthStart(DateTime.UtcNow);
@@ -219,6 +253,7 @@ public sealed class SaaSQuotaValidationService(TestDeIaDbContext dbContext,
 
     private static DateTime MonthStart(DateTime date) => new(date.Year, date.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
+    /// <summary>Lee la suscripción del tenant indicado; el bypass solo compensa el filtro global y nunca amplía el alcance de EmpresaId.</summary>
     private async Task<SubscriptionSnapshot?> GetSubscriptionAsync(Guid empresaId, CancellationToken cancellationToken)
     {
         return await dbContext.SaasSuscripciones

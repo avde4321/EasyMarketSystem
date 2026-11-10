@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Application.Common;
 
 namespace TestDeIa.Api.Messaging;
 
@@ -28,43 +29,47 @@ public sealed class FacturacionEmailNotifier : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            ITenantContextAccessor? tenantContextAccessor = null;
             try
             {
                 using var scope = scopeFactory.CreateScope();
+                tenantContextAccessor = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<TestDeIaDbContext>();
                 var queryService = scope.ServiceProvider.GetRequiredService<Reporting.FacturaDocumentQueryService>();
                 var renderer = scope.ServiceProvider.GetRequiredService<Reporting.FacturaRideRdlcRenderer>();
                 var sender = scope.ServiceProvider.GetRequiredService<SmtpFacturaEmailSender>();
 
-                if (!sender.IsEnabled)
-                {
-                    await Task.Delay(ScanInterval, stoppingToken);
-                    continue;
-                }
-
+                tenantContextAccessor.IsSystemContext = true;
                 var candidateIds = await dbContext.Facturas
                     .AsNoTracking()
+                    .Join(dbContext.EmpresaSmtpConfiguraciones.AsNoTracking(),
+                        factura => factura.EmpresaId,
+                        smtp => smtp.EmpresaId,
+                        (factura, smtp) => new { Factura = factura, Smtp = smtp })
                     .Where(current =>
-                        current.Estado == Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO &&
-                        current.XmlFirmado != null &&
-                        current.ClienteEmail != null)
-                    .OrderBy(current => current.FechaAutorizacion ?? current.UpdatedAt)
-                    .Select(current => current.Id)
+                        current.Smtp.Habilitado &&
+                        current.Factura.Estado == Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO &&
+                        current.Factura.XmlFirmado != null &&
+                        current.Factura.ClienteEmail != null)
+                    .OrderBy(current => current.Factura.FechaAutorizacion ?? current.Factura.UpdatedAt)
+                    .Select(current => new { current.Factura.Id, current.Factura.EmpresaId })
                     .Take(10)
                     .ToListAsync(stoppingToken);
 
-                foreach (var facturaId in candidateIds)
+                foreach (var candidate in candidateIds)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
+                    tenantContextAccessor.IsSystemContext = false;
+                    tenantContextAccessor.EmpresaId = candidate.EmpresaId;
 
-                    if (!await ShouldProcessAsync(dbContext, facturaId, stoppingToken))
+                    if (!await ShouldProcessAsync(dbContext, candidate.Id, stoppingToken))
                     {
                         continue;
                     }
 
                     try
                     {
-                        var document = await queryService.GetFacturaEmailNotificationDocumentAsync(facturaId, stoppingToken);
+                        var document = await queryService.GetFacturaEmailNotificationDocumentAsync(candidate.EmpresaId, candidate.Id, stoppingToken);
                         if (document is null)
                         {
                             continue;
@@ -74,22 +79,25 @@ public sealed class FacturacionEmailNotifier : BackgroundService
                         await sender.SendFacturaAsync(document, rideBytes, stoppingToken);
                         await RegisterEventAsync(
                             dbContext,
-                            facturaId,
+                            candidate.Id,
                             Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO,
                             $"{EmailSentPrefix}{document.DestinatarioEmail}|Correo enviado correctamente con XML y RIDE.",
                             stoppingToken);
                     }
                     catch (Exception exception)
                     {
-                        logger.LogError(exception, "No se pudo enviar el correo de la factura {FacturaId}.", facturaId);
+                        logger.LogError(exception, "No se pudo enviar el correo de la factura {FacturaId}. EmpresaId: {EmpresaId}, UsuarioId: {UsuarioId}", candidate.Id, candidate.EmpresaId, tenantContextAccessor.UserId);
                         await RegisterEventAsync(
                             dbContext,
-                            facturaId,
+                            candidate.Id,
                             Domain.Modules.Facturacion.Entities.FacturaEstado.AUTORIZADO,
                             $"{EmailFailedPrefix}{exception.GetType().Name}|{TrimMessage(exception.Message)}",
                             stoppingToken);
                     }
                 }
+                tenantContextAccessor.EmpresaId = null;
+                tenantContextAccessor.UserId = null;
+                tenantContextAccessor.IsSystemContext = false;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -98,6 +106,15 @@ public sealed class FacturacionEmailNotifier : BackgroundService
             catch (Exception exception)
             {
                 logger.LogError(exception, "Error en el notificador de correos de facturacion.");
+            }
+            finally
+            {
+                if (tenantContextAccessor is not null)
+                {
+                    tenantContextAccessor.EmpresaId = null;
+                    tenantContextAccessor.UserId = null;
+                    tenantContextAccessor.IsSystemContext = false;
+                }
             }
 
             await Task.Delay(ScanInterval, stoppingToken);

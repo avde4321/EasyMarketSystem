@@ -66,6 +66,11 @@ public sealed class SaaSQuotaValidationServiceTests
         var service = new SaaSQuotaValidationService(db);
         await service.ReservarCupoFacturaAsync(empresa, id);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ReservarCupoFacturaAsync(Guid.NewGuid(), id));
+
+        var reservation = await db.SaasFacturaCupos.IgnoreQueryFilters().SingleAsync(x => x.FacturaId == id);
+        Assert.Equal(empresa, reservation.EmpresaId);
+        Assert.Equal("RESERVADO", reservation.Estado);
+        Assert.Single(await db.SaasFacturaCupos.IgnoreQueryFilters().ToListAsync());
     }
 
     [Fact]

@@ -3,24 +3,24 @@
 }
 
 .status-pendiente {
-    background: linear-gradient(180deg, #fff7e8, #ffefc9);
-    color: #946400;
+    background: color-mix(in srgb, var(--brand-gold) 22%, var(--surface-1));
+    color: color-mix(in srgb, var(--brand-orange) 74%, var(--text-strong));
 }
 
 .status-enproceso,
 .status-recibido {
-    background: linear-gradient(180deg, #fff7e8, #ffefc9);
-    color: #946400;
+    background: color-mix(in srgb, var(--brand-gold) 22%, var(--surface-1));
+    color: color-mix(in srgb, var(--brand-orange) 74%, var(--text-strong));
 }
 
 .status-generado {
-    background: linear-gradient(180deg, #edf6ff, #dfeeff);
-    color: #23568d;
+    background: color-mix(in srgb, var(--brand-blue) 12%, var(--surface-1));
+    color: var(--brand-blue);
 }
 
 .status-autorizado {
-    background: linear-gradient(180deg, #ecfaf7, #def5ef);
-    color: #1d665f;
+    background: color-mix(in srgb, var(--brand-teal) 14%, var(--surface-1));
+    color: var(--brand-teal);
 }
 
 .monitor-summary {
@@ -43,13 +43,13 @@
 }
 
 .summary-pending {
-    background: linear-gradient(180deg, #fff7e8, #ffefc9);
-    color: #946400;
+    background: color-mix(in srgb, var(--brand-gold) 22%, var(--surface-1));
+    color: color-mix(in srgb, var(--brand-orange) 74%, var(--text-strong));
 }
 
 .summary-success {
-    background: linear-gradient(180deg, #ecfaf7, #def5ef);
-    color: #1d665f;
+    background: color-mix(in srgb, var(--brand-teal) 14%, var(--surface-1));
+    color: var(--brand-teal);
 }
 
 .document-filter {
@@ -196,8 +196,8 @@
 
 .status-rechazado,
 .status-error {
-    background: linear-gradient(180deg, #fff0f0, #ffe2e0);
-    color: #944246;
+    background: color-mix(in srgb, var(--brand-alert) 22%, var(--surface-1));
+    color: var(--text-error);
 }
 
 @media (max-width: 960px) {

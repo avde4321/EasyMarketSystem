@@ -32,7 +32,7 @@
                 @foreach (var payment in portal!.PagosPendientes)
                 {
                     <div class="pending-detail" @key="payment.Id">
-                        <strong>@PlanName(payment.SaasPlanId) · @Money(payment.Monto)</strong>
+                        <strong>@PlanName(payment.SaasPlanId) · @Money(payment.Monto) · @payment.PeriodoMeses mes(es)</strong>
                         <span>Referencia: @payment.ComprobanteReferencia</span>
                         <span>Fecha informada: @(payment.FechaPagoInformada?.ToString("dd/MM/yyyy") ?? "No informada")</span>
                     </div>

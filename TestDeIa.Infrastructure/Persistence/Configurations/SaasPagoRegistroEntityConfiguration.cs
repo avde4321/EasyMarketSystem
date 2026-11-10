@@ -11,11 +11,13 @@ public sealed class SaasPagoRegistroEntityConfiguration : IEntityTypeConfigurati
         b.ToTable("SaasPagoRegistros", t =>
         {
             t.HasCheckConstraint("CK_SaasPagoRegistros_Monto", "[Monto] > 0");
+            t.HasCheckConstraint("CK_SaasPagoRegistros_PeriodoMeses", "[PeriodoMeses] BETWEEN 1 AND 12");
             t.HasCheckConstraint("CK_SaasPagoRegistros_Estado", "[EstadoPago] IN ('Pendiente','Aprobado','Rechazado')");
             t.HasCheckConstraint("CK_SaasPagoRegistros_Metodo", "[MetodoPago] IN ('TarjetaPasarela','TransferenciaBancaria')");
         });
         b.HasKey(x => x.Id);
         b.Property(x => x.Monto).HasPrecision(18, 4);
+        b.Property(x => x.PeriodoMeses).HasDefaultValue(1).IsRequired();
         b.Property(x => x.ComprobanteReferencia).HasMaxLength(200).IsRequired();
         b.Property(x => x.Observaciones).HasMaxLength(2000);
         b.Property(x => x.ObservacionesConfirmacion).HasMaxLength(2000);

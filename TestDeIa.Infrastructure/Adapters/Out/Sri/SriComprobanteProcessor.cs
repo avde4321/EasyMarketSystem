@@ -21,6 +21,11 @@ public sealed class SriComprobanteProcessor(
     SriNotaCreditoXmlSchemaValidator schemaValidator,
     ILogger<SriComprobanteProcessor> logger) : ISriComprobanteProcessor
 {
+    /// <summary>
+    /// Procesa una entrada reclamada por el worker global SRI. La lectura del outbox valida ID,
+    /// estado y nodo reclamante; el EmpresaId obtenido del registro se usa obligatoriamente para
+    /// cada comprobante, empresa y adjunto consultados o persistidos.
+    /// </summary>
     public async Task<SriOutboxProcessingResult> ProcessAsync(
         Guid colaProcesamientoId,
         string workerId,
@@ -125,6 +130,7 @@ public sealed class SriComprobanteProcessor(
             Devuelto = finalState is "DEVUELTA" or "NO_AUTORIZADO", Message = message };
     }
 
+    /// <summary>Archiva XML existente del comprobante en el tenant del elemento de outbox; todas las lecturas de documentos incluyen EmpresaId.</summary>
     private async Task PersistExistingXmlArtifactsAsync(ColaProcesamientoSriEntity item, CancellationToken cancellationToken)
     {
         if (item.TipoDocumentoId == "01")
@@ -159,6 +165,7 @@ public sealed class SriComprobanteProcessor(
         await SaveIfMissingAsync(item.EmpresaId, "SRI", "ComprobanteCabecera", comprobante.Id, "XML_FIRMADO", $"{comprobante.TipoDocumentoId}-{numero}-firmado.xml", comprobante.XmlFirmado, cancellationToken);
     }
 
+    /// <summary>Crea el adjunto si falta, con búsqueda limitada por EmpresaId y tipo/Id de entidad.</summary>
     private async Task SaveIfMissingAsync(
         Guid empresaId,
         string modulo,

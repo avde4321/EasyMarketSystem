@@ -1,0 +1,174 @@
+@page "/configuracion/planes-suscripcion"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@using System.Globalization
+@using System.Text.Json
+@using TestDeIa.Client.Services.Saas
+@using TestDeIa.Shared.Requests.Saas
+@using TestDeIa.Shared.Responses.Saas
+@using TestDeIa.Shared.Security
+
+<PageTitle>Planes y suscripción | EasyMarket</PageTitle>
+<ProcessingOverlay IsVisible="@(isLoading || isSending)" Title="@(isSending ? "Enviando solicitud" : "Consultando suscripción")" Message="Espera hasta que finalice el proceso." />
+
+<ErrorBoundary>
+    <ChildContent>
+        <main class="subscription-management" aria-busy="@(isLoading || isSending)">
+            <header class="subscription-management__header">
+                <div>
+                    <span class="page-kicker">Configuración de empresa</span>
+                    <h1>Planes y suscripción</h1>
+                    <p>Consulta tu plan, solicita un cambio o prepaga meses para mantener el servicio activo.</p>
+                </div>
+                <div class="subscription-management__actions">
+                    <a class="secondary-action" href="/empresa">Volver a configuración</a>
+                    <button class="secondary-action" type="button" @onclick="LoadAsync" disabled="@(isLoading || isSending)">Actualizar</button>
+                </div>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage)) { <div class="alert-message" role="alert">@errorMessage</div> }
+            @if (!string.IsNullOrWhiteSpace(infoMessage)) { <div class="soft-info-message" role="status">@infoMessage</div> }
+
+            <section class="subscription-current" aria-label="Suscripción actual">
+                <div><span>Plan actual</span><strong>@(portal?.PlanNombre ?? "Sin plan registrado")</strong></div>
+                <div><span>Estado</span><strong>@(portal?.EstadoSuscripcion ?? "No disponible")</strong></div>
+                <div><span>Vigencia hasta</span><strong>@(portal?.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</strong></div>
+                <div><span>Servicio</span><strong class="@(portal?.SuscripcionActiva == true ? "status-active" : "status-inactive")">@(portal?.SuscripcionActiva == true ? "Activo" : "Requiere atención")</strong></div>
+            </section>
+
+            @if (isLoading)
+            {
+                <section class="subscription-panel"><p role="status">Cargando planes y estado de la suscripción…</p></section>
+            }
+            else if (plans.Count == 0)
+            {
+                <section class="subscription-panel"><p>No hay planes disponibles por el momento.</p></section>
+            }
+            else
+            {
+                @if (HasPending)
+                {
+                    <section class="pending-payment" role="status">
+                        <span class="pending-badge">Solicitud en revisión</span>
+                        <h2>Estamos verificando tu pago</h2>
+                        <p>La solicitud pendiente debe resolverse antes de registrar otra. El servicio solo cambia cuando el equipo confirma la acreditación.</p>
+                        @foreach (var payment in portal!.PagosPendientes)
+                        {
+                            <div class="pending-detail" @key="payment.Id">
+                                <strong>@PlanName(payment.SaasPlanId) · @Money(payment.Monto)</strong>
+                                <span>Período: @payment.PeriodoMeses mes(es)</span>
+                                <span>Referencia: @payment.ComprobanteReferencia</span>
+                                <span>Registrada: @payment.FechaPagoInformada?.ToString("dd/MM/yyyy")</span>
+                            </div>
+                        }
+                    </section>
+                }
+
+                <section class="subscription-panel">
+                    <h2>¿Qué deseas hacer?</h2>
+                    <div class="plan-actions-grid">
+                        <button type="button" class="choice-card @(mode == RequestMode.PlanChange ? "choice-card--selected" : "")" @onclick="() => SetMode(RequestMode.PlanChange)" disabled="@(HasPending || isSending)">
+                            <span class="choice-card__icon" aria-hidden="true">↗</span>
+                            <strong>Solicitar cambio o aumento de plan</strong>
+                            <span>Elige el nuevo plan y registra el comprobante. El cambio se aplica después de validar el pago.</span>
+                        </button>
+                        <button type="button" class="choice-card @(mode == RequestMode.AdvancePayment ? "choice-card--selected" : "")" @onclick="() => SetMode(RequestMode.AdvancePayment)" disabled="@(HasPending || isSending || portal?.SaasPlanId is null)">
+                            <span class="choice-card__icon" aria-hidden="true">＋</span>
+                            <strong>Pagar anticipadamente</strong>
+                            <span>Adelanta de 1 a 12 meses de tu plan actual. La vigencia se extenderá al aprobarse el pago.</span>
+                        </button>
+                    </div>
+                    @if (mode == RequestMode.AdvancePayment && portal?.SaasPlanId is null)
+                    { <p class="alert-message">No hay un plan vigente para prepagar. Selecciona “Solicitar cambio o aumento de plan”.</p> }
+                    @if (mode == RequestMode.AdvancePayment)
+                    {
+                        <div class="advance-period">
+                            <label for="advance-months">Meses a prepagar</label>
+                            <InputSelect id="advance-months" class="form-control" @bind-Value="periodMonths" disabled="@(HasPending || isSending)">
+                                @for (var month = 1; month <= 12; month++) { <option value="@month">@month mes(es)</option> }
+                            </InputSelect>
+                        </div>
+                    }
+                    <p class="small-note">Los pagos son por transferencia bancaria y requieren revisión administrativa. Esta pantalla no realiza cobros automáticos con tarjeta.</p>
+                </section>
+
+                <section class="subscription-panel">
+                    <div class="plan-section-heading">
+                        <div><h2>@(mode == RequestMode.AdvancePayment ? "Tu plan vigente" : "Selecciona el plan solicitado")</h2>
+                            <p>@(mode == RequestMode.AdvancePayment ? "El prepago conserva el plan actual." : "La suscripción cambiará únicamente cuando se apruebe el pago informado.")</p></div>
+                        @if (selectedPlan is not null)
+                        { <span class="selected-total">Total informado: @Money(SelectedTotal)</span> }
+                    </div>
+                    <div class="plans-grid">
+                        @foreach (var plan in VisiblePlans)
+                        {
+                            <article class="plan-card @(selectedPlan?.Id == plan.Id ? "plan-card--selected" : "")" @key="plan.Id">
+                                <h3>@plan.Nombre</h3>
+                                <div class="plan-price">@(plan.PrecioMensual > 0 ? $"{Money(plan.PrecioMensual)} / mes" : "Cotización personalizada")</div>
+                                <ul>
+                                    <li>Facturas al mes: @Limit(plan.LimiteFacturasMensuales)</li>
+                                    <li>Usuarios: @Limit(plan.LimiteUsuarios)</li>
+                                    <li>Sucursales: @Limit(plan.LimiteSucursales)</li>
+                                    <li>SRI: @(plan.PermiteModuloSRI ? "Incluido" : "No incluido")</li>
+                                    <li>Kardex avanzado: @(plan.PermiteModuloKardexAvanzado ? "Incluido" : "No incluido")</li>
+                                </ul>
+                                <button class="plan-action" type="button" @onclick="() => SelectPlan(plan)" disabled="@(HasPending || isSending || plan.PrecioMensual <= 0)">
+                                    @(selectedPlan?.Id == plan.Id ? "Plan seleccionado" : plan.PrecioMensual > 0 ? "Solicitar este plan" : "Contactar para cotización")
+                                </button>
+                            </article>
+                        }
+                    </div>
+                    @if (selectedPlan is not null && !HasPending)
+                    {
+                        <div class="request-summary">
+                            <div><span>Solicitud</span><strong>@(mode == RequestMode.AdvancePayment ? "Prepago" : "Cambio de plan")</strong></div>
+                            <div><span>Plan</span><strong>@selectedPlan.Nombre</strong></div>
+                            <div><span>Período</span><strong>@periodMonths mes(es)</strong></div>
+                            <div><span>Total</span><strong>@Money(SelectedTotal)</strong></div>
+                            <button class="primary-action" type="button" @onclick="OpenTransfer" disabled="@(isSending || HasPending)">Registrar solicitud y pago</button>
+                        </div>
+                    }
+                </section>
+
+                @if (portal?.UltimoPago is { EstadoPago: "Rechazado" } rejected)
+                {
+                    <section class="subscription-panel subscription-panel--warning"><strong>El último pago fue rechazado.</strong>
+                        <span>Referencia: @rejected.ComprobanteReferencia. Puedes registrar una nueva solicitud con una referencia bancaria válida.</span></section>
+                }
+            }
+        </main>
+
+        @if (showTransfer && selectedPlan is not null)
+        {
+            <div class="modal-backdrop">
+                <section class="modal-card billing-modal" role="dialog" aria-modal="true" aria-labelledby="plan-transfer-title" tabindex="-1" @ref="modalElement" @onkeydown="OnModalKeyDown">
+                    <header class="modal-header"><div><span class="page-kicker">@(mode == RequestMode.AdvancePayment ? "Prepago" : "Cambio de plan")</span><h2 id="plan-transfer-title">Registrar transferencia</h2>
+                        <p>@selectedPlan.Nombre · @periodMonths mes(es) · @Money(SelectedTotal)</p></div>
+                        <button class="icon-button" type="button" aria-label="Cerrar" @onclick="CloseTransfer" disabled="@isSending">×</button></header>
+                    <p>Ingresa los datos del pago ya realizado. La solicitud quedará pendiente y no cambiará tu plan hasta que se verifique la acreditación.</p>
+                    <EditForm Model="transfer" OnValidSubmit="SubmitTransferAsync">
+                        <DataAnnotationsValidator /><ValidationSummary />
+                        <fieldset disabled="@isSending">
+                            <label class="form-field" for="plan-reference"><span>Referencia del comprobante</span>
+                                <InputText id="plan-reference" class="form-control" maxlength="200" @bind-Value="transfer.ComprobanteReferencia" />
+                                <ValidationMessage For="@(() => transfer.ComprobanteReferencia)" />
+                            </label>
+                            <label class="form-field" for="plan-payment-date"><span>Fecha del pago</span>
+                                <InputDate id="plan-payment-date" class="form-control" max="@TodayEcuador.ToString("yyyy-MM-dd")" @bind-Value="transfer.FechaPago" />
+                                <ValidationMessage For="@(() => transfer.FechaPago)" />
+                            </label>
+                            <label class="form-field" for="plan-observations"><span>Observaciones (opcional)</span>
+                                <InputTextArea id="plan-observations" class="form-control" maxlength="2000" @bind-Value="transfer.Observaciones" />
+                            </label>
+                        </fieldset>
+                        @if (!string.IsNullOrWhiteSpace(transferError)) { <div class="alert-message" role="alert">@transferError</div> }
+                        <footer class="modal-actions">
+                            <button class="secondary-action" type="button" @onclick="CloseTransfer" disabled="@isSending">Cancelar</button>
+                            <button class="primary-action" type="submit" disabled="@isSending">@(isSending ? "Enviando…" : "Enviar para revisión")</button>
+                        </footer>
+                    </EditForm>
+                </section>
+            </div>
+        }
+    </ChildContent>
+    <ErrorContent><section class="subscription-panel"><p role="alert">No se pudo cargar la pantalla de planes. Actualiza o vuelve a configuración.</p><a href="/empresa">Volver a configuración</a></section></ErrorContent>
+</ErrorBoundary>

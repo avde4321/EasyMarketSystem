@@ -33,11 +33,11 @@
         }
         else if (totalCount == 0)
         {
-            <div class="empty-state">No hay clientes registrados.</div>
+            <EmptyState Icon="users" Title="Aún no hay clientes" Message="Registra el primer cliente de esta empresa para usarlo en ventas y documentos." />
         }
         else if (!VisibleClientes.Any())
         {
-            <div class="empty-state">No hay resultados para la busqueda actual.</div>
+            <EmptyState Icon="search" Title="No encontramos clientes" Message="Prueba con otro nombre o identificación, o limpia el filtro de búsqueda." />
         }
         else
         {
@@ -182,7 +182,7 @@
             @if (showClienteRoleForm)
             {
             <section class="carousel-pane active-pane">
-            <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync">
+            <EditForm Model="clienteRequest" OnValidSubmit="SaveClienteAsync" OnInvalidSubmit="OnInvalidClienteSubmit">
                 <DataAnnotationsValidator />
                 <ValidationSummary />
 
@@ -193,6 +193,88 @@
 
                 <div class="client-form-divider">
                     <span>@(editingClienteId.HasValue ? "Actualizar datos del cliente" : isClienteFromExistingPersona ? "Completa solo los datos comerciales del cliente" : "Datos para nuevo cliente")</span>
+                </div>
+
+                <FormTabs Id="cliente-form-tabs" Items="@clientFormTabs" @bind-ActiveIndex="activeClientTab" AriaLabel="Secciones del cliente" />
+
+                <div id="cliente-form-tabs-panel" class="client-tab-panel" role="tabpanel" aria-labelledby="cliente-form-tabs-tab-@activeClientTab" tabindex="0">
+                @if (activeClientTab == 0)
+                {
+                    @if (ShowPersonaBaseFields)
+                    {
+                    <div class="form-grid">
+                        <div class="form-field full">
+                            <label for="tipoCliente">Tipo de cliente</label>
+                            <InputSelect id="tipoCliente" class="form-control" @bind-Value="clienteRequest.TipoCliente" @bind-Value:after="OnTipoClienteChanged" disabled="@isSaving">
+                                <option value="Natural">Persona natural</option>
+                                <option value="Juridico">Empresa / persona jurídica</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => clienteRequest.TipoCliente)" />
+                            <small class="file-hint">@(EsClienteJuridico ? "Registra el RUC y la razón social de la empresa." : "Una persona natural puede tener cédula o RUC; tener RUC no la convierte en persona jurídica.")</small>
+                        </div>
+                        <div class="form-field">
+                            <label for="tipoIdentificacion">Tipo de identificación</label>
+                            <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="clienteRequest.TipoIdentificacion" @bind-Value:after="OnTipoIdentificacionChanged">
+                                @foreach (var item in tiposIdentificacion) { <option value="@item.Codigo" disabled="@(EsClienteJuridico && item.Codigo != "04")">@item.Nombre</option> }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => clienteRequest.TipoIdentificacion)" />
+                        </div>
+                        <div class="form-field">
+                            <label for="identificacion">Identificación</label>
+                            <div class="input-action-row">
+                                <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" readonly="@EsConsumidorFinal" maxlength="30" />
+                                <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">@(isSearchingPersona ? "Buscando..." : "Buscar")</button>
+                            </div>
+                            <ValidationMessage For="@(() => clienteRequest.Identificacion)" />
+                            @if (clienteRequest.TipoIdentificacion == "07") { <small class="file-hint">Consumidor final debe usar 9999999999999.</small> }
+                        </div>
+                        <div class="form-field full">
+                            <label for="razonSocial">@(EsConsumidorFinal ? "Denominación" : EsClienteJuridico ? "Razón social" : "Nombres y apellidos completos") *</label>
+                            <InputText id="razonSocial" class="form-control" @bind-Value="clienteRequest.RazonSocialONombresCompletos" readonly="@EsConsumidorFinal" maxlength="180" />
+                            <ValidationMessage For="@(() => clienteRequest.RazonSocialONombresCompletos)" />
+                        </div>
+                    </div>
+                    }
+                    else
+                    {
+                        <div class="soft-info-message compact-message">La identificación y los nombres se conservarán desde la persona seleccionada. Continúa en Contacto y Facturación.</div>
+                    }
+                }
+                else if (activeClientTab == 1)
+                {
+                    <div class="form-grid">
+                        @if (MostrarNombreComercial)
+                        {
+                            <div class="form-field"><label for="nombreComercial">Nombre comercial (opcional)</label><InputText id="nombreComercial" class="form-control" @bind-Value="clienteRequest.NombreComercial" /><ValidationMessage For="@(() => clienteRequest.NombreComercial)" /></div>
+                        }
+                        <div class="form-field"><label for="email">Correo principal (opcional)</label><InputText id="email" type="email" class="form-control" @bind-Value="clienteRequest.CorreoElectronicoPrincipal" maxlength="180" /><ValidationMessage For="@(() => clienteRequest.CorreoElectronicoPrincipal)" /></div>
+                        <div class="form-field"><label for="telefono">Teléfono de contacto (opcional)</label><InputText id="telefono" type="tel" class="form-control" @bind-Value="clienteRequest.TelefonoCelular" maxlength="40" /><ValidationMessage For="@(() => clienteRequest.TelefonoCelular)" /></div>
+                        @if (MostrarDatosPersonales)
+                        {
+                            <div class="form-field"><label for="genero">Género (opcional)</label><InputText id="genero" class="form-control" @bind-Value="clienteRequest.Genero" maxlength="30" /><ValidationMessage For="@(() => clienteRequest.Genero)" /></div>
+                            <div class="form-field"><label for="fechaNacimiento">Fecha de nacimiento (opcional)</label><InputDate id="fechaNacimiento" class="form-control" @bind-Value="clienteRequest.FechaNacimiento" /><ValidationMessage For="@(() => clienteRequest.FechaNacimiento)" /></div>
+                        }
+                        <div class="form-field full"><label>Ubicación</label><GeoAddressPicker @bind-RegionCodigo="clienteRequest.RegionCodigo" @bind-ProvinciaCodigo="clienteRequest.ProvinciaCodigo" @bind-CiudadCodigo="clienteRequest.CiudadCodigo" @bind-SectorCodigo="clienteRequest.SectorCodigo" /></div>
+                        <div class="form-field full"><label for="direccion">Dirección exacta / referencia *</label><InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.DireccionPrincipal" /><ValidationMessage For="@(() => clienteRequest.DireccionPrincipal)" /><small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="client-form-divider"><span>Facturación y condiciones comerciales</span></div>
+                    <div class="form-grid">
+                        <div class="form-field full"><label for="correoFacturacion">Correo para comprobantes (opcional)</label><InputText id="correoFacturacion" type="email" class="form-control" @bind-Value="clienteRequest.CorreoFacturacionElectronica" maxlength="180" /><ValidationMessage For="@(() => clienteRequest.CorreoFacturacionElectronica)" /><small class="file-hint">Si se deja vacío se utiliza el correo principal. No cambia el correo de la persona.</small></div>
+                        @if (MostrarDatosTributarios)
+                        {
+                            <label class="form-check soft-check"><InputCheckbox class="form-check-input" @bind-Value="clienteRequest.ObligadoContabilidad" /><span class="form-check-label">Obligado a llevar contabilidad</span></label>
+                            <label class="form-check soft-check"><InputCheckbox class="form-check-input" @bind-Value="clienteRequest.EsContribuyenteEspecial" /><span class="form-check-label">Contribuyente especial</span></label>
+                        }
+                        <label class="form-check soft-check"><InputCheckbox class="form-check-input" @bind-Value="clienteRequest.PermiteCredito" disabled="@EsConsumidorFinal" /><span class="form-check-label">Permite crédito</span></label>
+                        <div class="form-field"><label for="limiteCredito">Límite de crédito</label><InputNumber id="limiteCredito" class="form-control" @bind-Value="clienteRequest.LimiteCredito" disabled="@(!clienteRequest.PermiteCredito)" min="0" /><ValidationMessage For="@(() => clienteRequest.LimiteCredito)" /></div>
+                        <div class="form-field"><label for="diasCredito">Días de crédito máximo</label><InputNumber id="diasCredito" class="form-control" @bind-Value="clienteRequest.DiasCreditoMaximo" disabled="@(!clienteRequest.PermiteCredito)" min="0" max="3650" /><ValidationMessage For="@(() => clienteRequest.DiasCreditoMaximo)" /></div>
+                        <div class="form-field"><label for="estadoCredito">Estado de crédito</label><InputSelect id="estadoCredito" class="form-control" @bind-Value="clienteRequest.EstadoCredito" disabled="@(!clienteRequest.PermiteCredito)"><option value="AlDia">Al día</option><option value="Suspendido">Suspendido</option><option value="Bloqueado">Bloqueado</option></InputSelect><ValidationMessage For="@(() => clienteRequest.EstadoCredito)" /></div>
+                    </div>
+                    <label class="form-check soft-check"><InputCheckbox class="form-check-input" @bind-Value="clienteRequest.IsActive" /><span class="form-check-label">Cliente activo</span></label>
+                }
                 </div>
 
                 @if (isClienteFromExistingPersona)
@@ -206,159 +288,6 @@
                     </div>
                 }
 
-                @if (ShowPersonaBaseFields)
-                {
-                <div class="form-grid">
-                    <div class="form-field full">
-                        <label for="tipoCliente">Tipo de cliente</label>
-                        <InputSelect id="tipoCliente" class="form-control" @bind-Value="clienteRequest.TipoCliente" @bind-Value:after="OnTipoClienteChanged" disabled="@isSaving">
-                            <option value="Natural">Persona natural</option>
-                            <option value="Juridico">Empresa / persona jurídica</option>
-                        </InputSelect>
-                        <ValidationMessage For="@(() => clienteRequest.TipoCliente)" />
-                        <small class="file-hint">@(EsClienteJuridico ? "Registra el RUC y la razón social de la empresa." : "Una persona natural puede tener cédula o RUC; tener RUC no la convierte en persona jurídica.")</small>
-                    </div>
-                    <div class="form-field">
-                        <label for="tipoIdentificacion">Tipo identificacion</label>
-                        <InputSelect id="tipoIdentificacion" class="form-control" @bind-Value="clienteRequest.TipoIdentificacion" @bind-Value:after="OnTipoIdentificacionChanged">
-                            @foreach (var item in tiposIdentificacion)
-                            {
-                                <option value="@item.Codigo" disabled="@(EsClienteJuridico && item.Codigo != "04")">@item.Nombre</option>
-                            }
-                        </InputSelect>
-                        <ValidationMessage For="@(() => clienteRequest.TipoIdentificacion)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="identificacion">Identificacion</label>
-                        <div class="input-action-row">
-                            <InputText id="identificacion" class="form-control" @bind-Value="clienteRequest.Identificacion" readonly="@EsConsumidorFinal" maxlength="30" />
-                            <button class="secondary-action" type="button" @onclick="BuscarPersonaAsync" disabled="@isSearchingPersona">
-                                @(isSearchingPersona ? "Buscando..." : "Buscar")
-                            </button>
-                        </div>
-                        <ValidationMessage For="@(() => clienteRequest.Identificacion)" />
-                        @if (clienteRequest.TipoIdentificacion == "07")
-                        {
-                            <small class="file-hint">Consumidor final debe usar 9999999999999.</small>
-                        }
-                    </div>
-
-                    <div class="form-field full">
-                        <label for="razonSocial">@(EsConsumidorFinal ? "Denominación" : EsClienteJuridico ? "Razón social" : "Nombres y apellidos completos") *</label>
-                        <InputText id="razonSocial" class="form-control" @bind-Value="clienteRequest.RazonSocialONombresCompletos" readonly="@EsConsumidorFinal" maxlength="180" />
-                        <ValidationMessage For="@(() => clienteRequest.RazonSocialONombresCompletos)" />
-                    </div>
-
-                    @if (MostrarNombreComercial)
-                    {
-                    <div class="form-field">
-                        <label for="nombreComercial">Nombre comercial (opcional)</label>
-                        <InputText id="nombreComercial" class="form-control" @bind-Value="clienteRequest.NombreComercial" />
-                        <ValidationMessage For="@(() => clienteRequest.NombreComercial)" />
-                    </div>
-                    }
-
-                    <div class="form-field">
-                        <label for="email">Correo principal (opcional)</label>
-                        <InputText id="email" type="email" class="form-control" @bind-Value="clienteRequest.CorreoElectronicoPrincipal" maxlength="180" />
-                        <ValidationMessage For="@(() => clienteRequest.CorreoElectronicoPrincipal)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="telefono">Teléfono de contacto (opcional)</label>
-                        <InputText id="telefono" type="tel" class="form-control" @bind-Value="clienteRequest.TelefonoCelular" maxlength="40" />
-                        <ValidationMessage For="@(() => clienteRequest.TelefonoCelular)" />
-                    </div>
-
-                    @if (MostrarDatosPersonales)
-                    {
-                    <div class="form-field">
-                        <label for="genero">Género (opcional)</label>
-                        <InputText id="genero" class="form-control" @bind-Value="clienteRequest.Genero" maxlength="30" />
-                        <ValidationMessage For="@(() => clienteRequest.Genero)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="fechaNacimiento">Fecha de nacimiento (opcional)</label>
-                        <InputDate id="fechaNacimiento" class="form-control" @bind-Value="clienteRequest.FechaNacimiento" />
-                        <ValidationMessage For="@(() => clienteRequest.FechaNacimiento)" />
-                    </div>
-                    }
-
-                    <div class="form-field full">
-                        <label>Ubicacion</label>
-                        <GeoAddressPicker @bind-RegionCodigo="clienteRequest.RegionCodigo"
-                                          @bind-ProvinciaCodigo="clienteRequest.ProvinciaCodigo"
-                                          @bind-CiudadCodigo="clienteRequest.CiudadCodigo"
-                                          @bind-SectorCodigo="clienteRequest.SectorCodigo" />
-                    </div>
-
-                    <div class="form-field full">
-                        <label for="direccion">Dirección exacta / referencia *</label>
-                        <InputTextArea id="direccion" class="form-control" @bind-Value="clienteRequest.DireccionPrincipal" />
-                        <ValidationMessage For="@(() => clienteRequest.DireccionPrincipal)" />
-                        <small class="file-hint">Si el cliente ya existe como persona, estos datos se sincronizan.</small>
-                    </div>
-                </div>
-                }
-
-                <div class="client-form-divider"><span>Facturación y condiciones comerciales</span></div>
-                <div class="form-grid">
-                    <div class="form-field full">
-                        <label for="correoFacturacion">Correo para comprobantes (opcional)</label>
-                        <InputText id="correoFacturacion" type="email" class="form-control" @bind-Value="clienteRequest.CorreoFacturacionElectronica" maxlength="180" />
-                        <ValidationMessage For="@(() => clienteRequest.CorreoFacturacionElectronica)" />
-                        <small class="file-hint">Si se deja vacío se utiliza el correo principal. No cambia el correo de la persona.</small>
-                    </div>
-                    @if (MostrarDatosTributarios)
-                    {
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.ObligadoContabilidad" />
-                        <span class="form-check-label">Obligado a llevar contabilidad</span>
-                    </label>
-
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.EsContribuyenteEspecial" />
-                        <span class="form-check-label">Contribuyente especial</span>
-                    </label>
-                    <ValidationMessage For="@(() => clienteRequest.ObligadoContabilidad)" />
-                    <ValidationMessage For="@(() => clienteRequest.EsContribuyenteEspecial)" />
-                    }
-
-                    <label class="form-check soft-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.PermiteCredito" disabled="@EsConsumidorFinal" />
-                        <span class="form-check-label">Permite credito</span>
-                    </label>
-
-                    <div class="form-field">
-                        <label for="limiteCredito">Limite credito</label>
-                        <InputNumber id="limiteCredito" class="form-control" @bind-Value="clienteRequest.LimiteCredito" disabled="@(!clienteRequest.PermiteCredito)" min="0" />
-                        <ValidationMessage For="@(() => clienteRequest.LimiteCredito)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="diasCredito">Dias credito maximo</label>
-                        <InputNumber id="diasCredito" class="form-control" @bind-Value="clienteRequest.DiasCreditoMaximo" disabled="@(!clienteRequest.PermiteCredito)" min="0" max="3650" />
-                        <ValidationMessage For="@(() => clienteRequest.DiasCreditoMaximo)" />
-                    </div>
-
-                    <div class="form-field">
-                        <label for="estadoCredito">Estado credito</label>
-                        <InputSelect id="estadoCredito" class="form-control" @bind-Value="clienteRequest.EstadoCredito" disabled="@(!clienteRequest.PermiteCredito)">
-                            <option value="AlDia">Al dia</option>
-                            <option value="Suspendido">Suspendido</option>
-                            <option value="Bloqueado">Bloqueado</option>
-                        </InputSelect>
-                        <ValidationMessage For="@(() => clienteRequest.EstadoCredito)" />
-                    </div>
-                </div>
-
-                <label class="form-check soft-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="clienteRequest.IsActive" />
-                    <span class="form-check-label">Cliente activo</span>
-                </label>
-
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseModal" disabled="@isSaving">Cancelar</button>
                     @if (!editingClienteId.HasValue)
@@ -366,7 +295,7 @@
                         <button class="secondary-action" type="button" @onclick="VolverAConsultaPersonasCliente" disabled="@isSaving">Volver a personas</button>
                     }
                     <button class="primary-action" type="submit" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Guardar")
+                        @if (isSaving) { <span class="inline-spinner" aria-hidden="true"></span><span>Guardando...</span> } else { <span>Guardar</span> }
                     </button>
                 </footer>
             </EditForm>

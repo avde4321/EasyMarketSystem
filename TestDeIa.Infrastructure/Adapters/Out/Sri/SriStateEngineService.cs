@@ -29,6 +29,11 @@ public sealed class SriStateEngineService(
             [SriEstadosComprobante.Anulado] = StateSet()
         };
 
+    /// <summary>
+    /// Aplica una transición solicitada por un proceso interno del comprobante. El bypass del filtro
+    /// global se usa para escribir desde el worker, y toda entidad de negocio se carga con EmpresaId,
+    /// ComprobanteId y tipo de documento de la solicitud.
+    /// </summary>
     public async Task<SriTransitionResult> ApplyTransitionAsync(
         SriTransitionRequest request,
         CancellationToken cancellationToken = default)
@@ -157,6 +162,7 @@ public sealed class SriStateEngineService(
             .ToArrayAsync(cancellationToken);
     }
 
+    /// <summary>Resuelve el estado actual únicamente dentro de la empresa y comprobante incluidos en la transición.</summary>
     private async Task<string> ResolveEstadoActualComprobanteAsync(SriTransitionRequest request, CancellationToken cancellationToken)
     {
         if (request.TipoDocumentoId == "01")
@@ -179,6 +185,7 @@ public sealed class SriStateEngineService(
         return MapFacturaEstadoToSri(comprobanteEstado);
     }
 
+    /// <summary>Actualiza el estado del documento tras verificar su empresa e identificador; se omite el filtro global por ejecución interna SRI.</summary>
     private async Task ApplyTransactionalDocumentStateAsync(SriTransitionRequest request, string estadoNuevoCodigo, CancellationToken cancellationToken)
     {
         var facturaEstado = MapSriEstadoToFacturaEstado(estadoNuevoCodigo);

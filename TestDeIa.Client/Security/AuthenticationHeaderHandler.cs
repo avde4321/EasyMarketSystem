@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Components;
 
 namespace TestDeIa.Client.Security;
 
@@ -6,13 +7,19 @@ public sealed class AuthenticationHeaderHandler : DelegatingHandler
 {
     private readonly TokenStorageService tokenStorageService;
     private readonly Services.Empresa.EmpresaSessionService empresaSessionService;
+    private readonly TokenAuthenticationStateProvider authenticationStateProvider;
+    private readonly NavigationManager navigationManager;
 
     public AuthenticationHeaderHandler(
         TokenStorageService tokenStorageService,
-        Services.Empresa.EmpresaSessionService empresaSessionService)
+        Services.Empresa.EmpresaSessionService empresaSessionService,
+        TokenAuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
     {
         this.tokenStorageService = tokenStorageService;
         this.empresaSessionService = empresaSessionService;
+        this.authenticationStateProvider = authenticationStateProvider;
+        this.navigationManager = navigationManager;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -33,6 +40,19 @@ public sealed class AuthenticationHeaderHandler : DelegatingHandler
             request.Headers.Add("X-Empresa-Id", empresaId);
         }
 
-        return await base.SendAsync(request, cancellationToken);
+        var response = await base.SendAsync(request, cancellationToken);
+        var isLoginRequest = request.RequestUri?.AbsolutePath.EndsWith("/api/security/login", StringComparison.OrdinalIgnoreCase) == true;
+
+        // El cliente solo puede inspeccionar la expiración localmente; la API también puede
+        // revocar un token. Al recibir 401, descartar esa sesión evita que el UI siga mostrando
+        // un usuario autenticado con credenciales que el servidor ya rechazó.
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && !isLoginRequest)
+        {
+            await authenticationStateProvider.MarkUserAsLoggedOutAsync();
+            await empresaSessionService.ClearEmpresaIdAsync();
+            navigationManager.NavigateTo("/login", replace: true);
+        }
+
+        return response;
     }
 }

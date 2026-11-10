@@ -2,17 +2,24 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using TestDeIa.Application.Modules.Security.Ports.Out;
+using TestDeIa.Infrastructure.Persistence.Entities;
 using PasswordVerificationModel = TestDeIa.Application.Modules.Security.Models.PasswordVerificationResult;
 
 namespace TestDeIa.Infrastructure.Adapters.Out.Security;
 
 public sealed class Sha256PasswordHashService : IPasswordHashService
 {
-    private readonly PasswordHasher<string> passwordHasher = new();
+    private readonly IPasswordHasher<SecurityUserEntity> passwordHasher;
+
+    public Sha256PasswordHashService(IPasswordHasher<SecurityUserEntity>? passwordHasher = null)
+    {
+        this.passwordHasher = passwordHasher ?? new PasswordHasher<SecurityUserEntity>();
+    }
 
     public string Hash(string password)
     {
-        return passwordHasher.HashPassword(string.Empty, password);
+        ArgumentNullException.ThrowIfNull(password);
+        return passwordHasher.HashPassword(new SecurityUserEntity(), password);
     }
 
     public PasswordVerificationModel Verify(string password, string passwordHash)
@@ -22,7 +29,7 @@ public sealed class Sha256PasswordHashService : IPasswordHashService
             return PasswordVerificationModel.Failed;
         }
 
-        var identityResult = passwordHasher.VerifyHashedPassword(string.Empty, passwordHash, password);
+        var identityResult = passwordHasher.VerifyHashedPassword(new SecurityUserEntity(), passwordHash, password);
         if (identityResult == Microsoft.AspNetCore.Identity.PasswordVerificationResult.Success)
         {
             return new PasswordVerificationModel(true, false);
@@ -33,19 +40,29 @@ public sealed class Sha256PasswordHashService : IPasswordHashService
             return new PasswordVerificationModel(true, true);
         }
 
-        var legacyHash = ComputeLegacySha256(password);
-        var legacyMatches = CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(legacyHash),
-            Encoding.UTF8.GetBytes(passwordHash));
+        var legacyMatches = VerifyLegacySha256(password, passwordHash);
 
         return legacyMatches
             ? new PasswordVerificationModel(true, true)
             : PasswordVerificationModel.Failed;
     }
 
-    private static string ComputeLegacySha256(string password)
+    private static bool VerifyLegacySha256(string password, string passwordHash)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(bytes);
+        if (passwordHash.Length != 64)
+        {
+            return false;
+        }
+
+        try
+        {
+            var storedHash = Convert.FromHexString(passwordHash);
+            var computedHash = SHA256.HashData(Encoding.UTF8.GetBytes(password));
+            return CryptographicOperations.FixedTimeEquals(computedHash, storedHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using TestDeIa.Shared.Security;
 using TestDeIa.Application.Modules.Security.Models;
+using TestDeIa.Api.Configuration;
 using TestDeIa.Infrastructure.Adapters.Out.Security;
 
 namespace TestDeIa.Tests.Security;
@@ -58,12 +59,107 @@ public sealed class SecurityHardeningTests
     }
 
     [Fact]
+    public void SuperAdministratorReceivesStandardErpPermissionsEvenWhenLegacyRoleLinksAreMissing()
+    {
+        var permissions = EfSecurityUserRepository.ResolvePermissions(
+            [SecurityRoleNames.SuperAdministrador],
+            Array.Empty<string>());
+
+        Assert.Equal(SecurityPermissionCatalog.RoleMappings[SecurityRoleNames.SuperAdministrador].Count, permissions.Length);
+        Assert.Contains(SecurityPermissions.DashboardView, permissions);
+        Assert.Contains(SecurityPermissions.PosFacturar, permissions);
+        Assert.Contains(SecurityPermissions.EmpresaConfigurar, permissions);
+        Assert.Contains(SecurityPermissions.ReporteriaVentas, permissions);
+    }
+
+    [Fact]
+    public void SuperAdministratorCanPassEveryErpPermissionPolicyWithoutChangingOtherRoles()
+    {
+        var owner = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, SecurityRoleNames.SuperAdministrador)], "test"));
+        var tenantUser = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.Role, SecurityRoleNames.Cajero),
+                new Claim(SecurityClaimTypes.Permission, SecurityPermissions.PosFacturar)
+            ], "test"));
+
+        foreach (var policyPermissions in SecurityPolicyCatalog.Policies.Values)
+        {
+            Assert.True(SecurityAuthorizationRules.HasAccessToAnyPermission(owner, policyPermissions));
+        }
+
+        Assert.False(SecurityAuthorizationRules.HasAccessToAnyPermission(
+            tenantUser, [SecurityPermissions.InventarioBodegas]));
+        Assert.True(SecurityAuthorizationRules.HasAccessToAnyPermission(
+            tenantUser, [SecurityPermissions.PosFacturar]));
+    }
+
+    [Fact]
     public void LoginEndpointHasDedicatedRateLimitingPolicy()
     {
         var source = File.ReadAllText(GetRepositoryFile("TestDeIa.Api", "Controllers", "SecurityController.cs"));
 
         Assert.Contains("[HttpPost(\"login\")]", source, StringComparison.Ordinal);
         Assert.Contains($"[EnableRateLimiting(SecurityRateLimitPolicyNames.{nameof(SecurityRateLimitPolicyNames.Login)})]", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void JwtSecretKeyRequiresAtLeast256BitsAndCanUseCanonicalSetting()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Security:Jwt:SecretKey"] = new string('k', 32)
+            })
+            .Build();
+
+        Assert.Single(JwtSigningKeyResolver.ResolveSigningKeys(configuration));
+    }
+
+    [Fact]
+    public void JwtSigningFailsWhenSecretIsMissingOrWeak()
+    {
+        var missing = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        var weak = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Jwt:SecretKey"] = new string('x', 31) })
+            .Build();
+
+        Assert.Throws<InvalidOperationException>(() => JwtSigningKeyResolver.ResolveSigningKeys(missing));
+        Assert.Throws<InvalidOperationException>(() => JwtSigningKeyResolver.ResolveSigningKeys(weak));
+    }
+
+    [Fact]
+    public void DevelopmentCorsAllowsLoopbackOriginsOnly()
+    {
+        Assert.True(CorsPolicyConfiguration.IsLoopbackOrigin("http://localhost:5159"));
+        Assert.True(CorsPolicyConfiguration.IsLoopbackOrigin("https://127.0.0.1:7031"));
+        Assert.False(CorsPolicyConfiguration.IsLoopbackOrigin("https://easy-market.example"));
+        Assert.False(CorsPolicyConfiguration.IsLoopbackOrigin("https://localhost.example"));
+    }
+
+    [Fact]
+    public void ProductionCorsRequiresExplicitHttpsOriginsWithoutWildcards()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cors:AllowedOrigins:0"] = "https://app.easymarket.example"
+            })
+            .Build();
+
+        Assert.Equal("https://app.easymarket.example", Assert.Single(CorsPolicyConfiguration.GetProductionOrigins(configuration)));
+
+        var wildcard = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Cors:AllowedOrigins:0"] = "https://*.example" })
+            .Build();
+        var http = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Cors:AllowedOrigins:0"] = "http://app.example" })
+            .Build();
+        var missing = new ConfigurationBuilder().AddInMemoryCollection().Build();
+
+        Assert.Throws<InvalidOperationException>(() => CorsPolicyConfiguration.GetProductionOrigins(wildcard));
+        Assert.Throws<InvalidOperationException>(() => CorsPolicyConfiguration.GetProductionOrigins(http));
+        Assert.Throws<InvalidOperationException>(() => CorsPolicyConfiguration.GetProductionOrigins(missing));
     }
 
     private static IConfiguration BuildJwtConfiguration()

@@ -32,7 +32,7 @@
                 {
                     <tr @key="item.Id">
                         <td data-label="Empresa"><strong>@item.EmpresaNombre</strong><small class="admin-payment-meta">@item.EmpresaRuc</small></td>
-                        <td data-label="Plan">@item.PlanNombre</td><td data-label="Monto">@Money(item.Monto)</td>
+                        <td data-label="Plan">@item.PlanNombre <small class="admin-payment-meta">@item.PeriodoMeses mes(es)</small></td><td data-label="Monto">@Money(item.Monto)</td>
                         <td data-label="Referencia">@item.ComprobanteReferencia</td><td data-label="Registro">@LocalDate(item.FechaRegistro)</td>
                         <td data-label="Estado"><span class="admin-payment-badge @Badge(item.EstadoPago)">@item.EstadoPago</span></td>
                         <td data-label="Acciones"><button class="secondary-action" type="button" @onclick="() => OpenReview(item)">@(Pending(item) ? "Revisar solicitud" : "Ver detalle")</button></td>
@@ -57,7 +57,7 @@
         <header class="modal-header"><div><span class="page-kicker">@selected.EstadoPago</span><h2 id="payment-review-title">Revisión de pago</h2></div><button class="icon-button" type="button" aria-label="Cerrar revisión" @onclick="CloseReview" disabled="@isSending">×</button></header>
         <dl class="admin-payment-details">
             <div><dt>Empresa</dt><dd>@selected.EmpresaNombre · @selected.EmpresaRuc</dd></div>
-            <div><dt>Plan solicitado</dt><dd>@selected.PlanNombre</dd></div><div><dt>Monto informado</dt><dd>@Money(selected.Monto)</dd></div>
+            <div><dt>Plan solicitado</dt><dd>@selected.PlanNombre</dd></div><div><dt>Período solicitado</dt><dd>@selected.PeriodoMeses mes(es)</dd></div><div><dt>Monto informado</dt><dd>@Money(selected.Monto)</dd></div>
             <div><dt>Referencia bancaria</dt><dd>@selected.ComprobanteReferencia</dd></div>
             <div><dt>Medio de pago</dt><dd>@selected.MetodoPago</dd></div><div><dt>Fecha declarada del pago</dt><dd>@(selected.FechaPagoInformada?.ToString("dd/MM/yyyy") ?? "No informada")</dd></div>
             <div><dt>Registro de solicitud</dt><dd>@LocalDate(selected.FechaRegistro)</dd></div>
@@ -65,7 +65,7 @@
         </dl>
         @if (Pending(selected))
         {
-            <p class="soft-info-message">Aprobar activa o renueva el plan por un mes y reinicia el cupo según la política vigente. Una referencia escrita no demuestra la acreditación del dinero.</p>
+            <p class="soft-info-message">Aprobar activa o renueva el plan por @selected.PeriodoMeses mes(es) y reinicia el cupo según la política vigente. Una referencia escrita no demuestra la acreditación del dinero.</p>
             @if (!selected.PlanActivo) { <div class="alert-message">El plan está inactivo. El backend no permitirá su aprobación.</div> }
             <label class="form-field" for="payment-review-notes">Observaciones de la decisión (obligatorias para rechazar)
                 <InputTextArea id="payment-review-notes" class="form-control" @bind-Value="notes" maxlength="2000" disabled="@isSending" />

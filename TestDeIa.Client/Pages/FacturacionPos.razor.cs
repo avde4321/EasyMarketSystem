@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using TestDeIa.Client.Services.Caja;
 using TestDeIa.Client.Services.Clientes;
@@ -54,6 +55,7 @@ public partial class FacturacionPos : IDisposable
     private readonly List<PosPuntoEmisionResponse> puntosEmision = [];
     private readonly List<PosOperadorResponse> operadores = [];
     private Guid? administradorOperadorPredeterminado;
+    private string? operadoresErrorMessage;
     private readonly List<CatalogoItemResponse> formasPago = [];
     private readonly List<CartItemModel> cartItems = [];
     private string clienteSearchTerm = string.Empty;
@@ -64,6 +66,7 @@ public partial class FacturacionPos : IDisposable
     private string? observacion;
     private decimal? efectivoRecibido;
     private bool isSubmitting;
+    private bool isSearchingProducts;
     private bool showOperationalContextModal;
     private bool isCreatingClienteExtension;
     private string? errorMessage;
@@ -85,6 +88,9 @@ public partial class FacturacionPos : IDisposable
     private decimal lastFacturaTotal;
     private DotNetObjectReference<FacturacionPos>? dotNetReference;
     private IJSObjectReference? networkHandlerReference;
+    private ElementReference productSearchInput;
+    private ElementReference paymentAmountInput;
+    private ElementReference checkoutButton;
     private const int SearchPageSize = 8;
     private int clienteSkip;
     private int productoSkip;
@@ -119,6 +125,77 @@ public partial class FacturacionPos : IDisposable
         await InitializeOfflineModeAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !showCajaRequiredModal && !showOperationalContextModal && CanOperateSearch)
+        {
+            await FocusProductSearchAsync();
+        }
+    }
+
+    private async Task FocusProductSearchAsync()
+    {
+        await productSearchInput.FocusAsync(preventScroll: true);
+    }
+
+    private async Task FocusPaymentAsync()
+    {
+        if (IsCashPayment)
+        {
+            await paymentAmountInput.FocusAsync(preventScroll: true);
+            return;
+        }
+
+        await checkoutButton.FocusAsync();
+    }
+
+    private async Task HandlePosKeyDownAsync(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "F2":
+                if (!IsPosModalOpen && CanOperateSearch)
+                {
+                    await FocusProductSearchAsync();
+                }
+                break;
+            case "F4":
+                if (!IsPosModalOpen && CanOperatePos && cartItems.Count > 0)
+                {
+                    await FocusPaymentAsync();
+                }
+                break;
+            case "Escape":
+                CloseTopmostModalOrClearSearch();
+                break;
+        }
+    }
+
+    private async Task HandlePaymentKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !isSubmitting)
+        {
+            await CobrarAsync();
+        }
+    }
+
+    private bool IsPosModalOpen => showCajaRequiredModal || showOperationalContextModal || showPosInfoModal || showWhatsAppModal || showPagoQrModal;
+
+    private void CloseTopmostModalOrClearSearch()
+    {
+        if (showPagoQrModal) ClosePagoQrModal();
+        else if (showWhatsAppModal) CloseWhatsAppModal();
+        else if (showPosInfoModal) ClosePosInfoModal();
+        else if (showOperationalContextModal) showOperationalContextModal = false;
+        else if (showCajaRequiredModal) showCajaRequiredModal = false;
+        else
+        {
+            productoSearchTerm = string.Empty;
+            productoResults.Clear();
+            productoTotalCount = 0;
+        }
+    }
+
     private async Task ResolveCurrentUserCapabilitiesAsync()
     {
         if (AuthenticationStateTask is null)
@@ -129,7 +206,10 @@ public partial class FacturacionPos : IDisposable
 
         var authenticationState = await AuthenticationStateTask;
         var user = authenticationState.User;
-        canEditServicePrice = user.Identity?.IsAuthenticated == true && (user.IsInRole(SecurityRoleNames.Administrador) || user.IsInRole(SecurityRoleNames.AdministradorEmpresa));
+        canEditServicePrice = user.Identity?.IsAuthenticated == true &&
+            (user.IsInRole(SecurityRoleNames.SuperAdministrador) ||
+             user.IsInRole(SecurityRoleNames.Administrador) ||
+             user.IsInRole(SecurityRoleNames.AdministradorEmpresa));
         administradorOperadorPredeterminado = canEditServicePrice &&
             Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId) ? userId : null;
     }
@@ -162,6 +242,7 @@ public partial class FacturacionPos : IDisposable
     private async Task LoadOperadoresAsync()
     {
         operadores.Clear();
+        operadoresErrorMessage = null;
 
         try
         {
@@ -169,8 +250,11 @@ public partial class FacturacionPos : IDisposable
         }
         catch (HttpRequestException)
         {
+            operadoresErrorMessage = "No se pudo cargar la lista de operadores. Reintenta la consulta antes de facturar un servicio.";
         }
     }
+
+    private Task RetryLoadOperadoresAsync() => LoadOperadoresAsync();
 
     private async Task LoadCajaStateAsync()
     {
@@ -232,8 +316,18 @@ public partial class FacturacionPos : IDisposable
 
     private async Task SearchProductosAsync()
     {
+        if (!CanOperateSearch || isSearchingProducts)
+        {
+            return;
+        }
+
         productoSkip = 0;
         await LoadProductosPageAsync();
+    }
+
+    private Task SubmitProductSearchAsync()
+    {
+        return SearchProductosAsync();
     }
 
     private async Task LoadProductosPageAsync()
@@ -252,36 +346,55 @@ public partial class FacturacionPos : IDisposable
             return;
         }
 
-        if (!isOnline)
+        isSearchingProducts = true;
+        try
         {
-            var cachedProducts = await JsRuntime.InvokeAsync<List<StockLocalCacheDto>>("easyMarketPosOffline.getCatalogo");
-            var normalizedTerm = productoSearchTerm.Trim();
-            var filtered = cachedProducts
-                .Where(current =>
-                    current.BodegaId == selectedPuntoEmision?.BodegaId &&
-                    (current.CodigoBarra.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase) ||
-                     current.Nombre.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase)))
-                .Skip(productoSkip)
-                .Take(SearchPageSize)
-                .Select(current => new PosProductoResponse
-                {
-                    ProductoId = current.ProductoId,
-                    Codigo = current.CodigoBarra,
-                    Nombre = current.Nombre,
-                    PrecioVenta = current.Precio,
-                    PorcentajeIva = current.TarifaIVA,
-                    StockActual = current.StockDisponible,
-                    ControlaStock = current.ControlaStock
-                })
-                .ToArray();
-            productoResults.AddRange(filtered);
-            productoTotalCount = cachedProducts.Count;
-            return;
-        }
+            if (!isOnline)
+            {
+                var cachedProducts = await JsRuntime.InvokeAsync<List<StockLocalCacheDto>>("easyMarketPosOffline.getCatalogo");
+                var normalizedTerm = productoSearchTerm.Trim();
+                var matchingProducts = cachedProducts
+                    .Where(current =>
+                        current.BodegaId == selectedPuntoEmision?.BodegaId &&
+                        (current.CodigoBarra.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase) ||
+                         current.Nombre.Contains(normalizedTerm, StringComparison.OrdinalIgnoreCase)))
+                    .ToArray();
 
-        var page = await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim(), productoSkip, SearchPageSize, selectedPuntoEmision?.BodegaId);
-        productoResults.AddRange(page.Items);
-        productoTotalCount = page.TotalCount;
+                productoTotalCount = matchingProducts.Length;
+                productoResults.AddRange(matchingProducts
+                    .Skip(productoSkip)
+                    .Take(SearchPageSize)
+                    .Select(current => new PosProductoResponse
+                    {
+                        ProductoId = current.ProductoId,
+                        Codigo = current.CodigoBarra,
+                        Nombre = current.Nombre,
+                        PrecioVenta = current.Precio,
+                        PorcentajeIva = current.TarifaIVA,
+                        StockActual = current.StockDisponible,
+                        ControlaStock = current.ControlaStock
+                    }));
+                return;
+            }
+
+            var page = await FacturacionApiClient.SearchProductosAsync(productoSearchTerm.Trim(), productoSkip, SearchPageSize, selectedPuntoEmision?.BodegaId);
+            productoResults.AddRange(page.Items);
+            productoTotalCount = page.TotalCount;
+        }
+        catch (HttpRequestException exception)
+        {
+            errorMessage = exception.Message;
+            productoTotalCount = 0;
+        }
+        catch (JSException)
+        {
+            errorMessage = "No se pudo consultar el catálogo local. Actualiza la caché del POS cuando tengas conexión.";
+            productoTotalCount = 0;
+        }
+        finally
+        {
+            isSearchingProducts = false;
+        }
     }
 
     private void SelectCliente(PosClienteResponse cliente)
@@ -347,10 +460,23 @@ public partial class FacturacionPos : IDisposable
 
         if (producto.ControlaStock)
         {
+            if (producto.StockActual <= 0)
+            {
+                errorMessage = $"{producto.Nombre} no tiene existencias en la bodega del punto de emisión.";
+                return;
+            }
+
             var existing = cartItems.FirstOrDefault(item => item.ProductoId == producto.ProductoId && item.ControlaStock);
             if (existing is not null)
             {
+                if (existing.Cantidad + 1 > producto.StockActual)
+                {
+                    errorMessage = $"La cantidad de {producto.Nombre} no puede superar las {producto.StockActual:0.##} unidades disponibles en esta bodega.";
+                    return;
+                }
+
                 existing.Cantidad += 1;
+                statusMessage = $"Cantidad de {producto.Nombre} actualizada en la factura.";
                 return;
             }
         }
@@ -364,11 +490,13 @@ public partial class FacturacionPos : IDisposable
             PrecioVenta = producto.PrecioVenta,
             PorcentajeIva = producto.PorcentajeIva,
             ControlaStock = producto.ControlaStock,
-            UsuarioIdOperador = !producto.ControlaStock && operadores.Count == 1 &&
-                operadores[0].UsuarioId == administradorOperadorPredeterminado
+            StockDisponible = producto.StockActual,
+            UsuarioIdOperador = !producto.ControlaStock && administradorOperadorPredeterminado.HasValue &&
+                operadores.Any(operador => operador.UsuarioId == administradorOperadorPredeterminado.Value)
                     ? administradorOperadorPredeterminado : null,
             Cantidad = 1
         });
+        statusMessage = $"{producto.Nombre} agregado a la factura.";
     }
 
     private void AddCashDenomination(decimal amount)
@@ -388,6 +516,12 @@ public partial class FacturacionPos : IDisposable
 
     private void IncrementQuantity(CartItemModel item)
     {
+        if (item.ControlaStock && item.Cantidad + 1 > item.StockDisponible)
+        {
+            errorMessage = $"Solo hay {item.StockDisponible:0.##} unidades disponibles de {item.Nombre} en esta bodega.";
+            return;
+        }
+
         item.Cantidad += 1;
     }
 
@@ -475,8 +609,9 @@ public partial class FacturacionPos : IDisposable
         }
 
         isSubmitting = true;
-        statusMessage = "Registrando la factura y preparando el RIDE. Por favor espera, no cierres la pantalla.";
-        await PopupNotificationService.ShowInfoAsync(statusMessage);
+        statusMessage = isOnline
+            ? "Registrando la factura. La firma y el envío al SRI continuarán en segundo plano."
+            : "Guardando la venta localmente para sincronizarla cuando vuelva la conexión.";
         await InvokeAsync(StateHasChanged);
 
         try
@@ -656,7 +791,7 @@ public partial class FacturacionPos : IDisposable
         statusMessage = null;
     }
 
-    private void CloseOperationalContextModal()
+    private async Task CloseOperationalContextModal()
     {
         if (!HasOperationalContext)
         {
@@ -666,6 +801,10 @@ public partial class FacturacionPos : IDisposable
         errorMessage = null;
         statusMessage = null;
         showOperationalContextModal = false;
+        if (CanOperateSearch)
+        {
+            await FocusProductSearchAsync();
+        }
     }
 
     private void SelectPuntoEmision(PosPuntoEmisionResponse punto)
@@ -879,6 +1018,8 @@ public partial class FacturacionPos : IDisposable
         public decimal PorcentajeIva { get; set; }
 
         public bool ControlaStock { get; set; }
+
+        public decimal StockDisponible { get; set; }
 
         public bool IsService => !ControlaStock;
 

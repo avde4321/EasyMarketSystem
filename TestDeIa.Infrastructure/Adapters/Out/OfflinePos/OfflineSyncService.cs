@@ -16,8 +16,14 @@ namespace TestDeIa.Infrastructure.Adapters.Out.OfflinePos;
 public sealed class OfflineSyncService(
     TestDeIaDbContext dbContext,
     IFacturacionUseCase facturacionUseCase,
+    ITenantContextAccessor tenantContextAccessor,
     ILogger<OfflineSyncService> logger) : IOfflineSyncService
 {
+    /// <summary>
+    /// Sincroniza únicamente ventas pertenecientes a la empresa autenticada. La cola offline
+    /// es entrada no confiable: su EmpresaId se contrasta con el tenant del JWT antes de consultar
+    /// facturas o existencias y no se usa IgnoreQueryFilters fuera de consultas con tenant explícito.
+    /// </summary>
     public async Task<OfflineSyncResultResponse> SincronizarVentasOfflineAsync(
         IReadOnlyCollection<VentaOfflineQueueDto> ventas,
         CancellationToken cancellationToken = default)
@@ -26,6 +32,7 @@ public sealed class OfflineSyncService(
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var ordered = ventas.OrderBy(current => current.FechaHoraLocal).ToArray();
         var results = new List<OfflineSyncItemResultResponse>();
+        var empresaActivaId = tenantContextAccessor.EmpresaId;
 
         logger.LogInformation(
             "Inicio sincronizacion POS offline. Cajeros={Cajeros}; Ventas={TotalVentas}; Inicio={InicioUtc}.",
@@ -37,7 +44,13 @@ public sealed class OfflineSyncService(
         {
             try
             {
-                var existing = await FindExistingOfflineInvoiceAsync(venta, cancellationToken);
+                if (!empresaActivaId.HasValue || empresaActivaId.Value == Guid.Empty || venta.EmpresaId != empresaActivaId.Value)
+                {
+                    results.Add(Failed(venta, "ErrorValidacion", "La venta offline no pertenece a la empresa activa."));
+                    continue;
+                }
+
+                var existing = await FindExistingOfflineInvoiceAsync(venta.EmpresaId, venta, cancellationToken);
                 if (existing is not null)
                 {
                     results.Add(new OfflineSyncItemResultResponse
@@ -58,7 +71,7 @@ public sealed class OfflineSyncService(
                     continue;
                 }
 
-                var stockConflict = await FindStockConflictAsync(venta, cancellationToken);
+                var stockConflict = await FindStockConflictAsync(venta.EmpresaId, venta, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(stockConflict))
                 {
                     results.Add(Failed(venta, "PendienteAjuste", stockConflict));
@@ -226,24 +239,33 @@ public sealed class OfflineSyncService(
             : $"{venta.Observacion} | {marker}";
     }
 
-    private async Task<FacturaEntity?> FindExistingOfflineInvoiceAsync(VentaOfflineQueueDto venta, CancellationToken cancellationToken)
+    /// <summary>
+    /// Desactiva el filtro global solo para la comprobación de idempotencia de la cola offline,
+    /// manteniendo obligatorio el predicado por EmpresaId y el marcador LocalQueueId.
+    /// </summary>
+    private async Task<FacturaEntity?> FindExistingOfflineInvoiceAsync(Guid empresaId, VentaOfflineQueueDto venta, CancellationToken cancellationToken)
     {
         var marker = venta.LocalQueueId.ToString("N");
         return await dbContext.Facturas
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(current => current.Observacion != null && current.Observacion.Contains(marker))
+            .Where(current => current.EmpresaId == empresaId && current.Observacion != null && current.Observacion.Contains(marker))
             .OrderByDescending(current => current.FechaEmision)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private async Task<string?> FindStockConflictAsync(VentaOfflineQueueDto venta, CancellationToken cancellationToken)
+    /// <summary>
+    /// Consulta la existencia operativa de la empresa activa. Se desactiva el filtro global
+    /// únicamente porque esta sincronización de sistema usa un DbContext de worker, y se restringe
+    /// explícitamente por EmpresaId, BodegaId y los productos de la venta.
+    /// </summary>
+    private async Task<string?> FindStockConflictAsync(Guid empresaId, VentaOfflineQueueDto venta, CancellationToken cancellationToken)
     {
         var productIds = venta.Items.Select(current => current.ProductoId).Distinct().ToArray();
         var stockByProduct = await dbContext.ProductosBodega
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(current => current.BodegaId == venta.BodegaId && productIds.Contains(current.ProductoId))
+            .Where(current => current.EmpresaId == empresaId && current.BodegaId == venta.BodegaId && productIds.Contains(current.ProductoId))
             .Select(current => new
             {
                 current.ProductoId,

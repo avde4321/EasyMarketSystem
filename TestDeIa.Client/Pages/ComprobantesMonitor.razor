@@ -69,7 +69,7 @@
         }
         else if (facturas.Count == 0)
         {
-            <div class="empty-state">No se encontraron comprobantes para los filtros seleccionados.</div>
+            <EmptyState Icon="receipt" Title="No hay comprobantes para mostrar" Message="No encontramos documentos con esos filtros. Amplía el rango de fechas o cambia el tipo y estado del comprobante." />
         }
         else
         {

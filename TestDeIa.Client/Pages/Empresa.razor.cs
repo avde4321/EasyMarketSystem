@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Authorization;
 using TestDeIa.Client.Services.Catalogos;
 using TestDeIa.Client.Services.Empresa;
 using TestDeIa.Client.Services.Inventario;
@@ -14,6 +15,9 @@ public partial class Empresa
 {
     [Inject]
     private EmpresaApiClient EmpresaApiClient { get; set; } = default!;
+    [Inject] private EmpresaSessionService EmpresaSessionService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private TestDeIa.Client.Services.Saas.SaasApiClient SaasApiClient { get; set; } = default!;
     private IReadOnlyCollection<TestDeIa.Shared.Responses.Saas.SaasPlanResponse> planesIniciales = [];
 
@@ -39,8 +43,11 @@ public partial class Empresa
     private int currentStep = 1;
     private string? errorMessage;
     private string? statusMessage;
+    private bool requiresAuthentication;
     private string? certificadoNombreArchivoActual;
     private Guid? selectedEmpresaId;
+    private Guid? empresaNuevaPendienteDeActivarId;
+    private bool isPlatformOwner;
     private string searchTerm = string.Empty;
     private EmpresaPuntoEmisionRequest puntoEmisionDraft = new() { Establecimiento = "001", PuntoEmision = "001" };
     private int? editingPuntoIndex;
@@ -61,9 +68,19 @@ public partial class Empresa
     {
         try
         {
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            isPlatformOwner = authenticationState.User.IsInRole(TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador);
             await LoadCatalogosAsync();
             planesIniciales = await SaasApiClient.GetPlansAsync();
             await LoadAsync(resetPaging: true);
+
+            if (NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+                .Contains("origen=erp", StringComparison.OrdinalIgnoreCase))
+            {
+                statusMessage = isPlatformOwner
+                    ? "Para operar el ERP necesitas seleccionar o crear una empresa propia. Las empresas de tus clientes permanecen aisladas."
+                    : "Selecciona una empresa autorizada para continuar al ERP.";
+            }
         }
         catch (HttpRequestException)
         {
@@ -96,6 +113,7 @@ public partial class Empresa
         }
 
         errorMessage = null;
+        requiresAuthentication = false;
 
         try
         {
@@ -116,9 +134,12 @@ public partial class Empresa
 
             await LoadEmpresaIntoEditorAsync(targetEmpresaId, openWorkflow: false);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            errorMessage = "No se pudo cargar la configuración de la empresa.";
+            requiresAuthentication = exception.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            errorMessage = requiresAuthentication
+                ? "Tu sesión del superadministrador expiró o dejó de ser válida. Inicia sesión nuevamente para continuar."
+                : "No se pudo cargar la configuración de la empresa.";
         }
     }
 
@@ -130,8 +151,10 @@ public partial class Empresa
         }
         isSaving = true;
         errorMessage = null;
+        requiresAuthentication = false;
         statusMessage = null;
         var isUpdate = selectedEmpresaId.HasValue;
+        empresaNuevaPendienteDeActivarId = null;
 
         try
         {
@@ -142,10 +165,25 @@ public partial class Empresa
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                requiresAuthentication = result.RequiresAuthentication;
                 return;
             }
 
             selectedEmpresaId = result.Data?.Id;
+            if (!isUpdate && isPlatformOwner)
+            {
+                // El propietario solo puede activar una empresa cuyo OwnerUserId
+                // sea él mismo; GetMineAsync aplica ese límite en el backend.
+                var empresasPropias = await EmpresaApiClient.GetMineAsync();
+                selectedEmpresaId ??= empresasPropias
+                    .FirstOrDefault(current => string.Equals(current.Ruc, empresaRequest.Ruc.Trim(), StringComparison.Ordinal))?.Id;
+
+                if (selectedEmpresaId.HasValue)
+                {
+                    empresaNuevaPendienteDeActivarId = selectedEmpresaId;
+                    await EmpresaSessionService.SetEmpresaIdAsync(selectedEmpresaId.Value);
+                }
+            }
             statusMessage = isUpdate
                 ? "La empresa fue actualizada correctamente."
                 : "La empresa fue creada correctamente.";
@@ -156,17 +194,34 @@ public partial class Empresa
             await LoadAsync(resetPaging: true);
             saveConfirmationMessage = isUpdate
                 ? "La empresa se actualizó correctamente."
-                : "La empresa se registró correctamente.";
+                : isPlatformOwner && empresaNuevaPendienteDeActivarId.HasValue
+                    ? "La empresa se registró correctamente y quedó seleccionada como tu empresa operativa."
+                    : "La empresa se registró correctamente.";
             showSaveConfirmation = true;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            errorMessage = "No se pudo guardar la configuración de la empresa.";
+            requiresAuthentication = exception.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            errorMessage = requiresAuthentication
+                ? "Tu sesión del superadministrador expiró o dejó de ser válida. Inicia sesión nuevamente para continuar."
+                : "No se pudo guardar la configuración de la empresa.";
         }
         finally
         {
             isSaving = false;
         }
+    }
+
+    private void AcknowledgeSaveAsync()
+    {
+        showSaveConfirmation = false;
+        if (!empresaNuevaPendienteDeActivarId.HasValue)
+        {
+            return;
+        }
+
+        var destination = isPlatformOwner ? "/mi-empresa/dashboard" : "/";
+        NavigationManager.NavigateTo(destination, forceLoad: true);
     }
 
     private async Task OnCertificadoSelectedAsync(InputFileChangeEventArgs eventArgs)
@@ -503,6 +558,31 @@ public partial class Empresa
         if (step >= 1 && step <= WorkflowSteps.Length)
         {
             currentStep = step;
+        }
+    }
+
+    private Task OnEmpresaTabChanged(int tabIndex)
+    {
+        GoToStep(tabIndex + 1);
+        return Task.CompletedTask;
+    }
+
+    private void OnInvalidEmpresaSubmit(EditContext context)
+    {
+        var generalFields = new[] { "RazonSocial", "Ruc", "DireccionMatriz", "AmbienteSri", "TipoEmision", "PlanInicialId" };
+        if (generalFields.Any(field => context.GetValidationMessages(new FieldIdentifier(empresaRequest, field)).Any()))
+        {
+            currentStep = 1;
+            return;
+        }
+
+        if (context.GetValidationMessages(new FieldIdentifier(empresaRequest, "PuntosEmision")).Any())
+        {
+            currentStep = 3;
+        }
+        else
+        {
+            currentStep = 2;
         }
     }
 

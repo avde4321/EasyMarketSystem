@@ -7,6 +7,7 @@
 @inject RetencionesApiClient RetencionesApiClient
 @inject PopupNotificationService PopupNotificationService
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
 
 <section class="module-page retenciones-page">
     <div class="module-header">
@@ -15,7 +16,10 @@
             <h1>Retenciones electronicas</h1>
             <p>Consulta, reintenta autorizaciones y descarga XML/RIDE de comprobantes de retencion.</p>
         </div>
-        <button class="primary-action" type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+        <div class="row-actions">
+            <button class="ghost-button" type="button" @onclick="GoToApply">Aplicar retención</button>
+            <button class="primary-action" type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+        </div>
     </div>
 
     <div class="filter-card">
@@ -164,6 +168,8 @@
     private void OpenDetail(ComprobanteRetencionResponse retencion) => selectedRetencion = retencion;
 
     private void CloseDetail() => selectedRetencion = null;
+
+    private void GoToApply() => Navigation.NavigateTo("/retenciones/aplicar");
 
     private async Task RetryAsync(ComprobanteRetencionResponse retencion)
     {

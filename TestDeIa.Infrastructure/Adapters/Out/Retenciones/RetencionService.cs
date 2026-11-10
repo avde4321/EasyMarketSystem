@@ -29,6 +29,60 @@ public sealed class RetencionService(
     ILogger<RetencionService> logger,
     TestDeIa.Application.Modules.Saas.Ports.In.ISaaSQuotaValidationService quota) : IRetencionService
 {
+    public async Task<PagedResultResponse<CompraPendienteRetencionResponse>> GetComprasPendientesRetencionAsync(
+        string? term,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        // Los filtros globales de tenant permanecen activos: la pantalla solo consulta compras de la empresa actual.
+        var query = dbContext.Compras
+            .AsNoTracking()
+            .Where(compra => compra.EstadoCompra != TestDeIa.Domain.Modules.Compras.Entities.EstadoCompra.Anulada.ToString())
+            .Where(compra => !dbContext.ComprobantesRetencion.Any(retencion => retencion.CompraId == compra.Id));
+
+        var normalizedTerm = term?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedTerm))
+        {
+            query = query.Where(compra =>
+                compra.Secuencial.Contains(normalizedTerm) ||
+                compra.Establecimiento.Contains(normalizedTerm) ||
+                compra.PuntoEmision.Contains(normalizedTerm) ||
+                compra.Proveedor.Persona.RazonSocialONombresCompletos.Contains(normalizedTerm) ||
+                compra.Proveedor.Persona.Identificacion.Contains(normalizedTerm));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(compra => compra.FechaEmision)
+            .ThenBy(compra => compra.Id)
+            .Skip(skip)
+            .Take(take)
+            .Select(compra => new CompraPendienteRetencionResponse
+            {
+                CompraId = compra.Id,
+                ProveedorId = compra.ProveedorId,
+                ProveedorNombre = compra.Proveedor.Persona.RazonSocialONombresCompletos,
+                ProveedorIdentificacion = compra.Proveedor.Persona.Identificacion,
+                NumeroComprobante = compra.Establecimiento + "-" + compra.PuntoEmision + "-" + compra.Secuencial,
+                FechaEmision = compra.FechaEmision,
+                BaseImponible = compra.SubtotalIva0 + compra.SubtotalIva5 + compra.SubtotalIva8 + compra.SubtotalIva15,
+                TotalIva = compra.TotalImpuestos,
+                ImporteTotal = compra.ImporteTotal,
+                CodigoRetencionRenta = string.IsNullOrWhiteSpace(compra.Proveedor.CodigoRetencionRentaDefault) ? "312" : compra.Proveedor.CodigoRetencionRentaDefault,
+                CodigoRetencionIva = string.IsNullOrWhiteSpace(compra.Proveedor.CodigoRetencionIvaDefault) ? "3440" : compra.Proveedor.CodigoRetencionIvaDefault
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return new PagedResultResponse<CompraPendienteRetencionResponse>
+        {
+            Items = items,
+            TotalCount = total,
+            Skip = skip,
+            Take = take
+        };
+    }
+
     public async Task ActualizarParteRelacionadaAsync(Guid id, bool parteRelacionada, CancellationToken cancellationToken = default)
     {
         await using var lease = await SriProcessingLease.AcquireAsync(dbContext, ResolveEmpresaId(), id, cancellationToken);
@@ -167,7 +221,18 @@ public sealed class RetencionService(
         Guid compraId,
         CancellationToken cancellationToken = default)
     {
-        await quota.EnsureModuleAsync(ResolveEmpresaId(), TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
+        var empresaId = ResolveEmpresaId();
+        await quota.EnsureModuleAsync(empresaId, TestDeIa.Domain.Modules.Saas.Enums.SaasModule.Sri, cancellationToken);
+        await using var purchaseLease = await SriProcessingLease.AcquireAsync(dbContext, empresaId, compraId, cancellationToken);
+        var retencionExistente = await dbContext.ComprobantesRetencion
+            .AsNoTracking()
+            .Include(current => current.Detalles)
+            .FirstOrDefaultAsync(current => current.CompraId == compraId, cancellationToken);
+        if (retencionExistente is not null)
+        {
+            throw new InvalidOperationException($"La compra ya tiene una retención registrada: {retencionExistente.Establecimiento}-{retencionExistente.PuntoEmision}-{retencionExistente.Secuencial}.");
+        }
+
         var compra = await dbContext.Compras
             .Include(current => current.Detalles)
             .Include(current => current.Proveedor)

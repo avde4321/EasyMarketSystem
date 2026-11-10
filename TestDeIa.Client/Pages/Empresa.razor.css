@@ -16,6 +16,15 @@
     align-items: center;
 }
 
+.reauthentication-link {
+    display: inline-block;
+    margin-left: 0.35rem;
+    color: #124a75;
+    font-weight: 800;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
 .empresa-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -25,6 +34,8 @@
 .empresa-workflow-modal {
     width: min(100%, 1080px);
     max-width: 1080px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
 }
 
 .empresa-point-modal {

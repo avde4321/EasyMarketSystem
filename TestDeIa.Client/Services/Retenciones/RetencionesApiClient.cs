@@ -8,6 +8,14 @@ namespace TestDeIa.Client.Services.Retenciones;
 
 public sealed class RetencionesApiClient(HttpClient httpClient)
 {
+    public async Task<PagedResultResponse<CompraPendienteRetencionResponse>> GetComprasPendientesAsync(string? term, int skip, int take)
+    {
+        var encodedTerm = Uri.EscapeDataString(term ?? string.Empty);
+        return await httpClient.GetFromJsonAsync<PagedResultResponse<CompraPendienteRetencionResponse>>(
+            $"api/retenciones/compras-pendientes?term={encodedTerm}&skip={skip}&take={take}")
+            ?? new PagedResultResponse<CompraPendienteRetencionResponse> { Skip = skip, Take = take };
+    }
+
     public async Task<string?> ActualizarParteRelacionadaAsync(Guid id, bool value)
     {
         using var response = await httpClient.PutAsJsonAsync($"api/retenciones/{id}/parte-relacionada", value);

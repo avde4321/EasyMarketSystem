@@ -13,11 +13,6 @@
             <h1>@PageTitleText</h1>
             <p>@PageDescription</p>
         </div>
-        <div class="header-actions compras-header-actions">
-            <button class="secondary-action" type="button" @onclick="OpenWorkflowModal">
-                @(detailRows.Count > 0 ? "Continuar compra manual" : "Registrar compra manual")
-            </button>
-        </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -655,7 +650,7 @@
                 else
                 {
                     <button class="primary-action" type="button" @onclick="SaveAsync" disabled="@(!CanSave || isSaving)">
-                        @(isSaving ? "Guardando..." : PrimaryActionText)
+                        @if (isSaving) { <span class="inline-spinner" aria-hidden="true"></span><span>Registrando compra...</span> } else { <span>@PrimaryActionText</span> }
                     </button>
                 }
             </footer>

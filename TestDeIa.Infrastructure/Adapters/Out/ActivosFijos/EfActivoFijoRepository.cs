@@ -83,6 +83,7 @@ public sealed class EfActivoFijoRepository(
         return dbContext.ActivosFijos.AnyAsync(current => current.CompraDetalleId == compraDetalleId, cancellationToken);
     }
 
+    /// <summary>Reserva el próximo código contando activos solo de la empresa activa; el bypass compensa el filtro global y el EmpresaId es obligatorio.</summary>
     public async Task<string> ReserveNextCodigoAsync(DateTime fechaAdquisicion, CancellationToken cancellationToken = default)
     {
         var empresaId = tenantContextAccessor.EmpresaId ?? throw new InvalidOperationException("No existe una empresa activa para generar codigo de activo fijo.");

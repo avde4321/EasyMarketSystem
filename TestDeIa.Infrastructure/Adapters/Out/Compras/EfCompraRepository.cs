@@ -112,6 +112,7 @@ public sealed class EfCompraRepository : ICompraRepository
         return Map(persisted);
     }
 
+    /// <summary>Genera códigos de activos a partir del conteo del tenant de la compra; el bypass siempre se restringe a compra.EmpresaId.</summary>
     private async Task CreateActivosFijosAsync(CompraEntity compra, CancellationToken cancellationToken)
     {
         var detallesActivoFijo = compra.Detalles

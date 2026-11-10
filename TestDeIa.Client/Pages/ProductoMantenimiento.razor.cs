@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using TestDeIa.Client.Services.Inventario;
 using TestDeIa.Shared.Requests.Inventario;
 using TestDeIa.Shared.Responses.Inventario;
@@ -8,11 +9,17 @@ namespace TestDeIa.Client.Pages;
 public partial class ProductoMantenimiento
 {
     [Inject]
+    private TestDeIa.Client.Services.PopupNotificationService PopupNotificationService { get; set; } = default!;
+
+    [Inject]
     private InventarioApiClient InventarioApiClient { get; set; } = default!;
 
     private readonly List<ProductoResponse> productos = [];
     private readonly string[] unidadesMedida = ["Unidad", "Caja", "Paquete", "Kg", "Litro", "Hora", "Servicio"];
     private ProductoRequest productoRequest = new();
+    private EditContext productoEditContext = default!;
+    private readonly string[] productFormTabs = ["Datos generales", "Precios e impuestos SRI", "Control de stock"];
+    private int activeProductTab;
     private Guid? editingProductId;
     private bool isLoading = true;
     private bool isSaving;
@@ -95,6 +102,8 @@ public partial class ProductoMantenimiento
             IsActive = true,
             StockMinimo = 0
         };
+        productoEditContext = new EditContext(productoRequest);
+        activeProductTab = 0;
         categoriaIdText = string.Empty;
         tarifaIva = "15";
         dialogMessage = null;
@@ -123,6 +132,8 @@ public partial class ProductoMantenimiento
             ValorComision = producto.ValorComision,
             IsActive = producto.IsActive
         };
+        productoEditContext = new EditContext(productoRequest);
+        activeProductTab = 0;
         categoriaIdText = producto.CategoriaId?.ToString() ?? string.Empty;
         tarifaIva = producto.PorcentajeIva == 0 ? "0" : "15";
         OnNaturalezaChanged();
@@ -135,6 +146,25 @@ public partial class ProductoMantenimiento
         isModalOpen = false;
         isSaving = false;
         dialogMessage = null;
+    }
+
+    private void OnInvalidProductSubmit(EditContext context)
+    {
+        var invalidFields = context.GetValidationMessages();
+        var messages = invalidFields.ToArray();
+        if (messages.Length == 0)
+        {
+            return;
+        }
+
+        var generalFields = new[] { "Codigo", "Nombre", "UnidadMedida", "NaturalezaItem", "Descripcion" };
+        var stockFields = new[] { "StockMinimo", "StockInicial", "CostoInicial" };
+        activeProductTab = context.GetValidationMessages()
+            .Any() && generalFields.Any(field => context.GetValidationMessages(new FieldIdentifier(productoRequest, field)).Any())
+                ? 0
+                : stockFields.Any(field => context.GetValidationMessages(new FieldIdentifier(productoRequest, field)).Any())
+                    ? 2
+                    : 1;
     }
 
     private async Task SaveAsync()
@@ -168,6 +198,7 @@ public partial class ProductoMantenimiento
 
             CloseModal();
             await LoadAsync();
+            await PopupNotificationService.ShowSuccessAsync("Producto o servicio guardado correctamente.");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
         {

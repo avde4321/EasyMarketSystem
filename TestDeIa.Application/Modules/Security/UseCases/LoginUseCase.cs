@@ -82,6 +82,7 @@ public sealed class LoginUseCase : ILoginUseCase
             };
         }
 
+        // Legacy SHA-256 and outdated Identity hashes are replaced only after the password verifies.
         var replacementHash = verification.RequiresRehash
             ? passwordHashService.Hash(request.Password)
             : null;

@@ -3,7 +3,7 @@
         <Found Context="routeData">
             <ErrorBoundary @key="routeData">
             <ChildContent>
-            <SubscriptionRouteGuard>
+            <SubscriptionRouteGuard @key="routeData.PageType">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
                     <RedirectToLogin />

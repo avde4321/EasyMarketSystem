@@ -1,0 +1,58 @@
+.consolidated-report-page .report-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.consolidated-filters {
+    align-items: end;
+}
+
+.consolidated-kpis .summary-card {
+    min-width: 12rem;
+}
+
+.report-period-note,
+.report-footnote {
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.report-period-note {
+    padding: 0.2rem 0.15rem;
+}
+
+.report-period-note strong,
+.consolidated-detail-grid strong {
+    color: var(--text-strong);
+}
+
+.consolidated-detail-grid h2 {
+    margin-top: 0;
+    color: var(--brand-blue);
+}
+
+.consolidated-detail-grid p {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text-body);
+}
+
+.report-footnote {
+    display: block;
+    margin-top: 0.75rem;
+}
+
+@media (max-width: 760px) {
+    .consolidated-report-page .module-header,
+    .consolidated-report-page .report-shortcuts {
+        align-items: stretch;
+    }
+
+    .consolidated-report-page .report-shortcuts {
+        flex-direction: column;
+    }
+}

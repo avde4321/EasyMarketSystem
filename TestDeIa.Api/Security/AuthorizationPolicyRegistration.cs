@@ -21,8 +21,7 @@ internal static class AuthorizationPolicyRegistration
             {
                 builder.RequireAuthenticatedUser();
                 builder.RequireAssertion(context =>
-                    requiredPermissions.Any(permission =>
-                        context.User.HasClaim(SecurityClaimTypes.Permission, permission)));
+                    SecurityAuthorizationRules.HasAccessToAnyPermission(context.User, requiredPermissions));
             });
         }
     }

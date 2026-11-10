@@ -56,16 +56,36 @@ public sealed class ReporteComprasConsolidadoService(TestDeIaDbContext dbContext
             .Where(cuenta => cuenta.CompraId.HasValue && compraIds.Contains(cuenta.CompraId.Value))
             .ToArrayAsync(cancellationToken);
 
+        // Las cuotas pagadas durante el periodo pueden corresponder a compras
+        // anteriores; consultarlas desde las CxP tenant-filtered evita omitirlas.
+        var pagosCxPEnPeriodo = await dbContext.CuentasPorPagar
+            .AsNoTracking()
+            .SelectMany(cuenta => cuenta.Pagos
+                .Where(pago => pago.FechaPago >= desde && pago.FechaPago < hasta)
+                .Select(pago => new ReporteComprasFlujoMonetarioResponse
+                {
+                    Fecha = pago.FechaPago,
+                    Tipo = "Abono CxP",
+                    Proveedor = cuenta.Proveedor.Persona.RazonSocialONombresCompletos,
+                    Documento = cuenta.Compra == null
+                        ? "Cuenta por pagar"
+                        : cuenta.Compra.Establecimiento + "-" + cuenta.Compra.PuntoEmision + "-" + cuenta.Compra.Secuencial,
+                    FormaPago = pago.FormaPago,
+                    TotalCompra = cuenta.MontoOriginal,
+                    Desembolso = pago.MontoPagado,
+                    SaldoPendiente = cuenta.SaldoActual,
+                    ComprobantePago = pago.NumeroComprobantePago ?? pago.ReferenciaTransaccion
+                }))
+            .ToArrayAsync(cancellationToken);
+
         var movimientosFisicos = BuildMovimientosFisicos(compras, activos);
-        var flujos = BuildFlujosMonetarios(compras, cuentasPorPagar, desde, hasta);
+        var flujos = BuildFlujosMonetarios(compras, cuentasPorPagar, pagosCxPEnPeriodo);
 
         var baseIva0 = compras.Sum(compra => compra.SubtotalIva0);
         var baseIva15 = compras.Sum(compra => compra.SubtotalIva15);
         var montoIva = compras.Sum(compra => compra.TotalImpuestos);
         var totalCompras = compras.Sum(compra => compra.ImporteTotal);
-        var totalAbonos = cuentasPorPagar.SelectMany(cuenta => cuenta.Pagos)
-            .Where(pago => pago.FechaPago >= desde && pago.FechaPago < hasta)
-            .Sum(pago => pago.MontoPagado);
+        var totalAbonos = pagosCxPEnPeriodo.Sum(pago => pago.Desembolso);
         var contado = compras
             .Where(compra => compra.FormaPagoCompra != FormaPagoCompra.CreditoProveedores)
             .Sum(compra => compra.ImporteTotal);
@@ -150,8 +170,7 @@ public sealed class ReporteComprasConsolidadoService(TestDeIaDbContext dbContext
     private static IReadOnlyCollection<ReporteComprasFlujoMonetarioResponse> BuildFlujosMonetarios(
         IReadOnlyCollection<Persistence.Entities.CompraEntity> compras,
         IReadOnlyCollection<Persistence.Entities.CuentaPorPagarEntity> cuentasPorPagar,
-        DateTimeOffset desde,
-        DateTimeOffset hasta)
+        IReadOnlyCollection<ReporteComprasFlujoMonetarioResponse> pagosCxPEnPeriodo)
     {
         var cuentasPorCompra = cuentasPorPagar
             .Where(cuenta => cuenta.CompraId.HasValue)
@@ -173,22 +192,7 @@ public sealed class ReporteComprasConsolidadoService(TestDeIaDbContext dbContext
             };
         });
 
-        var pagos = cuentasPorPagar.SelectMany(cuenta => cuenta.Pagos
-            .Where(pago => pago.FechaPago >= desde && pago.FechaPago < hasta)
-            .Select(pago => new ReporteComprasFlujoMonetarioResponse
-            {
-                Fecha = pago.FechaPago,
-                Tipo = "Abono CxP",
-                Proveedor = BuildProveedor(cuenta.Proveedor),
-                Documento = cuenta.Compra is null ? cuenta.Id.ToString("N")[..10] : BuildComprobante(cuenta.Compra),
-                FormaPago = pago.FormaPago,
-                TotalCompra = cuenta.MontoOriginal,
-                Desembolso = pago.MontoPagado,
-                SaldoPendiente = cuenta.SaldoActual,
-                ComprobantePago = pago.NumeroComprobantePago ?? pago.ReferenciaTransaccion
-            }));
-
-        return comprasFlujo.Concat(pagos)
+        return comprasFlujo.Concat(pagosCxPEnPeriodo)
             .OrderBy(flujo => flujo.Fecha)
             .ThenBy(flujo => flujo.Tipo)
             .ToArray();

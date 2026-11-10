@@ -1,0 +1,202 @@
+@page "/retenciones/aplicar"
+@attribute [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+@using TestDeIa.Client.Services
+@using TestDeIa.Client.Services.Retenciones
+@using TestDeIa.Shared.Responses.Common
+@using TestDeIa.Shared.Responses.Retenciones
+@inject RetencionesApiClient RetencionesApiClient
+@inject PopupNotificationService PopupNotificationService
+@inject NavigationManager Navigation
+
+<section class="module-page apply-withholding-page">
+    <header class="module-header">
+        <div>
+            <span class="eyebrow">Compras · SRI Ecuador</span>
+            <h1>Aplicar retención a proveedor</h1>
+            <p>Selecciona una compra registrada. El sistema tomará los códigos configurados para el proveedor y calculará las retenciones en el servidor.</p>
+        </div>
+        <button class="ghost-button" type="button" @onclick="GoToMonitor">Ver retenciones emitidas</button>
+    </header>
+
+    <section class="withholding-note">
+        <strong>Antes de generar</strong>
+        <span>Confirma que los códigos de retención del proveedor sean los correctos para esta compra. La acción crea un borrador; la firma y el envío al SRI se realizan después desde el monitor.</span>
+    </section>
+
+    <section class="filter-card withholding-filter">
+        <input class="input-control" placeholder="Buscar proveedor, RUC o número de comprobante" @bind="term" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" />
+        <button class="ghost-button" type="button" @onclick="SearchAsync" disabled="@isLoading">Buscar</button>
+        <button class="ghost-button" type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+    </section>
+
+    <section class="table-card">
+        <div class="withholding-table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Proveedor</th>
+                        <th>Documento de compra</th>
+                        <th>Base imponible</th>
+                        <th>IVA</th>
+                        <th>Total compra</th>
+                        <th>Códigos del proveedor</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="8">Cargando compras pendientes...</td></tr>
+                    }
+                    else if (!purchases.Items.Any())
+                    {
+                        <tr><td colspan="8">No hay compras pendientes de retención para esta empresa.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var purchase in purchases.Items)
+                        {
+                            <tr>
+                                <td>@purchase.FechaEmision.ToString("dd/MM/yyyy")</td>
+                                <td><strong>@purchase.ProveedorNombre</strong><small class="withholding-subtext">@purchase.ProveedorIdentificacion</small></td>
+                                <td>@purchase.NumeroComprobante</td>
+                                <td>@Money(purchase.BaseImponible)</td>
+                                <td>@Money(purchase.TotalIva)</td>
+                                <td><strong>@Money(purchase.ImporteTotal)</strong></td>
+                                <td><span>Renta: @purchase.CodigoRetencionRenta</span><br /><span>IVA: @purchase.CodigoRetencionIva</span></td>
+                                <td><button class="primary-action compact" type="button" @onclick="() => ConfirmPurchase(purchase)" disabled="@isProcessing">Aplicar</button></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="pager">
+            <button class="ghost-button" type="button" @onclick="PreviousPage" disabled="@(skip == 0 || isLoading)">Anterior</button>
+            <span>@purchases.TotalCount compra(s) pendiente(s) · página @(skip / take + 1)</span>
+            <button class="ghost-button" type="button" @onclick="NextPage" disabled="@(skip + take >= purchases.TotalCount || isLoading)">Siguiente</button>
+        </div>
+    </section>
+</section>
+
+@if (purchaseToApply is not null)
+{
+    <div class="easy-modal-backdrop">
+        <section class="easy-modal-card withholding-modal" role="dialog" aria-modal="true" aria-labelledby="apply-retention-title">
+            <button class="easy-modal-close" type="button" @onclick="CancelApply" disabled="@isProcessing" aria-label="Cerrar">×</button>
+            <span class="eyebrow">Confirmación</span>
+            <h2 id="apply-retention-title">Generar borrador de retención</h2>
+            <p>Se aplicará a <strong>@purchaseToApply.ProveedorNombre</strong>, RUC/identificación @purchaseToApply.ProveedorIdentificacion, sobre la compra @purchaseToApply.NumeroComprobante.</p>
+            <div class="withholding-codes-summary">
+                <div><span>Retención de renta</span><strong>Código @purchaseToApply.CodigoRetencionRenta</strong></div>
+                <div><span>Retención de IVA</span><strong>Código @purchaseToApply.CodigoRetencionIva</strong></div>
+                <div><span>Base imponible</span><strong>@Money(purchaseToApply.BaseImponible)</strong></div>
+                <div><span>IVA de la compra</span><strong>@Money(purchaseToApply.TotalIva)</strong></div>
+            </div>
+            <p class="withholding-disclaimer">Los porcentajes y valores finales se calculan con la configuración vigente del proveedor y las reglas del backend. Revisa los detalles del borrador antes de firmar o enviar al SRI.</p>
+            <footer class="withholding-modal-actions">
+                <button class="ghost-button" type="button" @onclick="CancelApply" disabled="@isProcessing">Cancelar</button>
+                <button class="primary-action" type="button" @onclick="ApplyAsync" disabled="@isProcessing">Generar borrador</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (createdRetention is not null)
+{
+    <div class="easy-modal-backdrop">
+        <section class="easy-modal-card withholding-modal" role="dialog" aria-modal="true" aria-labelledby="retention-created-title">
+            <button class="easy-modal-close" type="button" @onclick="CloseCreated" aria-label="Cerrar">×</button>
+            <span class="eyebrow">Borrador creado</span>
+            <h2 id="retention-created-title">Retención @createdRetention.Establecimiento-@createdRetention.PuntoEmision-@createdRetention.Secuencial</h2>
+            <p>Proveedor: <strong>@createdRetention.ProveedorNombre</strong> · Total retenido: <strong>@Money(createdRetention.TotalRetenido)</strong></p>
+            <div class="withholding-table-scroll">
+                <table class="data-table">
+                    <thead><tr><th>Impuesto</th><th>Código</th><th>Base</th><th>Porcentaje</th><th>Valor retenido</th></tr></thead>
+                    <tbody>
+                        @foreach (var detail in createdRetention.Detalles)
+                        {
+                            <tr><td>@(detail.CodigoImpuesto == "1" ? "Renta" : detail.CodigoImpuesto == "2" ? "IVA" : detail.CodigoImpuesto)</td><td>@detail.CodigoRetencionSRI</td><td>@Money(detail.BaseImponible)</td><td>@detail.PorcentajeRetencion.ToString("0.##")%</td><td>@Money(detail.ValorRetenido)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="withholding-modal-actions">
+                <button class="ghost-button" type="button" @onclick="CloseCreated">Seguir aquí</button>
+                <button class="primary-action" type="button" @onclick="GoToMonitor">Ir al monitor</button>
+            </footer>
+        </section>
+    </div>
+}
+
+<ProcessingOverlay IsVisible="@isProcessing" Title="Generando retención" Message="Estamos validando la compra y calculando sus valores. No cierres esta pantalla." />
+
+@code {
+    private const int take = 10;
+    private PagedResultResponse<CompraPendienteRetencionResponse> purchases = new() { Take = take };
+    private string? term;
+    private int skip;
+    private bool isLoading;
+    private bool isProcessing;
+    private CompraPendienteRetencionResponse? purchaseToApply;
+    private ComprobanteRetencionResponse? createdRetention;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        try
+        {
+            purchases = await RetencionesApiClient.GetComprasPendientesAsync(term, skip, take);
+        }
+        catch (Exception ex)
+        {
+            await PopupNotificationService.ShowErrorAsync(ex.Message);
+        }
+        finally { isLoading = false; }
+    }
+
+    private async Task SearchAsync()
+    {
+        skip = 0;
+        await LoadAsync();
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") await SearchAsync();
+    }
+
+    private void ConfirmPurchase(CompraPendienteRetencionResponse purchase) => purchaseToApply = purchase;
+    private void CancelApply() { if (!isProcessing) purchaseToApply = null; }
+    private void CloseCreated() => createdRetention = null;
+
+    private async Task ApplyAsync()
+    {
+        if (isProcessing || purchaseToApply is null) return;
+        isProcessing = true;
+        try
+        {
+            var result = await RetencionesApiClient.CrearDesdeCompraAsync(purchaseToApply.CompraId);
+            if (!result.Succeeded || result.Data is null)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo generar el borrador de retención.");
+                return;
+            }
+
+            result.Data.ProveedorNombre = purchaseToApply.ProveedorNombre;
+            createdRetention = result.Data;
+            purchaseToApply = null;
+            await LoadAsync();
+            await PopupNotificationService.ShowSuccessAsync("Borrador de retención generado. Revisa el detalle antes de procesarlo en el SRI.");
+        }
+        finally { isProcessing = false; }
+    }
+
+    private async Task PreviousPage() { skip = Math.Max(0, skip - take); await LoadAsync(); }
+    private async Task NextPage() { if (skip + take < purchases.TotalCount) { skip += take; await LoadAsync(); } }
+    private void GoToMonitor() => Navigation.NavigateTo("/retenciones");
+    private static string Money(decimal value) => value.ToString("C2");
+}

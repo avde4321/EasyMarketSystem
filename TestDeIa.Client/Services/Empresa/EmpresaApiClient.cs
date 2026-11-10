@@ -46,11 +46,6 @@ public sealed class EmpresaApiClient
     {
         var response = await httpClient.GetAsync("api/empresa");
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            return Array.Empty<EmpresaOptionResponse>();
-        }
-
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<EmpresaOptionResponse>>()
             ?? Array.Empty<EmpresaOptionResponse>();
@@ -73,17 +68,17 @@ public sealed class EmpresaApiClient
             ?? new PagedResultResponse<EmpresaResponse> { Skip = skip, Take = take };
     }
 
-    public Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data)> CreateAsync(EmpresaRequest request)
+    public Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data, bool RequiresAuthentication)> CreateAsync(EmpresaRequest request)
     {
         return SaveInternalAsync("api/empresa", request);
     }
 
-    public Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data)> UpdateAsync(Guid id, EmpresaRequest request)
+    public Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data, bool RequiresAuthentication)> UpdateAsync(Guid id, EmpresaRequest request)
     {
         return SaveInternalAsync($"api/empresa/{id}", request);
     }
 
-    private async Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data)> SaveInternalAsync(string endpoint, EmpresaRequest request)
+    private async Task<(bool Succeeded, string? ErrorMessage, EmpresaResponse? Data, bool RequiresAuthentication)> SaveInternalAsync(string endpoint, EmpresaRequest request)
     {
         var response = endpoint == "api/empresa"
             ? await httpClient.PostAsJsonAsync(endpoint, request)
@@ -91,16 +86,21 @@ public sealed class EmpresaApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            return (true, null, await response.Content.ReadFromJsonAsync<EmpresaResponse>());
+            return (true, null, await response.Content.ReadFromJsonAsync<EmpresaResponse>(), false);
+        }
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            return (false, "La API no aceptó tu sesión. Vuelve a iniciar sesión con AdminSaasSudo y luego intenta guardar la empresa.", null, true);
         }
 
         if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden)
         {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
-            return (false, error?.Detail ?? error?.Message ?? "No se pudo guardar la empresa.", null);
+            return (false, error?.Detail ?? error?.Message ?? "No se pudo guardar la empresa.", null, false);
         }
 
-        return (false, "No se pudo guardar la empresa.", null);
+        return (false, "No se pudo guardar la empresa.", null, false);
     }
 
     private sealed class ApiError

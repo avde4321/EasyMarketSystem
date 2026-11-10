@@ -116,6 +116,17 @@ public sealed class SaasBillingTests
     }
 
     [Fact]
+    public void TransferPeriodMustBeBetweenOneAndTwelveMonths()
+    {
+        var valid = Request(1);
+        valid.PeriodoMeses = 12;
+        Validator.ValidateObject(valid, new ValidationContext(valid), true);
+        var invalid = Request(1);
+        invalid.PeriodoMeses = 13;
+        Assert.Throws<ValidationException>(() => Validator.ValidateObject(invalid, new ValidationContext(invalid), true));
+    }
+
+    [Fact]
     public void ConfirmationEndpointDoesNotAllowAnonymousOrTenantAdminApproval()
     {
         var method = typeof(SaasBillingController).GetMethod(nameof(SaasBillingController.ConfirmPayment))!;
@@ -295,6 +306,66 @@ public sealed class SaasBillingTests
         Assert.Equal(1, await db.SaasSuscripciones.Where(x => x.EmpresaId == fixture.Company).Select(x => x.FacturasEmitidasMesActual).SingleAsync());
         Assert.Equal(2, await db.SaasFacturaCupos.CountAsync(x => x.EmpresaId == fixture.Company && x.Estado == "CONFIRMADO"));
         await Assert.ThrowsAsync<SaaSQuotaExceededException>(() => quota.CanEmitirFacturaAsync(fixture.Company));
+    }
+
+    [SqlQuotaFact]
+    public async Task ApprovalCreatesFirstSubscriptionFromThePlanRequestedInPayment()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        var now = new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);
+        await using var db = fixture.Open();
+        await db.SaasSuscripciones.IgnoreQueryFilters()
+            .Where(x => x.EmpresaId == fixture.Company)
+            .ExecuteDeleteAsync();
+
+        var service = Service(db, fixture.Company, actor, now);
+        var request = Request(fixture.PlanId);
+        request.ComprobanteReferencia = "TEST-PRIMER-PLAN-" + Guid.NewGuid().ToString("N");
+        var payment = await service.RegistrarTransferenciaAsync(request);
+        Assert.Equal("Pendiente", payment.EstadoPago);
+
+        await service.AprobarPagoAsync(payment.Id, fixture.Company);
+        var subscription = await db.SaasSuscripciones.IgnoreQueryFilters()
+            .SingleAsync(x => x.EmpresaId == fixture.Company);
+        Assert.Equal(fixture.PlanId, subscription.SaasPlanId);
+        Assert.Equal(EstadoSuscripcionSaas.Activa, subscription.EstadoSuscripcion);
+        Assert.Equal(now.UtcDateTime, subscription.FechaInicio);
+        Assert.Equal(now.UtcDateTime.AddMonths(1), subscription.FechaVencimiento);
+        Assert.Equal(0, subscription.FacturasEmitidasMesActual);
+        Assert.Equal(new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc), subscription.ContadorFacturasPeriodo);
+        Assert.Equal(now, subscription.FechaReinicioCupo);
+        Assert.Equal("Aprobado", await db.SaasPagoRegistros.Where(x => x.Id == payment.Id).Select(x => x.EstadoPago.ToString()).SingleAsync());
+
+        await service.AprobarPagoAsync(payment.Id, fixture.Company);
+        Assert.Equal(1, await db.SaasSuscripciones.IgnoreQueryFilters().CountAsync(x => x.EmpresaId == fixture.Company));
+        Assert.Equal(now.UtcDateTime.AddMonths(1), await db.SaasSuscripciones.IgnoreQueryFilters()
+            .Where(x => x.EmpresaId == fixture.Company).Select(x => x.FechaVencimiento).SingleAsync());
+    }
+
+    [SqlQuotaFact]
+    public async Task ApprovedAdvancePaymentExtendsExistingSubscriptionByRequestedMonths()
+    {
+        await using var fixture = await SaasQuotaSqlConcurrencyTests.Fixture.CreateAsync();
+        var actor = await PrepareAsync(fixture);
+        var now = new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);
+        await using var db = fixture.Open();
+        var subscription = await db.SaasSuscripciones.SingleAsync(x => x.EmpresaId == fixture.Company);
+        subscription.FechaInicio = now.UtcDateTime.AddMonths(-2);
+        subscription.FechaVencimiento = now.UtcDateTime.AddDays(10);
+        var request = Request(fixture.PlanId);
+        request.PeriodoMeses = 3;
+        request.Monto = 89.97m;
+        request.ComprobanteReferencia = "TEST-PREPAGO-" + Guid.NewGuid().ToString("N");
+        var payment = await Service(db, fixture.Company, actor, now).RegistrarTransferenciaAsync(request);
+        Assert.Equal(3, payment.PeriodoMeses);
+
+        await Service(db, fixture.Company, actor, now).AprobarPagoAsync(payment.Id, fixture.Company);
+
+        db.ChangeTracker.Clear();
+        var updated = await db.SaasSuscripciones.SingleAsync(x => x.EmpresaId == fixture.Company);
+        Assert.Equal(now.UtcDateTime.AddDays(10).AddMonths(3), updated.FechaVencimiento);
+        Assert.Equal(0, updated.FacturasEmitidasMesActual);
     }
 
     [SqlQuotaFact]

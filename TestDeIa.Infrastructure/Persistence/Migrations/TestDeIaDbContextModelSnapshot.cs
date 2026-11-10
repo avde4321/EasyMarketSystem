@@ -2495,6 +2495,64 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.ToTable("EmpresaPuntosEmision", (string)null);
                 });
 
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaSmtpConfiguracionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContrasenaProtegida")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("CorreoRemitente")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Habilitado")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Host")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("NombreRemitente")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<int>("Puerto")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequiereAutenticacion")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("UsarSsl")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Usuario")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId")
+                        .IsUnique();
+
+                    b.ToTable("EmpresaSmtpConfiguraciones", (string)null);
+                });
+
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EstudioMercadoCompraEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4280,6 +4338,11 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int>("PeriodoMeses")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.Property<Guid>("RegistradoPorUsuarioId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4308,6 +4371,8 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_SaasPagoRegistros_Metodo", "[MetodoPago] IN ('TarjetaPasarela','TransferenciaBancaria')");
 
                             t.HasCheckConstraint("CK_SaasPagoRegistros_Monto", "[Monto] > 0");
+
+                            t.HasCheckConstraint("CK_SaasPagoRegistros_PeriodoMeses", "[PeriodoMeses] BETWEEN 1 AND 12");
                         });
                 });
 
@@ -6198,6 +6263,15 @@ namespace TestDeIa.Infrastructure.Persistence.Migrations
                     b.Navigation("Bodega");
 
                     b.Navigation("Empresa");
+                });
+
+            modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.EmpresaSmtpConfiguracionEntity", b =>
+                {
+                    b.HasOne("TestDeIa.Infrastructure.Persistence.Entities.EmpresaEmisoraEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TestDeIa.Infrastructure.Persistence.Entities.ExtractoBancarioDetalleEntity", b =>

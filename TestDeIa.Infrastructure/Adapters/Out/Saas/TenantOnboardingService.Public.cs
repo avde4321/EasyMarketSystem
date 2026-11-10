@@ -16,6 +16,10 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Saas;
 
 public sealed partial class TenantOnboardingService
 {
+    /// <summary>
+    /// Registra un tenant aún inexistente. Antes de crear la empresa realiza búsquedas globales
+    /// exclusivamente booleanas para impedir duplicidad de correo/RUC; no devuelve ni modifica datos de otros tenants.
+    /// </summary>
     public async Task<LoginResponse> RegistrarPublicoAsync(PublicTenantRegisterDto dto, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);

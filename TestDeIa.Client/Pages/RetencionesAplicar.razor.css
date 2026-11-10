@@ -1,0 +1,26 @@
+.apply-withholding-page .withholding-note {
+    display: grid;
+    gap: .3rem;
+    margin: 1rem 0;
+    padding: 1rem 1.2rem;
+    color: #395e73;
+    background: linear-gradient(120deg, #eefaf7, #fff9ea);
+    border: 1px solid #cfe9e4;
+    border-radius: 20px;
+}
+
+.withholding-filter { display: flex; align-items: center; gap: .75rem; }
+.withholding-filter .input-control { flex: 1; min-width: 220px; }
+.withholding-table-scroll { overflow-x: auto; }
+.withholding-subtext { display: block; margin-top: .25rem; color: #718aa0; }
+.withholding-modal { width: min(760px, 94vw); }
+.withholding-codes-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .8rem; margin: 1rem 0; }
+.withholding-codes-summary div { display: grid; gap: .3rem; padding: .9rem; border: 1px solid #d8e8f3; border-radius: 16px; background: #f7fbfe; }
+.withholding-codes-summary span, .withholding-disclaimer { color: #69839a; }
+.withholding-modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1.2rem; }
+
+@media (max-width: 680px) {
+    .withholding-filter { align-items: stretch; flex-direction: column; }
+    .withholding-filter .input-control { width: 100%; }
+    .withholding-modal-actions { flex-direction: column-reverse; }
+}

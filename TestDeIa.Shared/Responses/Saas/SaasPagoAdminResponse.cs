@@ -5,4 +5,5 @@ public sealed record SaasPagoAdminResponse(
     int SaasPlanId, string PlanNombre, bool PlanActivo, decimal Monto,
     DateTime FechaRegistro, DateOnly? FechaPagoInformada, string MetodoPago, string EstadoPago,
     string ComprobanteReferencia, string? Observaciones,
-    DateTime? FechaConfirmacion, string? ObservacionesConfirmacion, Guid? ConfirmadoPorUsuarioId);
+    DateTime? FechaConfirmacion, string? ObservacionesConfirmacion, Guid? ConfirmadoPorUsuarioId,
+    int PeriodoMeses = 1);

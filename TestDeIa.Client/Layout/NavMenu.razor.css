@@ -8,6 +8,7 @@
     border: 1px solid rgba(73, 146, 211, 0.16);
     box-shadow: 0 18px 48px rgba(18, 74, 117, 0.1);
     min-height: calc(100vh - 2rem);
+    transition: padding 200ms ease, border-radius 200ms ease, box-shadow 200ms ease;
 }
 
 .brand-row {
@@ -74,6 +75,7 @@
     display: grid;
     gap: 0.55rem;
 }
+
 
 .nav-link,
 .nav-group-trigger,
@@ -305,7 +307,55 @@
     overflow-wrap: anywhere;
 }
 
+/* Tooltips flotantes cuando el sidebar queda reducido; los title nativos siguen como respaldo accesible. */
+.is-collapsed .nav-link-root[title],
+.is-collapsed .nav-group-trigger[title],
+.is-collapsed .collapse-button[title] {
+    position: relative;
+}
+
+.is-collapsed .nav-link-root[title]::after,
+.is-collapsed .nav-group-trigger[title]::after,
+.is-collapsed .collapse-button[title]::after {
+    content: attr(title);
+    position: absolute;
+    z-index: 30;
+    left: calc(100% + .65rem);
+    top: 50%;
+    transform: translate(-.25rem, -50%);
+    padding: .45rem .7rem;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-soft);
+    background: var(--surface-1);
+    color: var(--text-strong);
+    box-shadow: var(--shadow-soft);
+    font-size: .82rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+}
+
+.is-collapsed .nav-link-root[title]:hover::after,
+.is-collapsed .nav-group-trigger[title]:hover::after,
+.is-collapsed .collapse-button[title]:hover::after,
+.is-collapsed .nav-link-root[title]:focus-visible::after,
+.is-collapsed .nav-group-trigger[title]:focus-visible::after,
+.is-collapsed .collapse-button[title]:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%);
+}
+
 @media (max-width: 960px) {
+    .is-collapsed .nav-link-root[title]::after,
+    .is-collapsed .nav-group-trigger[title]::after,
+    .is-collapsed .collapse-button[title]::after {
+        display: none;
+    }
+
     .nav-shell,
     .is-collapsed {
         min-height: auto;

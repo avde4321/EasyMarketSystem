@@ -2,6 +2,7 @@
 @using System.Security.Claims
 @using TestDeIa.Shared.Security
 @using TestDeIa.Shared.Sri
+@implements IDisposable
 @inherits LayoutComponentBase
 @inject TestDeIa.Client.Services.Empresa.EmpresaApiClient EmpresaApiClient
 @inject TestDeIa.Client.Services.Empresa.EmpresaSessionService EmpresaSessionService
@@ -15,7 +16,7 @@
     }
 
     <aside class="sidebar">
-        <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" AllowOperationalNavigation="@(!isPlatformOwner || selectedEmpresa is not null)" />
+        <NavMenu IsCollapsed="isSidebarCollapsed" OnToggle="ToggleSidebar" AllowOperationalNavigation="true" />
     </aside>
 
     <main>
@@ -27,11 +28,8 @@
                     <span></span>
                 </button>
                 <img class="top-brand-image" src="brand/easymarket-wordmark.svg" alt="EasyMarket Systems" />
-                <div class="top-brand-copy">
-                    <span class="top-title">Plataforma operativa</span>
-                    <small>Inventario, clientes y facturacion en una sola vista</small>
-                </div>
             </div>
+            <Breadcrumbs />
             <div class="top-actions">
                 @if (selectedEmpresa is not null)
                 {
@@ -64,6 +62,19 @@
             </div>
         </header>
 
+        @if (isPlatformOwner && empresas.Count == 0 && !IsCompanySetupPage)
+        {
+            <section class="owner-company-setup" role="status">
+                <div>
+                    <strong>@(empresaLoadFailed ? "No se pudo cargar tu empresa operativa" : "Configura la empresa con la que operarás el ERP")</strong>
+                    <p>@(empresaLoadFailed
+                        ? "Vuelve a consultar la configuración de tu empresa. El ERP no abrirá módulos con un contexto incompleto."
+                        : "El portal SaaS administra solicitudes y consumo; para usar POS, caja e inventario necesitas una empresa propia. Aquí solo se mostrarán tus empresas, nunca las de tus clientes.")</p>
+                </div>
+                <a class="primary-action" href="empresa?origen=erp">@(empresaLoadFailed ? "Revisar empresa" : "Configurar empresa propia")</a>
+            </section>
+        }
+
         <article class="content">
             @Body
         </article>
@@ -73,11 +84,14 @@
 @code {
     private bool isSidebarCollapsed;
     private bool isPlatformOwner;
+    private bool empresaLoadFailed;
     private bool isMobileSidebarOpen;
     private string? selectedEmpresaId;
-    private string loggedInUserName = "Sesion activa";
-    private string loggedInIdentification = "Sin identificacion";
+    private string loggedInUserName = "Sesión no válida";
+    private string loggedInIdentification = "Inicia sesión nuevamente";
     private readonly List<TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse> empresas = [];
+    private bool IsCompanySetupPage => NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+        .Split('?', '#')[0].Trim('/').Equals("empresa", StringComparison.OrdinalIgnoreCase);
     private TestDeIa.Shared.Responses.Empresa.EmpresaOptionResponse? selectedEmpresa =>
         Guid.TryParse(selectedEmpresaId, out var empresaId)
             ? empresas.FirstOrDefault(current => current.Id == empresaId)
@@ -85,6 +99,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        NavigationManager.LocationChanged += OnLocationChanged;
         var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authenticationState.User;
         isPlatformOwner = user.IsInRole(SecurityRoleNames.SuperAdministrador);
@@ -101,6 +116,11 @@
             await LoadEmpresasAsync();
         }
     }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+        => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
 
     private void ToggleSidebar()
     {
@@ -121,6 +141,7 @@
     {
         try
         {
+            empresaLoadFailed = false;
             empresas.Clear();
             empresas.AddRange(await EmpresaApiClient.GetMineAsync());
             selectedEmpresaId = await EmpresaSessionService.GetEmpresaIdAsync();
@@ -138,6 +159,7 @@
         }
         catch (HttpRequestException)
         {
+            empresaLoadFailed = true;
             empresas.Clear();
             selectedEmpresaId = null;
             await EmpresaSessionService.ClearEmpresaIdAsync();

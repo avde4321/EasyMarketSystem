@@ -1,6 +1,7 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider Authentication
 @inject TestDeIa.Client.Services.Saas.SaasApiClient Saas
+@inject TestDeIa.Client.Services.Empresa.EmpresaSessionService EmpresaSession
 
 @if (allowed)
 {
@@ -20,6 +21,7 @@ else
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');
         var user = (await Authentication.GetAuthenticationStateAsync()).User;
         var authenticated = user.Identity?.IsAuthenticated == true;
+        var isPlatformOwner = user.IsInRole(TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador);
         // La administración de plataforma no depende del plan de la empresa seleccionada en el ERP.
         // El componente y el backend conservan su autorización independiente.
         if (user.IsInRole(TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador) &&
@@ -39,6 +41,17 @@ else
             allowed = true;
             return;
         }
+        if (isPlatformOwner)
+        {
+            var activeEmpresa = await EmpresaSession.GetEmpresaIdAsync();
+            if (!Guid.TryParse(activeEmpresa, out _))
+            {
+                // Sin tenant propio, dirigir al alta/configuración de la empresa
+                // emisora. No volver al dashboard SaaS como si el módulo hubiera cargado.
+                Navigation.NavigateTo("/empresa?origen=erp", replace: true);
+                return;
+            }
+        }
         try
         {
             var status = await Saas.GetSubscriptionStatusAsync();
@@ -49,16 +62,16 @@ else
         }
         catch (HttpRequestException)
         {
-            if (string.IsNullOrEmpty(path))
+            if (isPlatformOwner)
             {
-                // Ya estamos en Inicio: mostrar su panel sin repetir la redirección.
-                // Las APIs conservan sus validaciones de acceso y suscripción.
+                // Un 403 del selector de tenant significa que el contexto operativo
+                // no quedó validado; volver a configurar/seleccionar la empresa propia.
+                Navigation.NavigateTo("/empresa?origen=erp", replace: true);
+            }
+            else if (string.IsNullOrEmpty(path))
                 allowed = true;
-            }
             else
-            {
                 Navigation.NavigateTo("/", replace: true);
-            }
         }
     }
 }

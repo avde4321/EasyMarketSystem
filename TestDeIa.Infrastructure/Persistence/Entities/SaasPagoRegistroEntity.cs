@@ -7,6 +7,7 @@ public sealed class SaasPagoRegistroEntity : ITenantEntity
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }
     public int SaasPlanId { get; set; }
+    public int PeriodoMeses { get; set; } = 1;
     public decimal Monto { get; set; }
     public DateTime FechaPago { get; set; }
     public DateOnly? FechaPagoInformada { get; set; }

@@ -10,6 +10,7 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Saas;
 
 public sealed partial class SaasBillingService
 {
+    /// <summary>Lectura transversal de métricas SaaS de plataforma, sin datos ERP; solo accesible tras validar al SuperAdministrador.</summary>
     public async Task<SaasDashboardResponse> ObtenerDashboardAdministracionAsync(CancellationToken cancellationToken = default)
     {
         await EnsureSuperAdministratorAsync(cancellationToken);
@@ -28,6 +29,7 @@ public sealed partial class SaasBillingService
         return new(active, demos, expired, pending, income, from, now);
     }
 
+    /// <summary>Resuelve y valida la identidad global del propietario de plataforma; el bypass no retorna información de empresas.</summary>
     private async Task<Guid> EnsureSuperAdministratorAsync(CancellationToken ct)
     {
         var actor = tenant.UserId ?? throw new UnauthorizedAccessException("Se requiere un administrador autorizado.");
@@ -40,6 +42,7 @@ public sealed partial class SaasBillingService
         return actor;
     }
 
+    /// <summary>Consulta global de pagos SaaS (no movimientos ERP), autorizada explícitamente para el SuperAdministrador y paginada.</summary>
     public async Task<PagedResultResponse<SaasPagoAdminResponse>> ConsultarPagosAdministracionAsync(SaasPagosAdminQuery query, CancellationToken cancellationToken = default)
     {
         await EnsureSuperAdministratorAsync(cancellationToken);
@@ -75,7 +78,7 @@ public sealed partial class SaasBillingService
             .Select(x => new SaasPagoAdminResponse(x.Id, x.EmpresaId, x.Empresa.RazonSocial, x.Empresa.Ruc,
                 x.SaasPlanId, x.Plan.Nombre, x.Plan.EsActivo, x.Monto, x.FechaPago, x.FechaPagoInformada,
                 x.MetodoPago.ToString(), x.EstadoPago.ToString(), x.ComprobanteReferencia, x.Observaciones,
-                x.FechaConfirmacion, x.ObservacionesConfirmacion, x.ConfirmadoPorUsuarioId))
+                x.FechaConfirmacion, x.ObservacionesConfirmacion, x.ConfirmadoPorUsuarioId, x.PeriodoMeses))
             .ToArrayAsync(cancellationToken);
         return new PagedResultResponse<SaasPagoAdminResponse> { Items = items, TotalCount = count, Skip = query.Skip, Take = query.Take };
     }

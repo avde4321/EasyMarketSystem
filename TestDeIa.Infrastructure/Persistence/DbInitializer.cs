@@ -1,3 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TestDeIa.Application.Modules.Security.Ports.Out;
@@ -13,7 +17,9 @@ public sealed class DbInitializer(
     IPasswordHashService passwordHashService,
     CatalogoNiifSeed catalogoNiifSeed,
     GeoEcuadorSeed geoEcuadorSeed,
-    ILogger<DbInitializer> logger)
+    ILogger<DbInitializer> logger,
+    IConfiguration configuration,
+    IHostEnvironment environment)
 {
     private static readonly Guid DefaultEmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid DefaultAdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -25,6 +31,7 @@ public sealed class DbInitializer(
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        var adminCredentials = ResolveAdminCredentials();
         logger.LogInformation("Inicializando base de datos EasyMarket...");
         await dbContext.Database.MigrateAsync(cancellationToken);
         await EnsureXmlSriInfrastructureAsync(cancellationToken);
@@ -34,7 +41,7 @@ public sealed class DbInitializer(
         await EnsureSecurityPermissionsAsync(cancellationToken);
         await EnsureSecurityRolesAsync(cancellationToken);
         await EnsureSecurityRolePermissionsAsync(cancellationToken);
-        await EnsureDefaultAdminUserAsync(cancellationToken);
+        await EnsureDefaultAdminUserAsync(adminCredentials, cancellationToken);
         await EnsureDefaultWarehouseAndPointAsync(cancellationToken);
         await EnsureAdminPointAssignmentAsync(cancellationToken);
         await EnsureNiifAccountsAsync(cancellationToken);
@@ -120,14 +127,24 @@ public sealed class DbInitializer(
             cancellationToken);
     }
 
+    /// <summary>Seed reservado a instalación/desarrollo: identifica la empresa demo por Id fijo y solo consulta globalmente si el RUC reservado ya está ocupado.</summary>
     private async Task EnsureDefaultCompanyAsync(CancellationToken cancellationToken)
     {
         var empresa = await dbContext.EmpresasEmisoras
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(current => current.Id == DefaultEmpresaId || current.Ruc == "0999999999001", cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == DefaultEmpresaId, cancellationToken);
 
         if (empresa is null)
         {
+            var rucInUse = await dbContext.EmpresasEmisoras
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .AnyAsync(current => current.Ruc == "0999999999001", cancellationToken);
+            if (rucInUse)
+            {
+                throw new InvalidOperationException("El RUC reservado para la empresa demo ya pertenece a otro registro; el inicializador no reasignará una empresa existente.");
+            }
+
             dbContext.EmpresasEmisoras.Add(new EmpresaEmisoraEntity
             {
                 Id = DefaultEmpresaId,
@@ -158,6 +175,7 @@ public sealed class DbInitializer(
         empresa.IsActive = true;
     }
 
+    /// <summary>Siembra el catálogo global de roles de seguridad; el bypass es exclusivo de inicialización y usa IDs/nombres de catálogo conocidos.</summary>
     private async Task EnsureSecurityRolesAsync(CancellationToken cancellationToken)
     {
         var roles = new[]
@@ -199,6 +217,7 @@ public sealed class DbInitializer(
         }
     }
 
+    /// <summary>Siembra permisos globales del sistema por sus claves constantes; no consulta información operativa de empresas.</summary>
     private async Task EnsureSecurityPermissionsAsync(CancellationToken cancellationToken)
     {
         foreach (var permission in SecurityPermissionCatalog.Definitions)
@@ -226,6 +245,7 @@ public sealed class DbInitializer(
         }
     }
 
+    /// <summary>Inicializa relaciones del catálogo global rol-permiso; desactiva filtros solo en la rutina de arranque del sistema.</summary>
     private async Task EnsureSecurityRolePermissionsAsync(CancellationToken cancellationToken)
     {
         var roleIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase)
@@ -265,20 +285,85 @@ public sealed class DbInitializer(
         }
     }
 
-    private async Task EnsureDefaultAdminUserAsync(CancellationToken cancellationToken)
+    private AdminSeedCredentials ResolveAdminCredentials()
     {
-        var normalizedEmail = "ADMIN@EASYMARKET.COM";
+        var configuredEmail = configuration["AdminSettings:Email"]?.Trim();
+        var configuredPassword = configuration["AdminSettings:InitialPassword"];
+        var environmentEmail = Environment.GetEnvironmentVariable("AdminSettings__Email");
+        var environmentPassword = Environment.GetEnvironmentVariable("AdminSettings__InitialPassword");
+
+        if (!environment.IsDevelopment() &&
+            (string.IsNullOrWhiteSpace(environmentEmail) || string.IsNullOrWhiteSpace(environmentPassword)))
+        {
+            throw new InvalidOperationException(
+                "Faltan AdminSettings__Email y/o AdminSettings__InitialPassword en las variables de entorno. Se cancela el arranque por seguridad.");
+        }
+
+        var email = configuredEmail;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            if (!environment.IsDevelopment())
+                throw new InvalidOperationException("AdminSettings:Email debe estar configurado.");
+
+            email = "admin@easymarket.local";
+            logger.LogWarning("No se configuró AdminSettings:Email. Se usará el correo local de desarrollo {AdminEmail}; configura AdminSettings__Email para personalizarlo.", email);
+        }
+
+        if (!new EmailAddressAttribute().IsValid(email))
+            throw new InvalidOperationException("AdminSettings:Email no contiene una dirección de correo válida.");
+
+        if (string.IsNullOrWhiteSpace(configuredPassword) && !environment.IsDevelopment())
+            throw new InvalidOperationException("AdminSettings:InitialPassword debe estar configurado.");
+
+        if (!string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            if (configuredPassword.Length is < 16 or > 128 || !configuredPassword.Any(char.IsUpper) ||
+                !configuredPassword.Any(char.IsLower) || !configuredPassword.Any(char.IsDigit) ||
+                !configuredPassword.Any(character => !char.IsLetterOrDigit(character)) || configuredPassword.Any(char.IsWhiteSpace))
+            {
+                throw new InvalidOperationException(
+                    "AdminSettings:InitialPassword debe tener 16–128 caracteres, mayúscula, minúscula, número y símbolo, sin espacios.");
+            }
+        }
+
+        return new AdminSeedCredentials(email, configuredPassword);
+    }
+
+    /// <summary>Seed del administrador inicial: los bypasses se limitan a la identidad de instalación y la empresa demo configurada.</summary>
+    private async Task EnsureDefaultAdminUserAsync(AdminSeedCredentials credentials, CancellationToken cancellationToken)
+    {
+        var normalizedEmail = credentials.Email.ToUpperInvariant();
+        var emailOwnedByAnotherTenant = await dbContext.SecurityUsers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(current => current.NormalizedEmail == normalizedEmail && current.EmpresaId != DefaultEmpresaId && current.Id != DefaultAdminUserId, cancellationToken);
+        if (emailOwnedByAnotherTenant)
+        {
+            throw new InvalidOperationException("El correo configurado para el administrador inicial ya pertenece a otra empresa.");
+        }
+
         var user = await dbContext.SecurityUsers
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(current =>
-                current.NormalizedEmail == normalizedEmail ||
                 current.Id == DefaultAdminUserId ||
                 (current.EmpresaId == DefaultEmpresaId && current.NormalizedUserName == "ADMIN"),
                 cancellationToken);
 
         if (user is null)
         {
-            await EnsureAdminPersonaAsync(DefaultAdminPersonaId, cancellationToken);
+            var initialPassword = credentials.InitialPassword;
+            if (string.IsNullOrWhiteSpace(initialPassword))
+            {
+                if (!environment.IsDevelopment())
+                    throw new InvalidOperationException("AdminSettings:InitialPassword es obligatorio para crear el administrador inicial.");
+
+                initialPassword = $"{Convert.ToBase64String(RandomNumberGenerator.GetBytes(48))}!aA1";
+                logger.LogWarning(
+                    "No se configuró AdminSettings:InitialPassword. Se generó una contraseña aleatoria para el administrador local. Configure AdminSettings__InitialPassword; contraseña temporal de desarrollo: {InitialPassword}",
+                    initialPassword);
+            }
+
+            await EnsureAdminPersonaAsync(DefaultAdminPersonaId, credentials.Email, cancellationToken);
 
             user = new SecurityUserEntity
             {
@@ -288,9 +373,9 @@ public sealed class DbInitializer(
                 UserName = "admin",
                 NormalizedUserName = "ADMIN",
                 DisplayName = "Administrador del Sistema",
-                Email = "admin@easymarket.com",
+                Email = credentials.Email,
                 NormalizedEmail = normalizedEmail,
-                PasswordHash = passwordHashService.Hash("Admin1234!*"),
+                PasswordHash = passwordHashService.Hash(initialPassword),
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow,
                 IntentosFallidos = 0,
@@ -305,28 +390,30 @@ public sealed class DbInitializer(
             user.UserName = "admin";
             user.NormalizedUserName = "ADMIN";
             user.DisplayName = "Administrador del Sistema";
-            user.Email = "admin@easymarket.com";
+            user.Email = credentials.Email;
             user.NormalizedEmail = normalizedEmail;
             user.IsActive = true;
             user.BloqueadoManualmente = false;
         }
 
-        await EnsureAdminPersonaAsync(user.PersonaId, cancellationToken);
+        await EnsureAdminPersonaAsync(user.PersonaId, credentials.Email, cancellationToken);
         await EnsureAdminRoleAssignmentAsync(user.Id, cancellationToken);
         await EnsureAdminCompanyAssignmentAsync(user.Id, cancellationToken);
     }
 
-    private async Task EnsureAdminPersonaAsync(Guid personaId, CancellationToken cancellationToken)
+    /// <summary>Seed de persona del administrador inicial. La búsqueda global de email solo evita duplicidad y el registro resultante se asigna al tenant demo.</summary>
+    private async Task EnsureAdminPersonaAsync(Guid personaId, string email, CancellationToken cancellationToken)
     {
         var persona = await dbContext.Personas
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(current => current.Id == personaId || current.CorreoElectronicoPrincipal == "admin@easymarket.com", cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == personaId ||
+                (current.EmpresaId == DefaultEmpresaId && current.CorreoElectronicoPrincipal == email), cancellationToken);
 
         if (persona is not null)
         {
             persona.EmpresaId = DefaultEmpresaId;
             persona.RazonSocialONombresCompletos = "Administrador del Sistema";
-            persona.CorreoElectronicoPrincipal = "admin@easymarket.com";
+            persona.CorreoElectronicoPrincipal = email;
             persona.IsActive = true;
             persona.IsSystemRecord = true;
             return;
@@ -340,13 +427,14 @@ public sealed class DbInitializer(
             Identificacion = "ADMIN-EASYMARKET",
             RazonSocialONombresCompletos = "Administrador del Sistema",
             DireccionPrincipal = "Sistema",
-            CorreoElectronicoPrincipal = "admin@easymarket.com",
+            CorreoElectronicoPrincipal = email,
             IsActive = true,
             IsSystemRecord = true,
             CreatedAt = DateTimeOffset.UtcNow
         });
     }
 
+    /// <summary>Crea la asignación de rol del administrador seed identificado por su UserId estable; uso exclusivo de inicialización.</summary>
     private async Task EnsureAdminRoleAssignmentAsync(Guid userId, CancellationToken cancellationToken)
     {
         var exists = await dbContext.SecurityUserRoles
@@ -363,6 +451,7 @@ public sealed class DbInitializer(
         }
     }
 
+    /// <summary>Crea el vínculo del usuario seed únicamente con DefaultEmpresaId; bypass necesario durante el arranque sin tenant autenticado.</summary>
     private async Task EnsureAdminCompanyAssignmentAsync(Guid userId, CancellationToken cancellationToken)
     {
         var exists = await dbContext.SecurityUserEmpresas
@@ -381,6 +470,7 @@ public sealed class DbInitializer(
         }
     }
 
+    /// <summary>Provisiona bodega/punto de emisión únicamente para DefaultEmpresaId; no reutilizar como operación de alta de tenants.</summary>
     private async Task EnsureDefaultWarehouseAndPointAsync(CancellationToken cancellationToken)
     {
         var bodega = await dbContext.Bodegas
@@ -429,12 +519,13 @@ public sealed class DbInitializer(
         }
     }
 
+    /// <summary>Asigna puntos al usuario seed dentro de DefaultEmpresaId. El bypass es exclusivo de inicialización del sistema.</summary>
     private async Task EnsureAdminPointAssignmentAsync(CancellationToken cancellationToken)
     {
         var user = await dbContext.SecurityUsers
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(current => current.NormalizedEmail == "ADMIN@EASYMARKET.COM" || current.Id == DefaultAdminUserId, cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == DefaultAdminUserId, cancellationToken);
 
         var point = await dbContext.EmpresaPuntosEmision
             .IgnoreQueryFilters()
@@ -462,6 +553,9 @@ public sealed class DbInitializer(
         }
     }
 
+    private sealed record AdminSeedCredentials(string Email, string? InitialPassword);
+
+    /// <summary>Siembra el plan de cuentas inicial de DefaultEmpresaId; la consulta que omite filtros queda acotada explícitamente a esa empresa.</summary>
     private async Task EnsureNiifAccountsAsync(CancellationToken cancellationToken)
     {
         var exists = await dbContext.CuentasContables

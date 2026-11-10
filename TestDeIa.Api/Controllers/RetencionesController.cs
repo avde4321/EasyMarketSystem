@@ -13,6 +13,18 @@ namespace TestDeIa.Api.Controllers;
 [Route("api/retenciones")]
 public sealed class RetencionesController(IRetencionService retencionService) : ControllerBase
 {
+    [HttpGet("compras-pendientes")]
+    [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
+    public async Task<IActionResult> GetComprasPendientesRetencion(
+        [FromQuery] string? term,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = QueryDefaults.DefaultTake,
+        CancellationToken cancellationToken = default)
+    {
+        (skip, take) = QueryDefaults.NormalizePaging(skip, take);
+        return Ok(await retencionService.GetComprasPendientesRetencionAsync(term, skip, take, cancellationToken));
+    }
+
     [HttpPut("{id:guid}/parte-relacionada")]
     [Authorize(Policy = SecurityPolicyNames.ComprasRegistrar)]
     public async Task<IActionResult> ActualizarParteRelacionada(Guid id, [FromBody] bool value, CancellationToken cancellationToken)

@@ -1,0 +1,135 @@
+@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<nav class="app-breadcrumbs" aria-label="Migas de pan">
+    <ol>
+        @for (var index = 0; index < crumbs.Count; index++)
+        {
+            var crumb = crumbs[index];
+            var isCurrent = index == crumbs.Count - 1;
+            <li @key="crumb.Path">
+                @if (isCurrent)
+                {
+                    <span aria-current="page">@crumb.Label</span>
+                }
+                else if (crumb.CanNavigate)
+                {
+                    <a href="@BuildHref(crumb.Path)">@crumb.Label</a>
+                }
+                else
+                {
+                    <span>@crumb.Label</span>
+                }
+            </li>
+        }
+    </ol>
+</nav>
+
+@code {
+    private static readonly HashSet<string> NavigableRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "", "saas/dashboard", "saas/consumo", "saas/solicitudes-pago",
+        "personas", "clientes", "empleados", "proveedores", "proformas",
+        "facturacion/pos", "caja/control", "inventario", "inventario/productos", "inventario/consulta",
+        "inventario/bodegas", "inventario/transferencias", "inventario/activos-fijos",
+        "compras/registrar", "compras/liquidaciones", "compras/cuentas-por-pagar", "compras/estudio-mercado",
+        "retenciones", "retenciones/aplicar", "contabilidad/plan-cuentas", "contabilidad/registro-asiento",
+        "contabilidad/libro-diario", "contabilidad/libro-mayor", "contabilidad/balance-general",
+        "contabilidad/estado-resultados", "contabilidad/cierre-periodo", "tesoreria/cuentas-bancarias",
+        "financiero/reportes/iva", "facturacion/comisiones", "facturacion/monitor", "reporteria/ventas",
+        "empresa", "empresa/certificados", "empresa/numeracion", "usuarios", "catalogos",
+        "sri/catalogo-errores", "seguridad/auditoria", "configuracion/planes-suscripcion"
+    };
+
+    private static readonly Dictionary<string, string> RouteLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["saas/dashboard"] = "Dashboard SaaS",
+        ["saas/consumo"] = "Consumo y crecimiento",
+        ["saas/solicitudes-pago"] = "Solicitudes de pago",
+        ["facturacion/pos"] = "POS",
+        ["facturacion/monitor"] = "Comprobantes electrónicos",
+        ["caja/control"] = "Control de caja",
+        ["inventario/productos"] = "Productos",
+        ["inventario/consulta"] = "Consulta de inventario",
+        ["inventario/bodegas"] = "Bodegas",
+        ["inventario/transferencias"] = "Transferencias",
+        ["inventario/activos-fijos"] = "Activos fijos",
+        ["compras/registrar"] = "Registrar compra",
+        ["compras/liquidaciones"] = "Liquidaciones",
+        ["compras/cuentas-por-pagar"] = "Cuentas por pagar",
+        ["compras/estudio-mercado"] = "Estudio de mercado",
+        ["retenciones/aplicar"] = "Aplicar retención",
+        ["retenciones"] = "Retenciones SRI",
+        ["contabilidad/plan-cuentas"] = "Plan de cuentas",
+        ["contabilidad/registro-asiento"] = "Registro de asiento",
+        ["contabilidad/libro-diario"] = "Libro diario",
+        ["contabilidad/libro-mayor"] = "Libro mayor",
+        ["contabilidad/balance-general"] = "Balance general",
+        ["contabilidad/estado-resultados"] = "Estado de resultados",
+        ["contabilidad/cierre-periodo"] = "Cierre de periodo",
+        ["tesoreria/cuentas-bancarias"] = "Tesorería bancaria",
+        ["financiero/reportes/iva"] = "Reporte de IVA",
+        ["facturacion/comisiones"] = "Comisiones",
+        ["reporteria/ventas"] = "Reporte de ventas",
+        ["empresa/certificados"] = "Certificados digitales",
+        ["empresa/numeracion"] = "Secuenciales de facturación",
+        ["configuracion/planes-suscripcion"] = "Planes y suscripción",
+        ["sri/catalogo-errores"] = "Errores SRI",
+        ["seguridad/auditoria"] = "Auditoría de seguridad"
+    };
+
+    private List<BreadcrumbItem> crumbs = [];
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += HandleLocationChanged;
+        UpdateCrumbs();
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs args)
+        => _ = InvokeAsync(() => { UpdateCrumbs(); StateHasChanged(); });
+
+    private void UpdateCrumbs()
+    {
+        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+            .Split('?', '#')[0]
+            .Trim('/');
+        var segments = string.IsNullOrWhiteSpace(relative)
+            ? Array.Empty<string>()
+            : relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        var result = new List<BreadcrumbItem>();
+        if (segments.Length == 0)
+        {
+            result.Add(new BreadcrumbItem("Inicio", "", false));
+            crumbs = result;
+            return;
+        }
+
+        result.Add(new BreadcrumbItem("Inicio", "", true));
+        for (var index = 0; index < segments.Length; index++)
+        {
+            var path = string.Join('/', segments.Take(index + 1));
+            var isId = Guid.TryParse(segments[index], out _);
+            var label = isId ? "Detalle" : RouteLabels.GetValueOrDefault(path, FormatSegment(segments[index]));
+            var isCurrent = index == segments.Length - 1;
+            result.Add(new BreadcrumbItem(label, path, !isCurrent && NavigableRoutes.Contains(path)));
+        }
+
+        crumbs = result;
+    }
+
+    private static string FormatSegment(string segment)
+    {
+        if (segment.Equals("sri", StringComparison.OrdinalIgnoreCase)) return "SRI";
+        if (segment.Equals("pos", StringComparison.OrdinalIgnoreCase)) return "POS";
+        return string.Join(' ', segment.Split('-', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+    }
+
+    private string BuildHref(string path) => NavigationManager.ToAbsoluteUri(path).ToString();
+
+    public void Dispose() => NavigationManager.LocationChanged -= HandleLocationChanged;
+
+    private sealed record BreadcrumbItem(string Label, string Path, bool CanNavigate);
+}

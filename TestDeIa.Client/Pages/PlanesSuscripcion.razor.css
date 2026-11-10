@@ -1,0 +1,31 @@
+.subscription-management { display: grid; gap: 1.25rem; padding: 1.25rem; color: #173b58; }
+.subscription-management__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.subscription-management__header h1 { margin: .25rem 0; color: #103858; font-size: clamp(1.7rem, 3vw, 2.5rem); }
+.subscription-management__header p, .plan-section-heading p { margin: 0; color: #617b94; }
+.subscription-management__actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.subscription-current { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .85rem; padding: 1.15rem; border: 1px solid #d5e7f4; border-radius: 22px; background: linear-gradient(110deg,#eef9f7,#f7fbff 68%,#fff8eb); }
+.subscription-current div, .request-summary div { display: grid; gap: .3rem; }
+.subscription-current span, .request-summary span { color: #6b839a; font-size: .9rem; }
+.subscription-current strong { font-size: 1.05rem; }
+.status-active { color: #087f70; }.status-inactive { color: #b36a00; }
+.subscription-panel { padding: 1.25rem; border: 1px solid #d9e8f2; border-radius: 22px; background: #fff; box-shadow: 0 12px 30px rgba(20,65,95,.05); }
+.subscription-panel h2 { margin: 0 0 .75rem; color: #123c5e; font-size: 1.35rem; }
+.plan-actions-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .9rem; }
+.choice-card { display: grid; gap: .55rem; text-align: left; padding: 1rem; border: 1px solid #d6e7f3; border-radius: 18px; background: #f8fcff; color: #214c6d; cursor: pointer; }
+.choice-card--selected { border-color: #1da59d; background: #eefaf8; box-shadow: 0 0 0 2px rgba(29,165,157,.12); }
+.choice-card strong { color: #123d5e; font-size: 1.05rem; }.choice-card span:last-child { color: #637d94; line-height: 1.45; }
+.choice-card__icon { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 12px; color: #087f7b; background: #e1f5f1; font-size: 1.25rem; font-weight: 800; }
+.advance-period { display: flex; align-items: center; gap: .8rem; max-width: 360px; margin: 1rem 0; }.advance-period label { font-weight: 700; }.advance-period select { max-width: 150px; }
+.small-note { display: block; margin: .8rem 0 0; color: #71869a; }
+.plan-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: .9rem; margin-top: 1rem; }
+.plan-card { display: flex; flex-direction: column; padding: 1rem; border: 1px solid #d7e7f2; border-radius: 18px; background: #f9fcff; }.plan-card--selected { border-color: #159f98; box-shadow: 0 0 0 2px rgba(21,159,152,.14); }
+.plan-card h3 { margin: 0 0 .35rem; color: #103b5c; }.plan-price { color: #118b85; font-weight: 800; }.plan-card ul { flex: 1; padding-left: 1.2rem; color: #61788d; line-height: 1.65; }
+.plan-action { border: 1px solid #cfe2ef; border-radius: 12px; padding: .65rem .8rem; background: #edf6fb; color: #124c73; font-weight: 750; cursor: pointer; }.plan-action:disabled { opacity: .55; cursor: not-allowed; }
+.selected-total { color: #087f70; font-weight: 800; }.request-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)) auto; align-items: center; gap: 1rem; margin-top: 1rem; padding: 1rem; border-radius: 16px; background: #f0f8fb; }
+.pending-payment { padding: 1.1rem; border: 1px solid #f1d79e; border-radius: 18px; background: #fff9e9; }.pending-payment h2 { margin: .4rem 0; color: #785312; }.pending-payment p { color: #78643d; }
+.pending-badge { display: inline-flex; padding: .35rem .7rem; border-radius: 999px; background: #ffefc7; color: #8a5a00; font-weight: 800; }.pending-detail { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; padding-top: .6rem; }.pending-detail strong { width: 100%; }
+.subscription-panel--warning { display: flex; flex-wrap: wrap; gap: .4rem; border-color: #f5caca; background: #fff5f4; }
+.billing-modal { width: min(650px, calc(100vw - 2rem)); max-height: 90vh; overflow: auto; }.billing-modal fieldset { display: grid; gap: .8rem; border: 0; padding: 0; margin: 1rem 0; }.billing-modal .form-field { display: grid; gap: .4rem; }
+@media(max-width:850px) { .subscription-current { grid-template-columns: repeat(2,minmax(0,1fr)); }.request-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }.request-summary .primary-action { grid-column: 1/-1; }.subscription-management__header { align-items: flex-start; flex-direction: column; } }
+@media(max-width:600px) { .subscription-management { padding: .7rem; }.plan-actions-grid { grid-template-columns: 1fr; }.subscription-current { grid-template-columns: 1fr 1fr; }.plan-section-heading { align-items: flex-start; flex-direction: column; }.advance-period { align-items: flex-start; flex-direction: column; } }

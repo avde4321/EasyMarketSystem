@@ -77,11 +77,6 @@ El primer modulo implementado es `Security`.
 - `Api`: expone `POST /api/security/login` mediante controladores MVC clasicos.
 - `Client`: contiene la pantalla `/login`, cierre de sesion y almacenamiento del token en `localStorage`.
 
-Usuario temporal de desarrollo:
-
-```text
-Usuario: admin
-Contrasena: Admin123*
-```
-
-Este usuario se crea como dato inicial mediante migraciones de Entity Framework Core.
+El usuario administrador inicial debe aprovisionarse mediante el proceso seguro de bootstrap
+documentado en `docs/superadministrador-inicializacion.md`. No almacenar credenciales de acceso
+ni ejemplos de contraseñas reales en el repositorio.

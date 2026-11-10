@@ -140,6 +140,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
     }
 
 
+    /// <summary>Lista operadores permitidos en la empresa activa; el bypass solo contempla usuarios con EmpresaId o vínculo explícito al tenant.</summary>
     public async Task<IReadOnlyCollection<PosOperadorResponse>> GetOperadoresAsync(CancellationToken cancellationToken = default)
     {
         var empresaActivaId = tenantContextAccessor.EmpresaId;
@@ -1169,6 +1170,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
         }
     }
 
+    /// <summary>Consulta roles únicamente del usuario autenticado para validar permisos de operación del POS.</summary>
     private async Task<IReadOnlyCollection<string>> GetCurrentUserRolesAsync(CancellationToken cancellationToken)
     {
         var usuarioId = tenantContextAccessor.UserId;
@@ -1185,6 +1187,7 @@ public sealed class EfFacturacionRepository : IFacturacionRepository
             .Distinct()
             .ToArrayAsync(cancellationToken);
     }
+    /// <summary>Valida cada operador contra la empresa activa antes de aceptar sus IDs en las líneas de venta.</summary>
     private async Task EnsureOperadoresAllowedForActiveEmpresaAsync(
         IReadOnlyCollection<Guid> operadorIds,
         Guid empresaId,

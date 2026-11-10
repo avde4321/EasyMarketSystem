@@ -23,6 +23,11 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         this.quota = quota ?? new TestDeIa.Infrastructure.Adapters.Out.Saas.SaaSQuotaValidationService(dbContext);
     }
 
+    /// <summary>
+    /// Resuelve identidad para el inicio de sesión, antes de establecer el tenant del JWT.
+    /// El bypass es solo para búsqueda exacta por nombre normalizado globalmente único; no habilita
+    /// listados ni operaciones de usuario y la autorización de empresa se valida después del login.
+    /// </summary>
     public async Task<SecurityUser?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim().ToUpperInvariant();
@@ -95,6 +100,10 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             role.RolePermissions.Select(current => current.PermisoId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())).ToArray();
     }
 
+    /// <summary>
+    /// Recupera auditoría del tenant actual. Se omite el filtro de usuario para resolver el nombre
+    /// asociado, pero el join queda restringido a la empresa del evento y al usuario vinculado a ella.
+    /// </summary>
     public async Task<PagedResultResponse<SecurityAuditLogEntry>> GetAuditLogsPagedAsync(string? term, int skip, int take, CancellationToken cancellationToken = default)
     {
         var normalizedTerm = term?.Trim();
@@ -107,7 +116,10 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
                 (audit, users) => new { audit, users })
             .SelectMany(
                 current => current.users.DefaultIfEmpty(),
-                (current, user) => new { current.audit, user });
+                (current, user) => new { current.audit, user })
+            .Where(current => current.user == null ||
+                current.user.EmpresaId == current.audit.EmpresaId ||
+                current.user.EmpresasAcceso.Any(access => access.EmpresaId == current.audit.EmpresaId));
 
         if (!string.IsNullOrWhiteSpace(normalizedTerm))
         {
@@ -146,6 +158,10 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         };
     }
 
+    /// <summary>
+    /// Verifica unicidad global del identificador de inicio de sesión y retorna solo un booleano.
+    /// El bypass es necesario porque el nombre de usuario es único en Identity entre tenants; no se leen ni devuelven datos ajenos.
+    /// </summary>
     public Task<bool> ExistsByUserNameAsync(string userName, Guid? excludedId = null, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim().ToUpperInvariant();
@@ -219,6 +235,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         return await GetByIdAsync(entity.Id, cancellationToken) ?? user;
     }
 
+    /// <summary>Actualiza solo usuarios visibles dentro del filtro de tenant; las asignaciones adicionales se verifican una a una por empresa.</summary>
     public async Task<SecurityUser?> UpdateAsync(SecurityUser user, CancellationToken cancellationToken = default)
     {
         await EnsureNotProtectedAsync(user.Id, cancellationToken);
@@ -377,6 +394,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         return await GetByIdAsync(entity.Id, cancellationToken);
     }
 
+    /// <summary>Actualiza el estado de seguridad de la identidad autenticada antes/después de resolver empresa; la búsqueda queda limitada al ID validado por Identity.</summary>
     public async Task RecordSuccessfulLoginAsync(Guid userId, string? ipAddress, string? passwordHashToPersist = null, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.SecurityUsers
@@ -403,6 +421,7 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Aplica bloqueo y auditoría al usuario por nombre global de Identity; el bypass solo sirve al flujo de autenticación y no devuelve datos de otros tenants.</summary>
     public async Task<bool> RecordFailedLoginAsync(string userName, string? ipAddress, CancellationToken cancellationToken = default)
     {
         var normalizedUserName = userName.Trim().ToUpperInvariant();
@@ -503,6 +522,10 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         return await GetByIdAsync(entity.Id, cancellationToken);
     }
 
+    /// <summary>
+    /// Construye consultas de usuarios. El parámetro de bypass solo se utiliza para búsqueda exacta
+    /// de identidad durante autenticación antes de conocer el tenant; el resto de consultas conserva el filtro global.
+    /// </summary>
     private IQueryable<Persistence.Entities.SecurityUserEntity> BaseQuery(bool ignoreQueryFilters = false)
     {
         var query = dbContext.SecurityUsers
@@ -566,8 +589,19 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
         }
     }
 
+    /// <summary>
+    /// Carga un usuario para mutación administrativa dentro de la empresa activa. Se desactiva el
+    /// filtro global solo para considerar usuarios cuya empresa primaria difiere, pero el predicado
+    /// explícito exige pertenencia primaria o vínculo de acceso al tenant actual.
+    /// </summary>
     private async Task<SecurityUserEntity?> LoadUserForMutationAsync(Guid userId, CancellationToken cancellationToken)
     {
+        var empresaId = tenantContextAccessor.EmpresaId;
+        if (!empresaId.HasValue || empresaId.Value == Guid.Empty)
+        {
+            return null;
+        }
+
         await EnsureNotProtectedAsync(userId, cancellationToken);
         return await dbContext.SecurityUsers
             .IgnoreQueryFilters()
@@ -581,9 +615,11 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .ThenInclude(persona => persona.Cliente)
             .Include(current => current.Persona)
             .ThenInclude(persona => persona.Empleado)
-            .FirstOrDefaultAsync(current => current.Id == userId, cancellationToken);
+            .FirstOrDefaultAsync(current => current.Id == userId &&
+                (current.EmpresaId == empresaId.Value || current.EmpresasAcceso.Any(access => access.EmpresaId == empresaId.Value)), cancellationToken);
     }
 
+    /// <summary>Comprueba protección de la cuenta de plataforma por su ID para impedir su edición desde el mantenimiento ordinario de empresa.</summary>
     private async Task EnsureNotProtectedAsync(Guid userId, CancellationToken ct)
     {
         if (await dbContext.SecurityUserRoles.IgnoreQueryFilters().AsNoTracking()
@@ -616,11 +652,11 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             .Where(userRole => userRole.Role.IsActive)
             .Select(userRole => userRole.Role.Name)
             .ToArray();
-        var permissions = user.UserRoles
+        var assignedPermissions = user.UserRoles
             .Where(userRole => userRole.Role.IsActive)
             .SelectMany(userRole => userRole.Role.RolePermissions.Select(current => current.PermisoId))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var permissions = ResolvePermissions(roles, assignedPermissions);
 
         var personaRoles = new List<string> { "Usuario" };
 
@@ -666,6 +702,24 @@ public sealed class EfSecurityUserRepository : ISecurityUserRepository
             user.UltimoAcceso,
             user.BloqueadoManualmente,
             user.TokensInvalidosDesde);
+    }
+
+    internal static string[] ResolvePermissions(IEnumerable<string> roles, IEnumerable<string> assignedPermissions)
+    {
+        var permissions = new HashSet<string>(assignedPermissions, StringComparer.OrdinalIgnoreCase);
+        foreach (var role in roles)
+        {
+            // El acceso de SuperAdministrador al ERP propio es predecible incluso
+            // si el rol existente fue creado antes del seed de permisos. Los otros
+            // perfiles conservan exactamente los permisos asignados en la BD.
+            if (string.Equals(role, SecurityRoleNames.SuperAdministrador, StringComparison.OrdinalIgnoreCase) &&
+                SecurityPermissionCatalog.RoleMappings.TryGetValue(role, out var mappedPermissions))
+            {
+                permissions.UnionWith(mappedPermissions);
+            }
+        }
+
+        return permissions.ToArray();
     }
 
     private Guid ResolveEmpresaId(Guid empresaId)

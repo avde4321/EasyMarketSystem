@@ -1,0 +1,50 @@
+.form-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.3rem;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-soft);
+    background: var(--surface-2);
+}
+
+.form-tab {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.95rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--text-body);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.form-tab:hover {
+    background: var(--surface-3);
+    color: var(--brand-blue);
+}
+
+.form-tab.is-active {
+    border-color: var(--line-strong);
+    background: var(--surface-1);
+    color: var(--brand-blue);
+    box-shadow: var(--shadow-soft);
+}
+
+.form-tab:focus-visible {
+    outline: 2px solid var(--brand-teal);
+    outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+    .form-tabs {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .form-tab {
+        text-align: left;
+    }
+}

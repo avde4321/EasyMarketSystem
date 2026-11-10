@@ -1,0 +1,66 @@
+@using Microsoft.AspNetCore.Components.Web
+
+<div id="@Id" class="form-tabs" role="tablist" aria-label="@AriaLabel" @onkeydown="HandleKeyDownAsync">
+    @for (var index = 0; index < Items.Count; index++)
+    {
+        var tabIndex = index;
+        <button @ref="tabReferences[tabIndex]"
+                id="@TabId(tabIndex)"
+                class="form-tab @(ActiveIndex == tabIndex ? "is-active" : string.Empty)"
+                type="button"
+                role="tab"
+                aria-selected="@(ActiveIndex == tabIndex)"
+                aria-controls="@PanelId"
+                tabindex="@(ActiveIndex == tabIndex ? 0 : -1)"
+                @onclick="() => SelectAsync(tabIndex)">
+            @Items[tabIndex]
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<string> Items { get; set; } = Array.Empty<string>();
+    [Parameter] public int ActiveIndex { get; set; }
+    [Parameter] public EventCallback<int> ActiveIndexChanged { get; set; }
+    [Parameter] public string AriaLabel { get; set; } = "Secciones del formulario";
+
+    private ElementReference[] tabReferences = [];
+    private string PanelId => $"{Id}-panel";
+    private string TabId(int index) => $"{Id}-tab-{index}";
+
+    protected override void OnParametersSet()
+    {
+        if (tabReferences.Length != Items.Count)
+        {
+            tabReferences = new ElementReference[Items.Count];
+        }
+    }
+
+    private Task SelectAsync(int index) => ActiveIndexChanged.InvokeAsync(index);
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (Items.Count == 0)
+        {
+            return;
+        }
+
+        var next = args.Key switch
+        {
+            "ArrowRight" => (ActiveIndex + 1) % Items.Count,
+            "ArrowLeft" => (ActiveIndex - 1 + Items.Count) % Items.Count,
+            "Home" => 0,
+            "End" => Items.Count - 1,
+            _ => -1
+        };
+
+        if (next < 0)
+        {
+            return;
+        }
+
+        await ActiveIndexChanged.InvokeAsync(next);
+        await tabReferences[next].FocusAsync(preventScroll: true);
+    }
+}

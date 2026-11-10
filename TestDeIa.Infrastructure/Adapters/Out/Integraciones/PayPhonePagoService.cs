@@ -23,6 +23,7 @@ public sealed class PayPhonePagoService(
 {
     private readonly PayPhoneOptions payPhoneOptions = options.Value.PayPhone;
 
+    /// <summary>Genera un cobro para EmpresaId recibido; los bypasses en factura/configuración/cliente filtran siempre por esa empresa.</summary>
     public async Task<RespuestaPagoDigitalDto> GenerarEnlaceCobroAsync(
         GenerarLinkPagoDto dto,
         Guid empresaId,
@@ -81,6 +82,7 @@ public sealed class PayPhonePagoService(
         };
     }
 
+    /// <summary>Procesa callback autenticado por token de la configuración del tenant y localiza la transacción por EmpresaId más TransactionId.</summary>
     public async Task<RespuestaPagoDigitalDto> ProcesarWebhookPagoAsync(
         PayPhoneWebhookDto dto,
         string? authorizationToken,
@@ -126,6 +128,7 @@ public sealed class PayPhonePagoService(
         };
     }
 
+    /// <summary>Consulta estado de pago por tenant explícito y referencia externa; no retorna transacciones de otras empresas.</summary>
     public async Task<RespuestaPagoDigitalDto> ConsultarEstadoAsync(
         string transactionId,
         Guid empresaId,
@@ -212,6 +215,7 @@ public sealed class PayPhonePagoService(
         return BuildLocalPaymentLink(PasarelaPagoActiva.PayPhone, transactionId);
     }
 
+    /// <summary>Lee la configuración del tenant requerido; se omite el filtro global solo porque el flujo de webhook puede ser anónimo y el predicado por EmpresaId es obligatorio.</summary>
     private async Task<EmpresaConfiguracionServiciosEntity> GetConfigAsync(Guid empresaId, CancellationToken cancellationToken)
     {
         return await dbContext.EmpresaConfiguracionServicios
@@ -220,6 +224,7 @@ public sealed class PayPhonePagoService(
             ?? throw new InvalidOperationException("La empresa no tiene configuracion de servicios/pagos digitales.");
     }
 
+    /// <summary>Resuelve un cliente activo de la empresa indicada, preservando aislamiento aunque se omita el filtro global.</summary>
     private async Task<Guid> ResolveDefaultClienteIdAsync(Guid empresaId, CancellationToken cancellationToken)
     {
         var clienteId = await dbContext.Clientes

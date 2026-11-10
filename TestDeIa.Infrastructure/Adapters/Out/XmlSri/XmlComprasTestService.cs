@@ -132,6 +132,7 @@ public sealed class XmlComprasTestService(
         }
     }
 
+    /// <summary>Prueba transaccional que usa solo datos del EmpresaId activo; cada IgnoreQueryFilters mantiene ese filtro explícito y termina con rollback.</summary>
     public async Task<DiagnosticTestResultResponse> ConversionACompraEInventarioTestAsync(CancellationToken cancellationToken = default)
     {
         var watch = Stopwatch.StartNew();
@@ -196,7 +197,7 @@ public sealed class XmlComprasTestService(
 
             var cxpCreada = await dbContext.CuentasPorPagar
                 .IgnoreQueryFilters()
-                .AnyAsync(current => current.CompraId == compra.Id, cancellationToken);
+                .AnyAsync(current => current.EmpresaId == empresaId && current.CompraId == compra.Id, cancellationToken);
 
             await transaction.RollbackAsync(cancellationToken);
             watch.Stop();
@@ -228,18 +229,14 @@ public sealed class XmlComprasTestService(
         }
     }
 
-    private async Task<Guid> ResolveEmpresaIdAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Usa exclusivamente el tenant autenticado para las pruebas de importación. No selecciona una
+    /// empresa global arbitraria cuando falta contexto, evitando que un diagnóstico acceda a otro tenant.
+    /// </summary>
+    private Task<Guid> ResolveEmpresaIdAsync(CancellationToken cancellationToken)
     {
-        if (tenantContextAccessor.EmpresaId.HasValue)
-        {
-            return tenantContextAccessor.EmpresaId.Value;
-        }
-
-        return await dbContext.EmpresasEmisoras
-            .IgnoreQueryFilters()
-            .OrderBy(current => current.RazonSocial)
-            .Select(current => current.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(tenantContextAccessor.EmpresaId.GetValueOrDefault());
     }
 
     private static string BuildFacturaXml(string version, string claveAcceso, string codigo = "TEST-XML-001", string descripcion = "Producto XML prueba")

@@ -1,12 +1,106 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using TestDeIa.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using TestDeIa.Application.Common;
 using TestDeIa.Infrastructure.Persistence.Entities;
+using TestDeIa.Infrastructure.Persistence;
 using TestDeIa.Infrastructure.Persistence.Tenancy;
 
 namespace TestDeIa.Tests.Tenancy;
 
+[Collection("Tenant isolation API integration")]
 public sealed class TenantIsolationTests
 {
+    [Fact]
+    public async Task JwtFromTenantACannotReadTenantBPersonaThroughApi()
+    {
+        using var testEnvironment = new TemporaryEnvironmentVariables(new Dictionary<string, string?>
+        {
+            ["Security__Jwt__SecretKey"] = TenantIsolationApiFactory.JwtSecret,
+            ["Security__Jwt__Issuer"] = TenantIsolationApiFactory.JwtIssuer,
+            ["Security__Jwt__Audience"] = TenantIsolationApiFactory.JwtAudience,
+            ["Cors__AllowedOrigins__0"] = "https://client.integration.test",
+            ["DeploymentSettings__Mode"] = "SaaS",
+            ["DeploymentSettings__EnforceSubscription"] = "false",
+            ["DeploymentSettings__EnforceQuotas"] = "false"
+        });
+        await using var factory = new TenantIsolationApiFactory();
+        using var client = factory.CreateClient();
+
+        var empresaA = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var personaAId = Guid.NewGuid();
+        var personaBId = Guid.NewGuid();
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<TestDeIaDbContext>();
+            var tenant = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
+            tenant.IsSystemContext = true;
+
+            var companyA = CreateCompany(empresaA, userId, "0991000000001");
+            var companyB = CreateCompany(empresaB, Guid.NewGuid(), "0992000000001");
+            var ownerPersona = CreatePersona(Guid.NewGuid(), empresaA, "0910000001", "Usuario de prueba");
+            var user = new SecurityUserEntity
+            {
+                Id = userId,
+                EmpresaId = empresaA,
+                PersonaId = ownerPersona.Id,
+                Persona = ownerPersona,
+                UserName = "tenant-a-user",
+                NormalizedUserName = "TENANT-A-USER",
+                DisplayName = "Tenant A",
+                Email = "tenant-a@example.test",
+                NormalizedEmail = "TENANT-A@EXAMPLE.TEST",
+                PasswordHash = "unused-in-test",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            var assignment = new SecurityUserEmpresaEntity
+            {
+                SecurityUserId = userId,
+                SecurityUser = user,
+                EmpresaId = empresaA,
+                Empresa = companyA,
+                IsDefault = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            user.EmpresasAcceso.Add(assignment);
+            companyA.UserAssignments.Add(assignment);
+
+            dbContext.EmpresasEmisoras.AddRange(companyA, companyB);
+            dbContext.Personas.AddRange(
+                ownerPersona,
+                CreatePersona(personaAId, empresaA, "0911111111", "Cliente Empresa A"),
+                CreatePersona(personaBId, empresaB, "0922222222", "Cliente Empresa B"));
+            dbContext.SecurityUsers.Add(user);
+            dbContext.SecurityUserEmpresas.Add(assignment);
+            await dbContext.SaveChangesAsync();
+        }
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateTenantToken(userId));
+        client.DefaultRequestHeaders.Add("X-Empresa-Id", empresaA.ToString());
+
+        var ownResource = await client.GetAsync($"/api/personas/{personaAId}");
+        var otherTenantResource = await client.GetAsync($"/api/personas/{personaBId}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResource.StatusCode);
+        Assert.Contains(otherTenantResource.StatusCode, new[] { HttpStatusCode.Forbidden, HttpStatusCode.NotFound });
+    }
+
     [Fact]
     public async Task CompanyListIncludesAllAssignedCompaniesButNotOtherUsersCompanies()
     {
@@ -180,4 +274,100 @@ public sealed class TenantIsolationTests
             CreatedAt = DateTimeOffset.UtcNow
         };
     }
+
+    private static EmpresaEmisoraEntity CreateCompany(Guid id, Guid ownerUserId, string ruc) => new()
+    {
+        Id = id,
+        OwnerUserId = ownerUserId,
+        RazonSocial = $"Empresa {ruc}",
+        Ruc = ruc,
+        DireccionMatriz = "Dirección de prueba",
+        Establecimiento = "001",
+        PuntoEmision = "001",
+        AmbienteSri = "1",
+        TipoEmision = "1",
+        IsActive = true,
+        CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    private static string CreateTenantToken(Guid userId)
+    {
+        var now = DateTime.UtcNow;
+        var credentials = new SigningCredentials(
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TenantIsolationApiFactory.JwtSecret)),
+            SecurityAlgorithms.HmacSha256);
+        var token = new JwtSecurityToken(
+            issuer: TenantIsolationApiFactory.JwtIssuer,
+            audience: TenantIsolationApiFactory.JwtAudience,
+            claims:
+            [
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat,
+                    new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+            ],
+            notBefore: now.AddSeconds(-5),
+            expires: now.AddMinutes(5),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private sealed class TenantIsolationApiFactory : WebApplicationFactory<Program>
+    {
+        internal const string JwtSecret = "tenant-isolation-test-secret-key-minimum-32-bytes";
+        internal const string JwtIssuer = "TestDeIa.IntegrationTests";
+        internal const string JwtAudience = "TestDeIa.IntegrationTests.Client";
+
+        private readonly string databaseName = $"tenant-isolation-{Guid.NewGuid():N}";
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Security:Jwt:SecretKey"] = JwtSecret,
+                    ["Security:Jwt:Issuer"] = JwtIssuer,
+                    ["Security:Jwt:Audience"] = JwtAudience,
+                    ["Cors:AllowedOrigins:0"] = "https://client.integration.test",
+                    ["DeploymentSettings:Mode"] = "SaaS",
+                    ["DeploymentSettings:EnforceSubscription"] = "false",
+                    ["DeploymentSettings:EnforceQuotas"] = "false"
+                }));
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IHostedService>();
+                services.RemoveAll<IDbContextOptionsConfiguration<TestDeIaDbContext>>();
+                services.RemoveAll<DbContextOptions<TestDeIaDbContext>>();
+                services.RemoveAll<TestDeIaDbContext>();
+                services.AddDbContext<TestDeIaDbContext>(options => options.UseInMemoryDatabase(databaseName));
+            });
+        }
+    }
+
+    private sealed class TemporaryEnvironmentVariables : IDisposable
+    {
+        private readonly Dictionary<string, string?> previousValues;
+
+        public TemporaryEnvironmentVariables(IReadOnlyDictionary<string, string?> values)
+        {
+            previousValues = values.Keys.ToDictionary(key => key, Environment.GetEnvironmentVariable);
+            foreach (var (key, value) in values)
+            {
+                Environment.SetEnvironmentVariable(key, value);
+            }
+        }
+
+        public void Dispose()
+        {
+            foreach (var (key, value) in previousValues)
+            {
+                Environment.SetEnvironmentVariable(key, value);
+            }
+        }
+    }
 }
+
+[CollectionDefinition("Tenant isolation API integration", DisableParallelization = true)]
+public sealed class TenantIsolationApiCollection { }

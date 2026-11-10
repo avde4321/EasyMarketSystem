@@ -2,32 +2,84 @@
 @attribute [Authorize(Roles = SecurityRoleNames.SuperAdministrador)]
 @inject TestDeIa.Client.Services.Saas.SaasBillingApiClient Billing
 
-<PageTitle>Dashboard de plataforma SaaS</PageTitle>
-<section class="dashboard-page">
-    <div class="dashboard-section">
-        <h1>Gerencia de EasyMarket SaaS</h1>
-        <p>Suscripciones y cobros de tu plataforma. No incluye ventas, clientes ni inventarios de las empresas usuarias.</p>
-        <a class="button-primary" href="saas/solicitudes-pago">Solicitudes de pago</a>
-        <a class="button-secondary" href="saas/consumo">Consumo y crecimiento</a>
-        <a class="button-secondary" href="empresa">Mis empresas operativas</a>
-        <a class="button-secondary" href="mi-empresa/dashboard">Dashboard de mi empresa</a>
-    </div>
-    @if (error is not null)
-    {
-        <div class="dashboard-section" role="alert">@error <button @onclick="LoadAsync">Reintentar</button></div>
-    }
-    else if (summary is not null)
-    {
-        <div class="saas-kpis">
-            <div class="dashboard-section"><span>Suscripciones activas</span><h2>@summary.SuscripcionesActivas</h2></div>
-            <div class="dashboard-section"><span>Demos vigentes</span><h2>@summary.DemosVigentes</h2></div>
-            <div class="dashboard-section"><span>Suscripciones vencidas</span><h2>@summary.SuscripcionesVencidas</h2></div>
-            <div class="dashboard-section"><span>Pagos por verificar</span><h2>@summary.PagosPendientes</h2></div>
-            <div class="dashboard-section"><span>Cobros SaaS aprobados este mes</span><h2>$ @summary.CobrosAprobadosMes.ToString("N2") USD</h2></div>
-        </div>
-        <p>Actualizado: @summary.HastaUtc.AddHours(-5).ToString("dd/MM/yyyy HH:mm") · Ecuador.</p>
-    }
-</section>
+<PageTitle>Administración SaaS | EasyMarket</PageTitle>
+<ErrorBoundary>
+    <ChildContent>
+        <section class="saas-dashboard" aria-busy="@busy">
+            <header class="saas-hero">
+                <div class="saas-hero-copy">
+                    <span class="saas-eyebrow">PORTAL DEL PROPIETARIO</span>
+                    <h1>Administración SaaS</h1>
+                    <p>Controla solicitudes, suscripciones y consumo de las empresas clientes. La información comercial y operativa de cada cliente permanece aislada.</p>
+                </div>
+                <a class="primary-action saas-hero-action" href="saas/solicitudes-pago">
+                    Revisar pagos pendientes
+                    @if (summary?.PagosPendientes > 0)
+                    {
+                        <span class="saas-action-count">@summary.PagosPendientes</span>
+                    }
+                </a>
+            </header>
+
+            <nav class="saas-workspaces" aria-label="Áreas de administración">
+                <a class="saas-workspace-link is-current" href="saas/dashboard" aria-current="page">
+                    <span class="saas-workspace-icon" aria-hidden="true">▦</span>
+                    <span><strong>Resumen SaaS</strong><small>Estado general de la plataforma</small></span>
+                </a>
+                <a class="saas-workspace-link" href="saas/solicitudes-pago">
+                    <span class="saas-workspace-icon payment-icon" aria-hidden="true">＄</span>
+                    <span><strong>Solicitudes de pago</strong><small>Verifica y aprueba renovaciones</small></span>
+                </a>
+                <a class="saas-workspace-link" href="saas/consumo">
+                    <span class="saas-workspace-icon usage-icon" aria-hidden="true">↗</span>
+                    <span><strong>Consumo y crecimiento</strong><small>Cuotas, volumen y proyección</small></span>
+                </a>
+            </nav>
+
+            @if (error is not null)
+            {
+                <div class="alert-message" role="alert">@error <button class="secondary-action" @onclick="LoadAsync">Reintentar</button></div>
+            }
+            else if (summary is not null)
+            {
+                <section class="saas-kpi-grid" aria-label="Indicadores de la plataforma">
+                    <article class="saas-kpi-card active-card"><span>Suscripciones activas</span><strong>@summary.SuscripcionesActivas</strong><small>Planes habilitados</small></article>
+                    <article class="saas-kpi-card trial-card"><span>Pruebas vigentes</span><strong>@summary.DemosVigentes</strong><small>Empresas en período de prueba</small></article>
+                    <article class="saas-kpi-card expired-card"><span>Suscripciones vencidas</span><strong>@summary.SuscripcionesVencidas</strong><small>Requieren seguimiento</small></article>
+                    <article class="saas-kpi-card pending-card"><span>Pagos por verificar</span><strong>@summary.PagosPendientes</strong><small>Solicitudes pendientes de revisión</small></article>
+                    <article class="saas-kpi-card revenue-card"><span>Cobros SaaS aprobados</span><strong>$ @summary.CobrosAprobadosMes.ToString("N2")</strong><small>USD · mes actual</small></article>
+                </section>
+
+                <section class="saas-operations-grid">
+                    <article class="saas-operation-card">
+                        <span class="saas-card-kicker">RELACIÓN CON CLIENTES</span>
+                        <h2>Solicitudes y renovaciones</h2>
+                        <p>Consulta las referencias de pago, valida la acreditación y registra la decisión para activar o renovar el plan.</p>
+                        <a class="secondary-action" href="saas/solicitudes-pago">Abrir solicitudes</a>
+                    </article>
+                    <article class="saas-operation-card">
+                        <span class="saas-card-kicker">SEGUIMIENTO COMERCIAL</span>
+                        <h2>Consumo y crecimiento</h2>
+                        <p>Revisa cantidades de comprobantes, cupos utilizados y proyecciones para decidir si conviene proponer otro plan.</p>
+                        <a class="secondary-action" href="saas/consumo">Consultar consumo</a>
+                    </article>
+                </section>
+
+                <footer class="saas-dashboard-footer">
+                    <span>Última actualización: @summary.HastaUtc.AddHours(-5).ToString("dd/MM/yyyy HH:mm") · Ecuador</span>
+                    <span>Los indicadores de consumo son de consulta; no cambian planes ni generan cobros automáticamente.</span>
+                </footer>
+            }
+            else if (busy)
+            {
+                <section class="saas-loading-card" role="status">Cargando indicadores de la plataforma…</section>
+            }
+        </section>
+    </ChildContent>
+    <ErrorContent>
+        <section class="saas-loading-card" role="alert">No se pudo mostrar el panel SaaS. Recarga la página o vuelve a intentarlo.</section>
+    </ErrorContent>
+</ErrorBoundary>
 <ProcessingOverlay IsVisible="busy" Message="Consultando indicadores de la plataforma…" />
 
 @code {

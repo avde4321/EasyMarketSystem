@@ -19,7 +19,13 @@
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert-message">@errorMessage</div>
+        <div class="alert-message">
+            @errorMessage
+            @if (requiresAuthentication)
+            {
+                <a href="/login" class="reauthentication-link"> Iniciar sesión</a>
+            }
+        </div>
     }
 
     @if (!string.IsNullOrWhiteSpace(statusMessage))
@@ -132,11 +138,11 @@
         <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="empresa-save-title">
             <header class="modal-header">
                 <h2 id="empresa-save-title">Registro correcto</h2>
-                <button class="icon-button" type="button" aria-label="Cerrar" @onclick="() => showSaveConfirmation = false">x</button>
+                <button class="icon-button" type="button" aria-label="Cerrar" @onclick="AcknowledgeSaveAsync">x</button>
             </header>
             <p role="status">@saveConfirmationMessage</p>
             <footer class="modal-actions">
-                <button class="primary-action" type="button" @onclick="() => showSaveConfirmation = false">Aceptar</button>
+                <button class="primary-action" type="button" @onclick="AcknowledgeSaveAsync">Aceptar</button>
             </footer>
         </section>
     </div>
@@ -154,20 +160,13 @@
                 <button class="icon-button" type="button" @onclick="CloseWorkflowModal">x</button>
             </header>
 
-            <div class="workflow-stepper empresa-stepper">
-                @for (var step = 0; step < WorkflowSteps.Length; step++)
-                {
-                    var stepNumber = step + 1;
-                    <button class="workflow-step @(CurrentStep == stepNumber ? "is-active" : CurrentStep > stepNumber ? "is-done" : string.Empty)"
-                            type="button"
-                            @onclick="() => GoToStep(stepNumber)">
-                        <span class="workflow-step-index">@stepNumber</span>
-                        <span class="workflow-step-text">@WorkflowSteps[step]</span>
-                    </button>
-                }
-            </div>
+            <FormTabs Id="empresa-workflow-tabs"
+                      Items="@WorkflowSteps"
+                      ActiveIndex="@(CurrentStep - 1)"
+                      ActiveIndexChanged="OnEmpresaTabChanged"
+                      AriaLabel="Secciones de configuración de empresa" />
 
-            <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync">
+            <EditForm Model="empresaRequest" OnValidSubmit="SaveAsync" OnInvalidSubmit="OnInvalidEmpresaSubmit">
                 <DataAnnotationsValidator />
                 <ValidationSummary />
                 @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -175,7 +174,7 @@
                     <div class="alert-message" role="alert">@errorMessage</div>
                 }
 
-                <div class="workflow-carousel empresa-workflow-carousel">
+                <div id="empresa-workflow-tabs-panel" class="workflow-carousel empresa-workflow-carousel" role="tabpanel" aria-labelledby="empresa-workflow-tabs-tab-@(CurrentStep - 1)" tabindex="0">
                     @if (CurrentStep == 1)
                     {
                         <section class="workflow-panel">

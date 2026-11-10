@@ -304,7 +304,7 @@
                 <footer class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseProductModal">Cerrar</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Guardar")
+                        @if (isSaving) { <span class="inline-spinner" aria-hidden="true"></span><span>Guardando...</span> } else { <span>Guardar</span> }
                     </button>
                 </footer>
             </EditForm>
@@ -323,7 +323,7 @@
             <p class="modal-subtitle">@selectedAdjustmentProduct.Nombre</p>
             <p class="modal-subtitle">Bodega origen: @selectedBodega?.Nombre | Stock visible: @selectedAdjustmentProduct.StockActual.ToString("0.####")</p>
 
-            <EditForm Model="ajusteRequest" OnValidSubmit="SaveAdjustmentAsync">
+            <EditForm Model="ajusteRequest" OnValidSubmit="RequestAdjustmentConfirmation">
                 <DataAnnotationsValidator />
                 <div class="form-grid single">
                     <div class="form-field">
@@ -360,6 +360,15 @@
         </section>
     </div>
 }
+
+<ConfirmationModal IsOpen="@showAdjustmentConfirmation"
+                   Title="Confirmar ajuste de inventario"
+                   Message="Vas a registrar un movimiento de ajuste en el Kardex. Verifica que el tipo y la cantidad sean correctos."
+                   Details="@(selectedAdjustmentProduct is null ? null : $"Producto: {selectedAdjustmentProduct.Nombre} · Bodega: {selectedBodega?.Nombre} · Tipo: {ajusteRequest.TipoMovimiento} · Cantidad: {ajusteRequest.Cantidad:0.####}")"
+                   ConfirmText="Aplicar ajuste"
+                   IsBusy="@isSaving"
+                   OnConfirm="SaveAdjustmentAsync"
+                   OnCancel="CancelAdjustmentConfirmation" />
 
 @if (isMermaModalOpen && selectedMermaProduct is not null)
 {

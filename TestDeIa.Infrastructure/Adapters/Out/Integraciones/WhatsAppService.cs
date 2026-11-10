@@ -175,6 +175,7 @@ public sealed class WhatsAppService(
             : null;
     }
 
+    /// <summary>Obtiene exclusivamente la configuración de WhatsApp de EmpresaId; el bypass se usa por ejecución integrada y requiere filtro explícito.</summary>
     private async Task<EmpresaConfiguracionServiciosEntity> GetConfigAsync(Guid empresaId, CancellationToken cancellationToken)
     {
         return await dbContext.EmpresaConfiguracionServicios

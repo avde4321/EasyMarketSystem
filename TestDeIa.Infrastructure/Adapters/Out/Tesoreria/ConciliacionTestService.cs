@@ -199,10 +199,11 @@ public sealed class ConciliacionTestService(
         }
     }
 
+    /// <summary>Prepara datos de QA únicamente para EmpresaId autenticado; si no hay tenant no busca una empresa global arbitraria.</summary>
     private async Task<TestContext> EnsureContextAsync(CancellationToken cancellationToken)
     {
         var empresaId = tenantContextAccessor.EmpresaId
-            ?? await dbContext.EmpresasEmisoras.IgnoreQueryFilters().OrderBy(current => current.RazonSocial).Select(current => current.Id).FirstAsync(cancellationToken);
+            ?? throw new InvalidOperationException("Selecciona una empresa antes de ejecutar las pruebas de conciliación.");
 
         var cuentaContable = await dbContext.CuentasContables.IgnoreQueryFilters().FirstOrDefaultAsync(current => current.EmpresaId == empresaId, cancellationToken)
             ?? new CuentaContableEntity

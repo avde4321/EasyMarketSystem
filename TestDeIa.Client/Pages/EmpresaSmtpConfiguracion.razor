@@ -1,0 +1,306 @@
+@page "/empresa/correo-smtp"
+@attribute [Authorize(Policy = SecurityPolicyNames.EmpresaConfigurar)]
+@inject EmpresaApiClient EmpresaApi
+@inject EmpresaSmtpApiClient SmtpApi
+@inject EmpresaSessionService EmpresaSession
+@inject TestDeIa.Client.Services.PopupNotificationService Notifications
+@inject NavigationManager Navigation
+
+<PageTitle>Configuración SMTP</PageTitle>
+<ProcessingOverlay IsVisible="@(isLoading || isSaving || isTesting)"
+                   Title="@(isTesting ? "Probando correo" : isSaving ? "Guardando configuración" : "Consultando configuración")"
+                   Message="Espera mientras termina la operación." />
+
+<section class="module-page smtp-settings-page">
+    <header class="module-header">
+        <div>
+            <h1>Configuración de correo SMTP</h1>
+            <p>Administra el servidor desde el que cada empresa envía sus comprobantes electrónicos.</p>
+        </div>
+        <button class="primary-action" type="button" @onclick="AbrirRegistro" disabled="@(isLoading || isSaving || empresaSeleccionada is null || configuracion is not null)">
+            Registrar configuración
+        </button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert-message" role="alert">@errorMessage</div>
+    }
+
+    <section class="filter-card smtp-company-picker">
+        <label for="smtp-company">Empresa</label>
+        <select id="smtp-company" class="form-control" value="@selectedEmpresaId" @onchange="OnEmpresaChangedAsync" disabled="@(isLoading || isSaving || isTesting || empresas.Count == 0)">
+            <option value="">Selecciona la empresa que deseas configurar</option>
+            @foreach (var empresa in empresas)
+            {
+                <option value="@empresa.Id">@empresa.RazonSocial - @empresa.Ruc</option>
+            }
+        </select>
+        @if (!isLoading && empresas.Count == 0)
+        {
+            <p class="smtp-help">No hay empresas disponibles para tu usuario.</p>
+        }
+    </section>
+
+    @if (empresaSeleccionada is not null)
+    {
+        <section class="table-card smtp-table-card">
+            <div class="table-toolbar smtp-table-heading">
+                <div>
+                    <h2>Consulta de configuración</h2>
+                    <p>@empresaSeleccionada.RazonSocial · RUC @empresaSeleccionada.Ruc</p>
+                </div>
+                <button class="secondary-action" type="button" @onclick="CargarConfiguracionAsync" disabled="@(isLoading || isSaving || isTesting)">Actualizar consulta</button>
+            </div>
+
+            <div class="table-scroll">
+                <table class="data-table responsive-table">
+                    <thead>
+                        <tr>
+                            <th>Servidor</th>
+                            <th>Conexión</th>
+                            <th>Remitente</th>
+                            <th>Autenticación</th>
+                            <th>Estado</th>
+                            <th>Última actualización</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr><td colspan="7">Consultando configuración SMTP…</td></tr>
+                        }
+                        else if (configuracion is null)
+                        {
+                            <tr><td colspan="7">Esta empresa aún no tiene una configuración SMTP. Usa «Registrar configuración» para crearla.</td></tr>
+                        }
+                        else
+                        {
+                            <tr>
+                                <td><strong>@configuracion.Host</strong><small>Puerto @configuracion.Puerto</small></td>
+                                <td>@(configuracion.UsarSsl ? "SSL/TLS" : "Sin SSL/TLS")</td>
+                                <td><strong>@configuracion.NombreRemitente</strong><small>@configuracion.CorreoRemitente</small></td>
+                                <td>@(configuracion.RequiereAutenticacion ? $"Sí · {configuracion.Usuario}" : "No requiere")<small>@(configuracion.ContrasenaConfigurada ? "Contraseña protegida guardada" : "Sin contraseña guardada")</small></td>
+                                <td><span class="status-pill @(configuracion.Habilitado ? "success" : "neutral")">@(configuracion.Habilitado ? "Habilitado" : "Deshabilitado")</span></td>
+                                <td>@(configuracion.Actualizado?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
+                                <td class="table-actions">
+                                    <button class="secondary-action compact" type="button" @onclick="AbrirActualizacion" disabled="@(isLoading || isSaving || isTesting)">Actualizar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        @if (configuracion is not null)
+        {
+            <section class="filter-card smtp-test-card">
+                <div>
+                    <h2>Probar envío</h2>
+                    <p>Envía un correo de prueba usando la configuración guardada de esta empresa.</p>
+                </div>
+                <InputText class="form-control" @bind-Value="destinatarioPrueba" type="email" placeholder="correo destinatario" disabled="@(isTesting || isSaving)" />
+                <button class="secondary-action" type="button" @onclick="ProbarAsync" disabled="@(isTesting || isSaving || string.IsNullOrWhiteSpace(destinatarioPrueba))">Enviar prueba</button>
+            </section>
+        }
+    }
+    else if (!isLoading)
+    {
+        <EmptyState Title="Selecciona una empresa" Description="Elige una empresa a la que tengas acceso para consultar o registrar su servidor SMTP." />
+    }
+</section>
+
+@if (showModal)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card smtp-modal" role="dialog" aria-modal="true" aria-labelledby="smtp-modal-title">
+            <button type="button" class="modal-close" @onclick="CerrarModal" disabled="@isSaving" aria-label="Cerrar">×</button>
+            <header class="smtp-modal-header">
+                <span class="eyebrow">Correo de la empresa</span>
+                <h2 id="smtp-modal-title">@(isEditing ? "Actualizar configuración SMTP" : "Registrar configuración SMTP")</h2>
+                <p>@empresaSeleccionada?.RazonSocial · Las credenciales nunca se mostrarán al volver a consultar.</p>
+            </header>
+
+            <EditForm Model="form" OnValidSubmit="GuardarAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="form-grid smtp-form-grid">
+                    <label class="form-field"><span>Servidor SMTP</span><InputText class="form-control" @bind-Value="form.Host" placeholder="smtp.ejemplo.com" disabled="@isSaving" /><ValidationMessage For="() => form.Host" /></label>
+                    <label class="form-field"><span>Puerto</span><InputNumber class="form-control" @bind-Value="form.Puerto" min="1" max="65535" disabled="@isSaving" /><ValidationMessage For="() => form.Puerto" /></label>
+                    <label class="form-field"><span>Correo remitente</span><InputText class="form-control" @bind-Value="form.CorreoRemitente" type="email" placeholder="facturacion@empresa.com" disabled="@isSaving" /><ValidationMessage For="() => form.CorreoRemitente" /></label>
+                    <label class="form-field"><span>Nombre remitente</span><InputText class="form-control" @bind-Value="form.NombreRemitente" placeholder="Nombre de la empresa" disabled="@isSaving" /><ValidationMessage For="() => form.NombreRemitente" /></label>
+                    <label class="soft-check"><InputCheckbox @bind-Value="form.UsarSsl" disabled="@isSaving" /><span>Usar conexión segura (SSL/TLS · STARTTLS)</span></label>
+                    <small class="smtp-security-hint">Para Gmail: smtp.gmail.com, puerto 587 y esta opción activada. El envío actual no admite SSL implícito en el puerto 465.</small>
+                    <label class="soft-check"><InputCheckbox @bind-Value="form.RequiereAutenticacion" disabled="@isSaving" /><span>El servidor requiere autenticación</span></label>
+                    <label class="form-field"><span>Usuario SMTP</span><InputText class="form-control" @bind-Value="form.Usuario" autocomplete="username" placeholder="usuario@empresa.com" disabled="@isSaving" /></label>
+                    <label class="form-field"><span>Contraseña SMTP</span><InputText class="form-control" @bind-Value="form.Contrasena" type="password" autocomplete="new-password" placeholder="@(contrasenaConfigurada ? "En blanco conserva la actual" : "Contraseña SMTP")" disabled="@isSaving" /><small>@(contrasenaConfigurada ? "Ingresa una nueva solo si deseas reemplazarla." : "Se almacena cifrada en el servidor.")</small></label>
+                    <label class="soft-check smtp-form-enabled"><InputCheckbox @bind-Value="form.Habilitado" disabled="@isSaving" /><span>Habilitar el envío automático de documentos electrónicos</span></label>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(modalError))
+                {
+                    <div class="alert-message" role="alert">@modalError</div>
+                }
+                <footer class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CerrarModal" disabled="@isSaving">Cancelar</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">@(isSaving ? "Guardando…" : isEditing ? "Guardar cambios" : "Registrar configuración")</button>
+                </footer>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    private IReadOnlyCollection<EmpresaOptionResponse> empresas = [];
+    private EmpresaOptionResponse? empresaSeleccionada;
+    private EmpresaSmtpConfiguracionResponse? configuracion;
+    private string? selectedEmpresaId;
+    private EmpresaSmtpConfiguracionRequest form = new();
+    private string destinatarioPrueba = string.Empty;
+    private bool contrasenaConfigurada;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isTesting;
+    private bool showModal;
+    private bool isEditing;
+    private string? errorMessage;
+    private string? modalError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            empresas = await EmpresaApi.GetMineAsync();
+            var activeId = await EmpresaSession.GetEmpresaIdAsync();
+            empresaSeleccionada = empresas.FirstOrDefault(item => item.Id.ToString() == activeId)
+                ?? empresas.FirstOrDefault(item => item.IsDefault)
+                ?? empresas.FirstOrDefault();
+            if (empresaSeleccionada is not null)
+            {
+                selectedEmpresaId = empresaSeleccionada.Id.ToString();
+                await EmpresaSession.SetEmpresaIdAsync(empresaSeleccionada.Id);
+                await CargarConfiguracionAsync();
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Task OnEmpresaChangedAsync(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        selectedEmpresaId = value;
+        if (!Guid.TryParse(value, out var empresaId) || empresas.All(item => item.Id != empresaId))
+        {
+            empresaSeleccionada = null;
+            configuracion = null;
+            return EmpresaSession.ClearEmpresaIdAsync().AsTask();
+        }
+
+        return SeleccionarEmpresaAsync(empresaId);
+    }
+
+    private async Task SeleccionarEmpresaAsync(Guid empresaId)
+    {
+        empresaSeleccionada = empresas.Single(item => item.Id == empresaId);
+        await EmpresaSession.SetEmpresaIdAsync(empresaId);
+        Navigation.NavigateTo("empresa/correo-smtp", forceLoad: true);
+    }
+
+    private async Task CargarConfiguracionAsync()
+    {
+        if (empresaSeleccionada is null) return;
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            configuracion = await SmtpApi.ObtenerAsync();
+            contrasenaConfigurada = configuracion?.ContrasenaConfigurada ?? false;
+        }
+        catch (HttpRequestException exception)
+        {
+            configuracion = null;
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void AbrirRegistro()
+    {
+        if (configuracion is not null || empresaSeleccionada is null) return;
+        isEditing = false;
+        modalError = null;
+        contrasenaConfigurada = false;
+        form = new EmpresaSmtpConfiguracionRequest();
+        showModal = true;
+    }
+
+    private void AbrirActualizacion()
+    {
+        if (configuracion is null) return;
+        isEditing = true;
+        modalError = null;
+        contrasenaConfigurada = configuracion.ContrasenaConfigurada;
+        form = new EmpresaSmtpConfiguracionRequest
+        {
+            Host = configuracion.Host,
+            Puerto = configuracion.Puerto,
+            UsarSsl = configuracion.UsarSsl,
+            RequiereAutenticacion = configuracion.RequiereAutenticacion,
+            Usuario = configuracion.Usuario,
+            CorreoRemitente = configuracion.CorreoRemitente,
+            NombreRemitente = configuracion.NombreRemitente,
+            Habilitado = configuracion.Habilitado
+        };
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        if (!isSaving) showModal = false;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (isSaving || empresaSeleccionada is null) return;
+        isSaving = true;
+        modalError = null;
+        try
+        {
+            await SmtpApi.GuardarAsync(form);
+            showModal = false;
+            await CargarConfiguracionAsync();
+            form.Contrasena = null;
+            await Notifications.ShowSuccessAsync(isEditing
+                ? "Configuración SMTP actualizada correctamente."
+                : "Configuración SMTP registrada correctamente.");
+        }
+        catch (HttpRequestException exception) { modalError = exception.Message; }
+        finally { isSaving = false; }
+    }
+
+    private async Task ProbarAsync()
+    {
+        if (isTesting || string.IsNullOrWhiteSpace(destinatarioPrueba)) return;
+        isTesting = true;
+        errorMessage = null;
+        try
+        {
+            await SmtpApi.ProbarAsync(destinatarioPrueba.Trim());
+            await Notifications.ShowSuccessAsync("Correo de prueba enviado correctamente.");
+        }
+        catch (HttpRequestException exception) { errorMessage = exception.Message; }
+        finally { isTesting = false; }
+    }
+}

@@ -66,7 +66,7 @@
                                 <button type="button" class="ghost-button compact" @onclick="() => DownloadRideAsync(proforma)">RIDE PDF</button>
                                 <button type="button" class="ghost-button compact whatsapp-row-action" @onclick="() => OpenWhatsAppModal(proforma)">WhatsApp</button>
                                 <button type="button" class="ghost-button compact" @onclick="() => OpenConvertModalAsync(proforma)" disabled="@(proforma.Estado != 1)">Convertir</button>
-                                <button type="button" class="danger-button compact" @onclick="() => AnularAsync(proforma)" disabled="@(proforma.Estado is 2 or 3)">Anular</button>
+                                <button type="button" class="danger-button compact" @onclick="() => RequestAnulacion(proforma)" disabled="@(proforma.Estado is 2 or 3 || isProcessing)">Anular</button>
                             </td>
                         </tr>
                     }
@@ -132,6 +132,15 @@
                    LinkXml=""
                    OnClose="CloseWhatsAppModal" />
 
+<ConfirmationModal IsOpen="@(pendingCancellation is not null)"
+                   Title="Anular proforma"
+                   Message="Esta operación cambiará el estado de la proforma. Confirma que deseas continuar."
+                   Details="@(pendingCancellation is null ? null : $"Documento: {pendingCancellation.Secuencial} · Total: {Money(pendingCancellation.Total)}")"
+                   ConfirmText="Sí, anular"
+                   IsBusy="@isProcessing"
+                   OnConfirm="ConfirmAnularAsync"
+                   OnCancel="CancelAnulacion" />
+
 <ProcessingOverlay IsVisible="@(isProcessing)" Title="Procesando" Message="Espera hasta que termine la operación." />
 
 @code {
@@ -145,6 +154,7 @@
     private bool showConvertModal;
     private bool showWhatsAppModal;
     private ProformaResponse? selectedProforma;
+    private ProformaResponse? pendingCancellation;
     private ProformaResponse? selectedWhatsAppProforma;
     private ConvertirProformaAFacturaDto convertRequest = new() { FormaPagoId = "01" };
     private string SelectedProformaRideLink => selectedWhatsAppProforma is null ? string.Empty : $"api/reporteria/proformas/{selectedWhatsAppProforma.Id}/ride";
@@ -232,16 +242,36 @@
 
     private async Task AnularAsync(ProformaResponse proforma)
     {
-        var result = await ProformasApiClient.AnularAsync(proforma.Id);
-        if (!result.Succeeded)
+        if (isProcessing)
         {
-            await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo anular la proforma.");
             return;
         }
 
-        await PopupNotificationService.ShowSuccessAsync("Proforma anulada correctamente.");
-        await LoadAsync();
+        isProcessing = true;
+        try
+        {
+            var result = await ProformasApiClient.AnularAsync(proforma.Id);
+            if (!result.Succeeded)
+            {
+                await PopupNotificationService.ShowErrorAsync(result.ErrorMessage ?? "No se pudo anular la proforma.");
+                return;
+            }
+
+            await PopupNotificationService.ShowSuccessAsync("Proforma anulada correctamente.");
+            await LoadAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+            pendingCancellation = null;
+        }
     }
+
+    private void RequestAnulacion(ProformaResponse proforma) => pendingCancellation = proforma;
+
+    private void CancelAnulacion() => pendingCancellation = null;
+
+    private Task ConfirmAnularAsync() => pendingCancellation is null ? Task.CompletedTask : AnularAsync(pendingCancellation);
 
     private async Task DownloadRideAsync(ProformaResponse proforma)
     {

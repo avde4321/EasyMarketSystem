@@ -1,0 +1,46 @@
+.empty-state-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: 1.1rem;
+    background: var(--surface-2);
+    color: var(--text-body);
+}
+
+.empty-state-icon {
+    display: grid;
+    flex: 0 0 2.8rem;
+    width: 2.8rem;
+    height: 2.8rem;
+    place-items: center;
+    border: 1px solid var(--line-soft);
+    border-radius: 0.9rem;
+    background: var(--surface-3);
+    color: var(--text-muted);
+}
+
+.empty-state-icon svg {
+    width: 1.45rem;
+    height: 1.45rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.empty-state-copy h3 {
+    margin: 0 0 0.25rem;
+    color: var(--text-strong);
+    font-size: 1rem;
+}
+
+.empty-state-copy p {
+    margin: 0;
+    color: var(--text-body);
+    line-height: 1.5;
+}
+
+.empty-state-copy button { margin-top: 0.85rem; }

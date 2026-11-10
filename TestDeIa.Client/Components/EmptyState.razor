@@ -1,0 +1,35 @@
+<section class="empty-state-card" role="status" aria-live="polite">
+    <span class="empty-state-icon" aria-hidden="true">
+        @switch (Icon)
+        {
+            case "users":
+                <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-7.8a4 4 0 0 1 0 7.6M20 21v-2a4 4 0 0 0-3-3.87" /></svg>
+                break;
+            case "receipt":
+                <svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Zm3 5h8m-8 4h8m-8 4h5" /></svg>
+                break;
+            case "box":
+                <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5M12 8v5" /></svg>
+                break;
+            default:
+                <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5M8 10.8h5.6" /></svg>
+                break;
+        }
+    </span>
+    <div class="empty-state-copy">
+        <h3>@Title</h3>
+        <p>@Message</p>
+        @if (OnAction.HasDelegate && !string.IsNullOrWhiteSpace(ActionText))
+        {
+            <button type="button" class="secondary-action" @onclick="OnAction">@ActionText</button>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "search";
+    [Parameter] public string Title { get; set; } = "Sin resultados";
+    [Parameter] public string Message { get; set; } = "Prueba cambiando los filtros de búsqueda.";
+    [Parameter] public string? ActionText { get; set; }
+    [Parameter] public EventCallback OnAction { get; set; }
+}

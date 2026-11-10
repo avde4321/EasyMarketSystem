@@ -4,28 +4,28 @@
     z-index: 10000;
     display: grid;
     place-items: center;
-    background: rgba(20, 48, 67, .42);
+    background: color-mix(in srgb, var(--text-strong) 42%, transparent);
     backdrop-filter: blur(4px);
     padding: 1.5rem;
 }
 .processing-dialog {
     width: min(100%, 490px);
     padding: 2.25rem;
-    border: 1px solid #d0e5ef;
+    border: 1px solid var(--line-soft);
     border-radius: 26px;
-    background: #f8fcff;
-    color: #15364e;
+    background: var(--surface-1);
+    color: var(--text-strong);
     text-align: center;
-    box-shadow: 0 24px 64px #12354a33;
+    box-shadow: var(--shadow-card);
     outline: none;
 }
-.processing-dialog p { color: #516f87; line-height: 1.6; }
+.processing-dialog p { color: var(--text-body); line-height: 1.6; }
 .processing-spinner {
     width: 58px;
     height: 58px;
     margin: 0 auto 1.5rem;
-    border: 5px solid #d9efef;
-    border-top-color: #169d99;
+    border: 5px solid var(--surface-3);
+    border-top-color: var(--brand-teal);
     border-radius: 50%;
     animation: processing-spin .85s linear infinite;
 }

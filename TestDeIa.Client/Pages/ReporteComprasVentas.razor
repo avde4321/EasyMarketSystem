@@ -1,0 +1,239 @@
+@page "/reporteria/compras-ventas"
+@attribute [Authorize(Policy = SecurityPolicyNames.ReporteriaVentas)]
+@using TestDeIa.Shared.Compras
+@using TestDeIa.Shared.Responses.Compras
+@using TestDeIa.Shared.Responses.Reporteria
+@using TestDeIa.Client.Services
+@inject TestDeIa.Client.Services.Reporteria.ReporteriaVentasApiClient VentasApi
+@inject ComprasApiClient ComprasApi
+@inject PopupNotificationService Popup
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
+
+<ProcessingOverlay IsVisible="@isLoading" Title="Consolidando compras y ventas" Message="Consultando ambos reportes para el mismo periodo." />
+
+<PageTitle>Consolidado de compras y ventas</PageTitle>
+
+<section class="module-page consolidated-report-page">
+    <header class="module-header">
+        <div>
+            <span class="eyebrow-label">ANÁLISIS DEL PERIODO</span>
+            <h1>Compras y ventas</h1>
+            <p>Vista conjunta de ventas facturadas, compras registradas, inversión en inventario y pagos a proveedores.</p>
+        </div>
+        <div class="report-shortcuts">
+            <NavLink class="secondary-action" href="reporteria/ventas">Detalle de ventas</NavLink>
+            <NavLink class="secondary-action" href="compras/reporte-fisico-financiero">Detalle de compras</NavLink>
+        </div>
+    </header>
+
+    <section class="table-card">
+        <div class="table-toolbar consolidated-filters">
+            <label class="form-field compact-filter">
+                <span>Desde</span>
+                <InputDate class="form-control" @bind-Value="fechaInicio" />
+            </label>
+            <label class="form-field compact-filter">
+                <span>Hasta</span>
+                <InputDate class="form-control" @bind-Value="fechaFin" />
+            </label>
+            <button class="primary-action" type="button" @onclick="ConsultarAsync" disabled="@(isLoading || !hasPurchaseReportAccess)">
+                @if (isLoading) { <span class="inline-spinner" aria-hidden="true"></span><span>Consultando...</span> } else { <span>Consultar consolidado</span> }
+            </button>
+        </div>
+        @if (!hasPurchaseReportAccess && !isCheckingAccess)
+        {
+            <div class="alert-message">Tu perfil necesita el permiso de consulta de Cuentas por Pagar para incluir compras en este consolidado. Solicita al administrador que habilite ese permiso.</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert-message">@errorMessage</div>
+        }
+    </section>
+
+    @if (reporteVentas is not null && reporteCompras is not null)
+    {
+        <div class="report-period-note">Periodo consultado: <strong>@fechaInicio.ToString("dd/MM/yyyy") – @fechaFin.ToString("dd/MM/yyyy")</strong>. La diferencia comercial es solo ventas facturadas menos compras registradas; no representa utilidad neta ni saldo de caja.</div>
+
+        <section class="summary-grid consolidated-kpis">
+            <article class="summary-card">
+                <span>Ventas facturadas</span>
+                <strong>@Money(reporteVentas.Resumen.TotalVentas)</strong>
+                <small>@reporteVentas.Resumen.Comprobantes comprobantes del reporte de ventas</small>
+            </article>
+            <article class="summary-card">
+                <span>Compras registradas</span>
+                <strong>@Money(reporteCompras.DimensionMonetaria.TotalCompras)</strong>
+                <small>Incluye inventario, activos y otros conceptos registrados</small>
+            </article>
+            <article class="summary-card">
+                <span>Inventario adquirido</span>
+                <strong>@Money(reporteCompras.DimensionFisica.TotalImporteInventario)</strong>
+                <small>@reporteCompras.DimensionFisica.TotalUnidadesInventario.ToString("N2") unidades ingresadas</small>
+            </article>
+            <article class="summary-card">
+                <span>Activos adquiridos</span>
+                <strong>@Money(reporteCompras.DimensionFisica.TotalImporteActivos)</strong>
+                <small>@reporteCompras.DimensionFisica.TotalActivosDadosAlta activos dados de alta</small>
+            </article>
+            <article class="summary-card summary-card-warning">
+                <span>Desembolsos a proveedores</span>
+                <strong>@Money(reporteCompras.DimensionMonetaria.SalidaEfectivaCajaBanco)</strong>
+                <small>Pagos al contado y abonos CxP del periodo</small>
+            </article>
+            <article class="summary-card accent">
+                <span>Diferencia comercial</span>
+                <strong>@Money(DiferenciaComercial)</strong>
+                <small>Ventas facturadas menos compras registradas</small>
+            </article>
+        </section>
+
+        <section class="table-card">
+            <header class="section-header compact-section-header">
+                <div>
+                    <h2>Comparativo mensual</h2>
+                    <p>Contrasta el volumen de ventas con compras y desembolsos registrados en cada mes.</p>
+                </div>
+            </header>
+            @if (Periodos.Count == 0)
+            {
+                <EmptyState Icon="receipt" Title="No hay movimientos en este periodo" Message="Amplía las fechas o revisa los reportes de ventas y compras por separado." />
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table responsive-table">
+                        <thead>
+                            <tr><th>Mes</th><th>Ventas</th><th>Compras</th><th>Desembolsos proveedores</th><th>Diferencia comercial*</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var periodo in Periodos)
+                            {
+                                <tr>
+                                    <td>@periodo.Nombre</td>
+                                    <td>@Money(periodo.Ventas)</td>
+                                    <td>@Money(periodo.Compras)</td>
+                                    <td>@Money(periodo.Desembolsos)</td>
+                                    <td><strong>@Money(periodo.Ventas - periodo.Compras)</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <small class="report-footnote">* Indicador de volumen comercial. No descuenta costo de ventas, nómina, impuestos, gastos financieros ni otros costos; no debe interpretarse como utilidad contable.</small>
+            }
+        </section>
+
+        <section class="report-grid consolidated-detail-grid">
+            <article class="table-card">
+                <h2>Lectura de compras</h2>
+                <p>IVA compras: <strong>@Money(reporteCompras.DimensionMonetaria.MontoIva)</strong></p>
+                <p>Base IVA 0%: <strong>@Money(reporteCompras.DimensionMonetaria.BaseIva0)</strong></p>
+                <p>Base IVA gravada: <strong>@Money(reporteCompras.DimensionMonetaria.BaseIva15)</strong></p>
+                <p>Abonos a CxP: <strong>@Money(reporteCompras.DimensionMonetaria.TotalAbonosCxP)</strong></p>
+                <p>Pasivo CxP acumulado: <strong>@Money(reporteCompras.DimensionMonetaria.PasivoAcumuladoCxP)</strong></p>
+            </article>
+            <article class="table-card">
+                <h2>Lectura de ventas</h2>
+                <p>Subtotal: <strong>@Money(reporteVentas.Resumen.Subtotal)</strong></p>
+                <p>IVA facturado: <strong>@Money(reporteVentas.Resumen.Iva)</strong></p>
+                <p>Descuentos: <strong>@Money(reporteVentas.Resumen.Descuentos)</strong></p>
+                <p>Ticket promedio: <strong>@Money(reporteVentas.Resumen.TicketPromedio)</strong></p>
+                <p>Costo y margen estimados: <strong>@Money(reporteVentas.Resumen.MargenEstimado)</strong></p>
+                <small>El costo/margen del reporte actual es estimado con el costo promedio vigente; no equivale a una valorización contable histórica.</small>
+            </article>
+        </section>
+    }
+</section>
+
+@code {
+    private DateTime fechaInicio = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime fechaFin = DateTime.Today;
+    private bool isLoading;
+    private bool isCheckingAccess = true;
+    private bool hasPurchaseReportAccess;
+    private string? errorMessage;
+    private ReporteVentasResponse? reporteVentas;
+    private ReporteComprasConsolidadoResponse? reporteCompras;
+
+    private decimal DiferenciaComercial => (reporteVentas?.Resumen.TotalVentas ?? 0m) - (reporteCompras?.DimensionMonetaria.TotalCompras ?? 0m);
+
+    private IReadOnlyList<PeriodoConsolidado> Periodos
+    {
+        get
+        {
+            if (reporteVentas is null || reporteCompras is null) return Array.Empty<PeriodoConsolidado>();
+            var ventas = reporteVentas.VentasMensuales.ToDictionary(item => (item.Anio, item.Mes), item => item.TotalVentas);
+            var compras = reporteCompras.DimensionMonetaria.Flujos
+                .Where(item => item.Tipo.StartsWith("Compra", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(item => (item.Fecha.Year, item.Fecha.Month))
+                .ToDictionary(group => group.Key, group => group.Sum(item => item.TotalCompra));
+            var desembolsos = reporteCompras.DimensionMonetaria.Flujos
+                .GroupBy(item => (item.Fecha.Year, item.Fecha.Month))
+                .ToDictionary(group => group.Key, group => group.Sum(item => item.Desembolso));
+
+            return ventas.Keys.Union(compras.Keys).Union(desembolsos.Keys)
+                .OrderBy(key => key.Item1).ThenBy(key => key.Item2)
+                .Select(key => new PeriodoConsolidado(
+                    $"{key.Item2:00}/{key.Item1}",
+                    ventas.GetValueOrDefault(key),
+                    compras.GetValueOrDefault(key),
+                    desembolsos.GetValueOrDefault(key)))
+                .ToArray();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var result = await AuthorizationService.AuthorizeAsync(authState.User, null, SecurityPolicyNames.ComprasCuentasPorPagar);
+        hasPurchaseReportAccess = result.Succeeded;
+        isCheckingAccess = false;
+        if (hasPurchaseReportAccess) await ConsultarAsync();
+    }
+
+    private async Task ConsultarAsync()
+    {
+        if (isLoading || !hasPurchaseReportAccess) return;
+        if (fechaFin.Date < fechaInicio.Date)
+        {
+            errorMessage = "La fecha final no puede ser anterior a la fecha inicial.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var salesTask = VentasApi.GetVentasAsync(fechaInicio, fechaFin);
+            var purchasesTask = ComprasApi.GetReporteFisicoFinancieroAsync(fechaInicio, fechaFin, null);
+            await Task.WhenAll(salesTask, purchasesTask);
+            var sales = await salesTask;
+            var purchases = await purchasesTask;
+            if (!sales.Succeeded || sales.Data is null || !purchases.Succeeded || purchases.Data is null)
+            {
+                reporteVentas = null;
+                reporteCompras = null;
+                errorMessage = sales.ErrorMessage ?? purchases.ErrorMessage ?? "No fue posible completar el consolidado.";
+                await Popup.ShowErrorAsync(errorMessage);
+                return;
+            }
+
+            reporteVentas = sales.Data;
+            reporteCompras = purchases.Data;
+            await Popup.ShowSuccessAsync("Consolidado de compras y ventas actualizado.");
+        }
+        catch (HttpRequestException)
+        {
+            reporteVentas = null;
+            reporteCompras = null;
+            errorMessage = "No se pudo conectar con los reportes. Verifica la conexión e inténtalo nuevamente.";
+            await Popup.ShowErrorAsync(errorMessage);
+        }
+        finally { isLoading = false; }
+    }
+
+    private static string Money(decimal value) => value.ToString("C2");
+
+    private sealed record PeriodoConsolidado(string Nombre, decimal Ventas, decimal Compras, decimal Desembolsos);
+}

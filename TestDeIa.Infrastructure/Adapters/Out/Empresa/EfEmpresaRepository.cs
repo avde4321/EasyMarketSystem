@@ -114,6 +114,10 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         return entity is null ? null : Map(entity);
     }
 
+    /// <summary>
+    /// Persiste la empresa y sus puntos dentro del alcance del propietario/tenant. Los bypasses se
+    /// limitan por EmpresaId, excepto la validación global de RUC, que devuelve únicamente si existe.
+    /// </summary>
     public async Task<EmpresaEmisora> SaveAsync(EmpresaEmisora empresa, CancellationToken cancellationToken = default)
     {
         // El RUC es único en toda la plataforma. Consultar solo existencia evita exponer datos de otros tenants.
@@ -294,6 +298,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         return Map(persisted);
     }
 
+    /// <summary>Lista empresas propias o explícitamente vinculadas al actor; la consulta global nunca se devuelve sin validar propietario/rol/vínculo.</summary>
     private IQueryable<EmpresaEmisoraEntity> AuthorizedCompanyReadQuery()
     {
         // Solo para administración: los Includes deben leer la bodega de cada empresa autorizada,
@@ -302,11 +307,13 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
         return dbContext.EmpresasEmisoras
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(company => userId.HasValue && dbContext.SecurityUserEmpresas
-                .IgnoreQueryFilters()
-                .Any(access => access.EmpresaId == company.Id && access.SecurityUserId == userId.Value))
-            .Where(company => company.OwnerUserId == userId || !dbContext.SecurityUserRoles.IgnoreQueryFilters()
-                .Any(role => role.UserId == userId && role.Role.IsActive && role.Role.Name == TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador));
+            .Where(company => userId.HasValue &&
+                (company.OwnerUserId == userId.Value ||
+                 (!dbContext.SecurityUserRoles.IgnoreQueryFilters()
+                      .Any(role => role.UserId == userId.Value && role.Role.IsActive &&
+                                   role.Role.Name == TestDeIa.Shared.Security.SecurityRoleNames.SuperAdministrador) &&
+                  dbContext.SecurityUserEmpresas.IgnoreQueryFilters()
+                      .Any(access => access.EmpresaId == company.Id && access.SecurityUserId == userId.Value))));
     }
 
     private static EmpresaEmisora Map(EmpresaEmisoraEntity entity)
@@ -355,6 +362,7 @@ public sealed class EfEmpresaRepository : IEmpresaRepository
             entity.UpdatedAt);
     }
 
+    /// <summary>Resuelve bodega del punto de emisión y rechaza cualquier bodega cuyo EmpresaId no coincida.</summary>
     private async Task<Guid?> ResolvePuntoBodegaIdAsync(Guid empresaId, Guid? requestedBodegaId, CancellationToken cancellationToken)
     {
         if (requestedBodegaId.HasValue && requestedBodegaId.Value != Guid.Empty)

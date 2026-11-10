@@ -11,6 +11,10 @@ namespace TestDeIa.Infrastructure.Adapters.Out.Saas;
 
 public sealed partial class SaasBillingService
 {
+    /// <summary>
+    /// Reporte global de consumo SaaS permitido únicamente al SuperAdministrador. Proyecta metadatos
+    /// de suscripción y agregados de facturas por empresa, sin exponer detalle de clientes ni líneas.
+    /// </summary>
     public async Task<PagedResultResponse<SaasConsumoResponse>> ConsultarConsumoAsync(SaasConsumoQuery query, CancellationToken cancellationToken = default)
     {
         await EnsureSuperAdministratorAsync(cancellationToken);

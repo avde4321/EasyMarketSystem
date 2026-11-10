@@ -30,6 +30,7 @@ public partial class Inventario
     private bool isSaving;
     private bool isProductModalOpen;
     private bool isAdjustmentModalOpen;
+    private bool showAdjustmentConfirmation;
     private bool isMermaModalOpen;
     private bool isTransferModalOpen;
     private bool isTomaFisicaModalOpen;
@@ -297,12 +298,26 @@ public partial class Inventario
             Concepto = "Ajuste manual"
         };
         isAdjustmentModalOpen = true;
+        showAdjustmentConfirmation = false;
         errorMessage = null;
     }
+
+    private void RequestAdjustmentConfirmation()
+    {
+        if (selectedAdjustmentProduct is null)
+        {
+            return;
+        }
+
+        showAdjustmentConfirmation = true;
+    }
+
+    private void CancelAdjustmentConfirmation() => showAdjustmentConfirmation = false;
 
     private void CloseAdjustmentModal()
     {
         isAdjustmentModalOpen = false;
+        showAdjustmentConfirmation = false;
         selectedAdjustmentProduct = null;
         isSaving = false;
     }
@@ -314,6 +329,7 @@ public partial class Inventario
             return;
         }
 
+        var productId = selectedAdjustmentProduct.Id;
         isSaving = true;
         errorMessage = null;
         ajusteRequest.BodegaId = selectedBodegaId;
@@ -324,11 +340,12 @@ public partial class Inventario
             if (!result.Succeeded)
             {
                 errorMessage = result.ErrorMessage;
+                showAdjustmentConfirmation = false;
                 return;
             }
 
             CloseAdjustmentModal();
-            await RefreshAfterInventoryMutationAsync(selectedAdjustmentProduct.Id);
+            await RefreshAfterInventoryMutationAsync(productId);
         }
         catch (HttpRequestException)
         {

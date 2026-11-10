@@ -5,6 +5,7 @@ namespace TestDeIa.Infrastructure.Persistence;
 
 public sealed class GeoEcuadorSeed(TestDeIaDbContext dbContext)
 {
+    /// <summary>Inicializa un catálogo geográfico nacional compartido y sin dueño tenant; por eso verifica globalmente si ya existe el seed.</summary>
     public async Task EnsureSeededAsync(CancellationToken cancellationToken = default)
     {
         if (await dbContext.GeoRegiones.IgnoreQueryFilters().AnyAsync(cancellationToken))

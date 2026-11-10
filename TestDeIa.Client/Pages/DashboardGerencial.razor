@@ -1,4 +1,4 @@
-@attribute [Authorize(Roles = "Administrador,Gerente")]
+@attribute [Authorize(Roles = "Administrador,Gerente,SuperAdministrador")]
 
 <section class="dashboard-page dashboard-gerencial">
     @if (!string.IsNullOrWhiteSpace(errorMessage))

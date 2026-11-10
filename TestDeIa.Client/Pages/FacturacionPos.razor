@@ -1,12 +1,13 @@
 @page "/facturacion/pos"
+@using Microsoft.AspNetCore.Components.Web
 @attribute [Authorize(Policy = SecurityPolicyNames.PosFacturar)]
 @implements IDisposable
 
-<ProcessingOverlay IsVisible="@(isSubmitting || isCreatingClienteExtension || isSyncingOfflineQueue)" Title="Procesando" Message="Espera hasta que termine la operación." />
+<ProcessingOverlay IsVisible="@(isCreatingClienteExtension || isSyncingOfflineQueue)" Title="@(isCreatingClienteExtension ? "Activando cliente" : "Sincronizando ventas")" Message="La operación está en curso. Espera hasta que termine." />
 
 <PageTitle>Punto de Venta</PageTitle>
 
-<section class="module-page pos-page pastel-pos-page pos-invoice-page">
+<section class="module-page pos-page pastel-pos-page pos-invoice-page" tabindex="-1" @onkeydown="HandlePosKeyDownAsync">
     <header class="module-header pos-header pos-invoice-header">
         <div>
             <span class="eyebrow-label">Documento electronico</span>
@@ -126,27 +127,69 @@
 
                 <div class="invoice-search-column">
                     <span class="eyebrow-label">Producto / escaner</span>
-                    <div class="search-row compact-search-row">
-                        <InputText class="form-control rounded-control" @bind-Value="productoSearchTerm" placeholder="Codigo de barra, SKU, servicio o nombre" />
-                        <button class="primary-action rounded-xl-button" @onclick="SearchProductosAsync" disabled="@(!CanOperateSearch)">Buscar</button>
-                    </div>
+                    <form class="search-row compact-search-row" @onsubmit="SubmitProductSearchAsync" @onsubmit:preventDefault="true">
+                        <input class="form-control rounded-control" @bind="productoSearchTerm" @bind:event="oninput" @ref="productSearchInput" placeholder="Codigo de barra, SKU, servicio o nombre" aria-label="Buscar producto o servicio" />
+                        <button class="primary-action rounded-xl-button" type="submit" disabled="@(!CanOperateSearch || isSearchingProducts)">
+                            @if (isSearchingProducts) { <span class="inline-spinner" aria-hidden="true"></span><span>Buscando...</span> } else { <span>Buscar</span> }
+                        </button>
+                    </form>
+
+                    @if (isSearchingProducts)
+                    {
+                        <div class="product-search-feedback" role="status">Buscando productos disponibles en @(selectedPuntoEmision?.BodegaNombre ?? "la bodega seleccionada")...</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(productoSearchTerm) && productoResults.Count == 0)
+                    {
+                        <EmptyState Icon="box" Title="No encontramos ese producto" Message="@($"No hay coincidencias para “{productoSearchTerm}” en esta bodega. Verifica el código o confirma que tenga existencias registradas aquí.")" />
+                    }
 
                     @if (productoResults.Count > 0)
                     {
-                        <div class="quick-products-grid">
+                        <div class="quick-products-grid touch-product-cards">
                             @foreach (var producto in productoResults)
                             {
-                                <button class="quick-product-card" type="button" @onclick="() => AddProducto(producto)" disabled="@(!CanOperateSearch)">
+                                <button class="quick-product-card" type="button" @onclick="() => AddProducto(producto)" disabled="@(!CanOperateSearch || (producto.ControlaStock && producto.StockActual <= 0))" title="@(producto.ControlaStock && producto.StockActual <= 0 ? "Sin existencias en esta bodega" : "Agregar al detalle de la factura")">
                                     <div class="quick-product-main">
                                         <strong>@producto.Nombre</strong>
                                         <span>@producto.Codigo</span>
                                     </div>
                                     <div class="quick-product-meta">
-                                        <small>@(producto.ControlaStock ? $"Stock bodega: {producto.StockActual:0.##}" : "Servicio")</small>
+                                        <small>@(producto.ControlaStock ? (producto.StockActual > 0 ? $"Disponible en bodega: {producto.StockActual:0.##}" : "Sin existencias en esta bodega") : "Servicio")</small>
                                         <b>$ @producto.PrecioVenta.ToString("0.00")</b>
+                                        <span class="quick-product-action">@(producto.ControlaStock && producto.StockActual <= 0 ? "No disponible" : "＋ Agregar a la factura")</span>
                                     </div>
                                 </button>
                             }
+                        </div>
+
+                        <div class="quick-products-desktop">
+                            <table class="table compact-product-table">
+                                <thead>
+                                    <tr>
+                                        <th>Producto / servicio</th>
+                                        <th>Disponibilidad</th>
+                                        <th>Precio</th>
+                                        <th><span class="visually-hidden">Acción</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var producto in productoResults)
+                                    {
+                                        var productoDisponible = CanOperateSearch && (!producto.ControlaStock || producto.StockActual > 0);
+                                        <tr>
+                                            <td>
+                                                <strong>@producto.Nombre</strong>
+                                                <small class="product-table-code">@producto.Codigo</small>
+                                            </td>
+                                            <td>@(producto.ControlaStock ? (producto.StockActual > 0 ? $"Disponible: {producto.StockActual:0.##}" : "Sin existencias") : "Servicio")</td>
+                                            <td class="product-table-price">$ @producto.PrecioVenta.ToString("0.00")</td>
+                                            <td class="product-table-action">
+                                                <button class="secondary-action rounded-xl-button" type="button" @onclick="() => AddProducto(producto)" disabled="@(!productoDisponible)">Agregar</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         </div>
 
                         <div class="inline-pager">
@@ -207,6 +250,15 @@
                                                             <option value="@operador.UsuarioId">@operador.NombreCompleto</option>
                                                         }
                                                     </InputSelect>
+                                                    @if (!string.IsNullOrWhiteSpace(operadoresErrorMessage))
+                                                    {
+                                                        <small class="field-error" role="alert">@operadoresErrorMessage</small>
+                                                        <button class="inline-link button-link" type="button" @onclick="RetryLoadOperadoresAsync">Reintentar carga</button>
+                                                    }
+                                                    else if (operadores.Count == 0)
+                                                    {
+                                                        <small class="field-hint">No hay operadores activos asignados a esta empresa. Solicita al administrador que habilite uno para registrar el servicio.</small>
+                                                    }
                                                 </label>
                                             }
                                         </td>
@@ -255,12 +307,12 @@
 
             <section class="checkout-block">
                 <span class="eyebrow-label">Forma de pago</span>
-                <InputSelect class="form-control rounded-control" @bind-Value="formaPago">
+                <select class="form-control rounded-control" @bind="formaPago" aria-label="Forma de pago">
                     @foreach (var item in formasPago)
                     {
                         <option value="@item.Codigo">@item.Nombre</option>
                     }
-                </InputSelect>
+                </select>
             </section>
 
             @if (IsCashPayment)
@@ -269,7 +321,7 @@
                     <span class="eyebrow-label">Cuadre de efectivo</span>
                     <label class="form-field">
                         <span>Efectivo recibido</span>
-                        <InputNumber class="form-control rounded-control cash-input" @bind-Value="efectivoRecibido" @bind-Value:after="StateHasChanged" />
+                        <input @ref="paymentAmountInput" class="form-control rounded-control cash-input" type="number" min="0" step="0.01" @bind="efectivoRecibido" @bind:event="oninput" @onkeydown="HandlePaymentKeyDownAsync" aria-label="Efectivo recibido" />
                     </label>
                     <div class="cash-denominations">
                         <button type="button" class="ghost-button" @onclick="() => AddCashDenomination(5m)">$5</button>
@@ -295,8 +347,15 @@
                 <InputText class="form-control rounded-control" @bind-Value="observacion" placeholder="Comentario interno opcional" />
             </section>
 
-            <button class="checkout-button" type="button" @onclick="CobrarAsync" disabled="@isSubmitting">
-                @(isSubmitting ? "Generando factura..." : isOnline ? "Emitir factura" : "Guardar venta offline")
+            <button @ref="checkoutButton" class="checkout-button" type="button" @onclick="CobrarAsync" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="inline-spinner" aria-hidden="true"></span><span>@(isOnline ? "Registrando factura..." : "Guardando venta offline...")</span>
+                }
+                else
+                {
+                    <span>@(isOnline ? "Emitir factura" : "Guardar venta offline")</span>
+                }
             </button>
 
             @if (lastFactura is not null)

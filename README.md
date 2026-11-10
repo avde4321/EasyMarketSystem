@@ -84,14 +84,14 @@ Al iniciar la API se ejecuta `DbInitializer`:
 - precarga plan de cuentas NIIF base por empresa
 - asegura catalogos base de retenciones SRI
 
-Usuario inicial recomendado para ambiente nuevo:
+Credenciales del administrador inicial:
 
 ```text
-Email: admin@easymarket.com
-Password: Admin1234!*
+AdminSettings__Email=<correo-del-administrador>
+AdminSettings__InitialPassword=<clave-fuerte-de-16-a-128-caracteres>
 ```
 
-> Nota: si ya existe un usuario `admin` historico, el inicializador intenta reutilizarlo y actualizarlo de forma compatible para evitar duplicados.
+En producción ambas variables de entorno son obligatorias; la API no iniciará si falta alguna. En desarrollo se puede configurar con User Secrets. Si se omite la clave en una base nueva, se genera una contraseña aleatoria local y se advierte durante la inicialización. Si ya existe el administrador, su contraseña no se cambia automáticamente.
 
 ## Modulos implementados
 

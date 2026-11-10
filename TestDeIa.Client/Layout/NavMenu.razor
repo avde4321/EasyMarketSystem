@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="nav-shell @(IsCollapsed ? "is-collapsed" : string.Empty)">
     <div class="brand-row">
@@ -10,7 +11,7 @@
                 <small>Systems CRM</small>
             </span>
         </a>
-        <button class="collapse-button" title="Contraer menu" @onclick="OnToggle">
+        <button class="collapse-button" title="@(IsCollapsed ? "Expandir menú" : "Contraer menú")" aria-label="@(IsCollapsed ? "Expandir menú" : "Contraer menú")" aria-expanded="@(!IsCollapsed)" @onclick="OnToggle">
             <span>@(IsCollapsed ? "+" : "-")</span>
         </button>
     </div>
@@ -30,8 +31,6 @@
                         <div class="nav-group-panel"><div class="nav-submenu">
                             <NavLink class="nav-sublink" href="saas/dashboard" title="Dashboard SaaS"><span class="nav-text">Dashboard SaaS</span></NavLink>
                             <NavLink class="nav-sublink" href="saas/consumo" title="Consumo y crecimiento"><span class="nav-text">Consumo y crecimiento</span></NavLink>
-                            <NavLink class="nav-sublink" href="empresa" title="Mis empresas"><span class="nav-text">Mis empresas</span></NavLink>
-                            <NavLink class="nav-sublink" href="mi-empresa/dashboard" title="Dashboard de mi empresa"><span class="nav-text">Dashboard de mi empresa</span></NavLink>
                             <NavLink class="nav-sublink" href="saas/solicitudes-pago" title="Solicitudes de pago">
                                 <span class="nav-icon nav-icon-sub" aria-hidden="true"><svg viewBox="0 0 24 24" class="icon-svg"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M7 15h5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
                                 <span class="nav-text">Solicitudes de pago</span>
@@ -44,7 +43,7 @@
             {
             <AuthorizeView Policy="@SecurityPolicyNames.DashboardView">
                 <Authorized Context="dashboardAuth">
-                    <NavLink class="nav-link nav-link-root" href="" Match="NavLinkMatch.All" title="Inicio">
+                    <NavLink class="nav-link nav-link-root" href="@HomeHref" Match="NavLinkMatch.All" title="Inicio">
                         <span class="nav-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" class="icon-svg">
                                 <path d="M3 10.5 12 3l9 7.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
@@ -334,6 +333,19 @@
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
+                                <AuthorizeView Policy="@SecurityPolicyNames.ComprasRegistrar">
+                                    <Authorized>
+                                        <NavLink class="nav-sublink" href="retenciones/aplicar" title="Aplicar retención">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" class="icon-svg">
+                                                    <path d="M5 5.5h14v13H5z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+                                                    <path d="M8 9h8M8 12.5h4M14 15l1.5 1.5L19 13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+                                                </svg>
+                                            </span>
+                                            <span class="nav-text">Aplicar retención</span>
+                                        </NavLink>
+                                    </Authorized>
+                                </AuthorizeView>
                                 <AuthorizeView Policy="@SecurityPolicyNames.ComprasCuentasPorPagar">
                                     <Authorized>
                                         <NavLink class="nav-sublink" href="compras/cuentas-por-pagar" title="Cuentas por pagar">
@@ -564,6 +576,14 @@
                                     </span>
                                     <span class="nav-text">Ventas y proyecciones</span>
                                 </NavLink>
+                                <NavLink class="nav-sublink" href="reporteria/compras-ventas" title="Consolidado de compras y ventas">
+                                    <span class="nav-icon nav-icon-sub" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" class="icon-svg">
+                                            <path d="M4 18h16M6 15V9m4 6V5m4 10v-4m4 4V7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+                                        </svg>
+                                    </span>
+                                    <span class="nav-text">Compras y ventas</span>
+                                </NavLink>
                             </div>
                         </div>
                     </section>
@@ -606,6 +626,10 @@
                                             </span>
                                             <span class="nav-text">Empresa</span>
                                         </NavLink>
+                                        <NavLink class="nav-sublink" href="configuracion/planes-suscripcion" title="Planes y suscripción">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">$</span>
+                                            <span class="nav-text">Planes y suscripción</span>
+                                        </NavLink>
                                         <NavLink class="nav-sublink" href="empresa/numeracion" title="Secuenciales de facturación">
                                             <span class="nav-icon nav-icon-sub" aria-hidden="true">#</span>
                                             <span class="nav-text">Secuenciales de facturación</span>
@@ -619,6 +643,10 @@
                                                 </svg>
                                             </span>
                                             <span class="nav-text">Certificados</span>
+                                        </NavLink>
+                                        <NavLink class="nav-sublink" href="empresa/correo-smtp" title="Configuración de correo SMTP">
+                                            <span class="nav-icon nav-icon-sub" aria-hidden="true">@@</span>
+                                            <span class="nav-text">Correo SMTP</span>
                                         </NavLink>
                                     </Authorized>
                                 </AuthorizeView>
@@ -709,10 +737,14 @@
     public EventCallback OnToggle { get; set; }
 
     private string? expandedGroup;
+    private bool isPlatformOwner;
+    private string HomeHref => isPlatformOwner ? "mi-empresa/dashboard" : string.Empty;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += HandleLocationChanged;
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isPlatformOwner = authenticationState.User.IsInRole(SecurityRoleNames.SuperAdministrador);
         SyncExpandedGroupWithRoute();
     }
 
@@ -760,8 +792,8 @@
             "facturacion/pos" or "caja/control" or "inventario" or "inventario/productos" or "inventario/consulta" or "inventario/bodegas" or "inventario/transferencias" or "inventario/activos-fijos" => "operaciones",
             "compras/registrar" or "compras/liquidaciones" or "compras/cuentas-por-pagar" or "compras/estudio-mercado" or "compras/reporte-fisico-financiero" => "compras",
             "contabilidad/plan-cuentas" or "contabilidad/registro-asiento" or "contabilidad/libro-diario" or "contabilidad/libro-mayor" or "contabilidad/balance-general" or "contabilidad/estado-resultados" or "contabilidad/cierre-periodo" or "financiero/reportes/iva" or "facturacion/comisiones" or "facturacion/monitor" => "contabilidad",
-            "reporteria/ventas" => "reporteria",
-            "empresa" or "empresa/certificados" or "usuarios" or "catalogos" or "sri/catalogo-errores" or "seguridad/auditoria" => "configuracion",
+            "reporteria/ventas" or "reporteria/compras-ventas" => "reporteria",
+            "empresa" or "empresa/certificados" or "empresa/numeracion" or "empresa/correo-smtp" or "configuracion/planes-suscripcion" or "usuarios" or "catalogos" or "sri/catalogo-errores" or "seguridad/auditoria" => "configuracion",
             _ => expandedGroup
         };
     }

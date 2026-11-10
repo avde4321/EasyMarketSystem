@@ -52,6 +52,11 @@ public sealed class SriOutboxProcessorWorker(
         }
     }
 
+    /// <summary>
+    /// Worker de sistema que recoge comprobantes de todos los tenants; por ello omite el filtro
+    /// global únicamente en la bandeja Outbox. Cada elemento conserva su EmpresaId y las siguientes
+    /// lecturas/escrituras quedan acotadas por EmpresaId más Id/worker antes de procesar el documento.
+    /// </summary>
     private async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
         using var scope = scopeFactory.CreateScope();
@@ -74,26 +79,32 @@ public sealed class SriOutboxProcessorWorker(
                  (!current.NextRetryAt.HasValue || current.NextRetryAt <= now))))
             .OrderBy(current => current.CreatedAt)
             .Take(batchSize)
-            .Select(current => current.Id)
+            .Select(current => new { current.Id, current.EmpresaId })
             .ToArrayAsync(stoppingToken);
 
         foreach (var candidateId in candidates)
         {
             dbContext.ChangeTracker.Clear();
-            await TryProcessItemAsync(dbContext, processor, candidateId, stoppingToken);
+            await TryProcessItemAsync(dbContext, processor, candidateId.Id, candidateId.EmpresaId, stoppingToken);
         }
     }
 
+    /// <summary>
+    /// Reclama un registro global de Outbox como proceso de sistema. El bypass del filtro global
+    /// está restringido por EmpresaId, Id y estado para impedir que otra instancia o tenant cambie el registro.
+    /// </summary>
     private async Task TryProcessItemAsync(
         TestDeIaDbContext dbContext,
         ISriComprobanteProcessor processor,
         Guid candidateId,
+        Guid empresaId,
         CancellationToken stoppingToken)
     {
         var now = DateTimeOffset.UtcNow;
         var claimed = await dbContext.ColaProcesamientoSRI
             .IgnoreQueryFilters()
             .Where(current =>
+                current.EmpresaId == empresaId &&
                 current.Id == candidateId &&
                 (!current.NextRetryAt.HasValue || current.NextRetryAt <= now) &&
                 (current.Estado == SriOutboxEstados.Pendiente ||
@@ -126,7 +137,7 @@ public sealed class SriOutboxProcessorWorker(
             var context = await dbContext.ColaProcesamientoSRI
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(current => current.Id == candidateId)
+                .Where(current => current.Id == candidateId && current.EmpresaId == empresaId)
                 .Select(current => new { current.EmpresaId, current.ComprobanteId })
                 .FirstOrDefaultAsync(stoppingToken);
 
@@ -138,13 +149,18 @@ public sealed class SriOutboxProcessorWorker(
                 null,
                 context?.ComprobanteId,
                 exception.Message);
-            await MarkAsFailedAsync(dbContext, candidateId, exception.Message, stoppingToken);
+            await MarkAsFailedAsync(dbContext, candidateId, empresaId, exception.Message, stoppingToken);
         }
     }
 
+    /// <summary>
+    /// Actualiza el resultado de un elemento global de Outbox en nombre del worker; el bypass se
+    /// limita al tenant capturado al seleccionarlo y a la instancia que posee la reclamación.
+    /// </summary>
     private async Task MarkAsFailedAsync(
         TestDeIaDbContext dbContext,
         Guid candidateId,
+        Guid empresaId,
         string error,
         CancellationToken stoppingToken)
     {
@@ -154,7 +170,7 @@ public sealed class SriOutboxProcessorWorker(
 
         await dbContext.ColaProcesamientoSRI
             .IgnoreQueryFilters()
-            .Where(current => current.Id == candidateId && current.ProcessingNode == workerId)
+            .Where(current => current.Id == candidateId && current.EmpresaId == empresaId && current.ProcessingNode == workerId)
             .ExecuteUpdateAsync(updates => updates
                 .SetProperty(current => current.Estado, SriOutboxEstados.Error)
                 .SetProperty(current => current.Intentos, current => current.Intentos + 1)

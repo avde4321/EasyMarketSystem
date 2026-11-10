@@ -117,6 +117,7 @@ public sealed class XmlSriParserService(
         return result;
     }
 
+    /// <summary>Importa XML de compras por tenant explícito; se omite el filtro global solo para deduplicar y actualizar por EmpresaId más ClaveAcceso.</summary>
     public async Task<XmlSriCargaMasivaResponse> ProcesarArchivosXmlMasivosAsync(
         IReadOnlyCollection<string> xmlsContent,
         Guid empresaId,

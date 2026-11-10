@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using TestDeIa.Application.Common;
 using TestDeIa.Application.Modules.Clientes.Ports.Out;
 using TestDeIa.Application.Modules.Contabilidad.Ports.Out;
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddDbContext<TestDeIaDbContext>(options =>
             options.UseSqlServer(connectionString));
 
+        services.AddScoped<IPasswordHasher<TestDeIa.Infrastructure.Persistence.Entities.SecurityUserEntity>, PasswordHasher<TestDeIa.Infrastructure.Persistence.Entities.SecurityUserEntity>>();
         services.AddScoped<IPasswordHashService, Sha256PasswordHashService>();
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
@@ -108,6 +110,10 @@ public static class DependencyInjection
         services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ITenantOnboardingService, TestDeIa.Infrastructure.Adapters.Out.Saas.TenantOnboardingService>();
         services.AddScoped<TestDeIa.Application.Modules.Saas.Ports.In.ISaasBillingService, TestDeIa.Infrastructure.Adapters.Out.Saas.SaasBillingService>();
         services.AddScoped<TestDeIa.Application.Modules.Empresa.Ports.In.INumeracionService, NumeracionService>();
+        services.AddScoped<EmpresaSmtpConfiguracionService>();
+        services.AddScoped<TestDeIa.Application.Modules.Empresa.Ports.In.IEmpresaSmtpConfiguracionService>(provider => provider.GetRequiredService<EmpresaSmtpConfiguracionService>());
+        services.AddScoped<TestDeIa.Application.Modules.Empresa.Ports.In.IEmpresaSmtpCredentialProvider>(provider => provider.GetRequiredService<EmpresaSmtpConfiguracionService>());
+        services.AddDataProtection();
         services.AddScoped<ICertificadoDigitalEmpresaRepository, EfCertificadoDigitalEmpresaRepository>();
         services.AddSingleton<CatalogoNiifSeed>();
         services.AddScoped<GeoEcuadorSeed>();
@@ -122,19 +128,14 @@ public static class DependencyInjection
         services.AddScoped<IBancoParserService, BancoParserService>();
         services.AddScoped<IConciliacionService, ConciliacionService>();
         services.AddScoped<ITesoreriaService, TesoreriaService>();
-        services.AddScoped<IConciliacionTestService, ConciliacionTestService>();
-        services.AddScoped<IBancoParserTestService, BancoParserTestService>();
         services.AddScoped<IInventarioRepository, EfInventarioRepository>();
         services.AddScoped<IFacturacionRepository, EfFacturacionRepository>();
         services.AddScoped<IComisionesRepository, EfComisionesRepository>();
         services.AddScoped<IProformaService, ProformaService>();
         services.AddScoped<IRetencionService, RetencionService>();
         services.AddScoped<ISaaSQuotaValidationService, SaaSQuotaValidationService>();
-        services.AddScoped<IRetencionSriTestService, RetencionSriTestService>();
         services.AddScoped<IXmlSriParserService, XmlSriParserService>();
-        services.AddScoped<IXmlComprasTestService, XmlComprasTestService>();
         services.AddScoped<IOfflineSyncService, OfflineSyncService>();
-        services.AddScoped<IPosOfflineTestService, PosOfflineTestService>();
         services.AddHttpClient<IWhatsAppService, WhatsAppService>();
         services.AddHttpClient<IPasarelaPagoService, PayPhonePagoService>();
         services.AddScoped<ITenantStorageService, LocalDocumentoStorageService>();

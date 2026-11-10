@@ -12,6 +12,11 @@ public sealed partial class TenantOnboardingService(TestDeIaDbContext db, ISaaSQ
     TestDeIa.Application.Modules.Security.Ports.Out.IPasswordHashService? passwordHasher = null,
     TestDeIa.Application.Modules.Security.Ports.Out.ISecurityTokenGenerator? tokenGenerator = null) : ITenantOnboardingService
 {
+    /// <summary>
+    /// Completa el alta administrativa de una suscripción para una empresa concreta. Omite filtros
+    /// globales porque el proceso puede ejecutarse antes de activar el tenant context, pero cada entidad
+    /// transaccional se valida por EmpresaId y propietario/administrador antes de insertar.
+    /// </summary>
     public async Task AsignarSuscripcionInicialAsync(Guid empresaId, Guid administradorId, int? planInicialId, CancellationToken cancellationToken = default)
     {
         if (configuration.GetSection(DeploymentSettingsOptions.SectionName).Get<DeploymentSettingsOptions>()?.IsOnPremise == true) return;

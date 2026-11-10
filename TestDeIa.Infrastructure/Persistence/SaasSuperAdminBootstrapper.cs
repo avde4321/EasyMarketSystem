@@ -15,6 +15,11 @@ public sealed class SaasSuperAdminBootstrapper(TestDeIaDbContext db, IConfigurat
     private const string Section = "Saas:SuperAdminBootstrap:";
     public const string InstallationKey = "SUPERADMIN";
 
+    /// <summary>
+    /// Inicialización privilegiada de plataforma, habilitada solo por configuración o ejecución
+    /// local explícita. Los bypasses globales son para comprobar unicidad de Identity/roles o retirar
+    /// la cuenta indicada por ID; nunca se usan para consultas operativas ni se devuelven datos tenant.
+    /// </summary>
     public async Task<bool> EnsureAsync(bool force = false, CancellationToken cancellationToken = default, Guid? retirarCajeroId = null)
     {
         if (retirarCajeroId.HasValue && !force) throw new InvalidOperationException("Retirar una cuenta previa requiere el modo de instalación local explícito.");
