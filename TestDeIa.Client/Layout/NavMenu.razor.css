@@ -2,12 +2,14 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    height: auto;
     padding: 1rem;
     border-radius: 1.6rem;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 248, 255, 0.94));
     border: 1px solid rgba(73, 146, 211, 0.16);
     box-shadow: 0 18px 48px rgba(18, 74, 117, 0.1);
     min-height: calc(100vh - 2rem);
+    min-height: calc(100dvh - 2rem);
     transition: padding 200ms ease, border-radius 200ms ease, box-shadow 200ms ease;
 }
 
@@ -69,6 +71,7 @@
     flex: 1;
     flex-direction: column;
     gap: 1rem;
+    min-height: 0;
 }
 
 .nav-primary {
@@ -358,6 +361,7 @@
 
     .nav-shell,
     .is-collapsed {
+        height: auto;
         min-height: auto;
         padding: 0.95rem;
     }

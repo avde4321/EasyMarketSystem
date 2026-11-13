@@ -122,35 +122,16 @@
                                     </button>
                                 </td>
                                 <td data-label="Documentos">
-                                    <div class="table-actions">
-                                        @if (factura.TipoDocumentoId == "01" && string.IsNullOrWhiteSpace(factura.NumeroAutorizacion))
-                                        {
-                                            <a class="table-action" href="@($"/facturacion/reprocesar/{factura.Id}")">Reprocesar</a>
-                                        }
-                                        <button class="table-action"
-                                                @onclick="() => DownloadXmlGeneradoAsync(factura)"
-                                                disabled="@IsBusyFor(factura.Id)">
-                                            @GetXmlGeneradoLabel(factura.Id)
-                                        </button>
-                                        <button class="table-action"
-                                                @onclick="() => DownloadXmlFirmadoAsync(factura)"
-                                                disabled="@(!factura.TieneXmlFirmado || IsBusyFor(factura.Id))">
-                                            @GetXmlFirmadoLabel(factura.Id)
-                                        </button>
-                                        <button class="table-action primary"
-                                                @onclick="() => DownloadRideAsync(factura)"
-                                                disabled="@IsBusyFor(factura.Id)">
-                                            @GetRideLabel(factura.Id)
-                                        </button>
-                                        <button class="table-action whatsapp-row-action"
-                                                @onclick="() => OpenWhatsAppModal(factura)"
-                                                disabled="@IsBusyFor(factura.Id)">
-                                            WhatsApp
-                                        </button>
-                                        <button class="table-action note-action"
-                                                @onclick="() => OpenNotaCreditoAsync(factura)"
-                                                disabled="@(!CanCreateNotaCredito(factura) || IsBusyFor(factura.Id))">
-                                            Nota crédito
+                                    <div class="document-actions">
+                                        <button class="table-action document-actions-trigger" type="button"
+                                                title="Más opciones" aria-label="Más opciones del comprobante"
+                                                aria-expanded="@(documentActionsFactura?.Id == factura.Id)"
+                                                @onclick="() => OpenDocumentActions(factura)">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                <circle cx="5" cy="12" r="1.8" />
+                                                <circle cx="12" cy="12" r="1.8" />
+                                                <circle cx="19" cy="12" r="1.8" />
+                                            </svg>
                                         </button>
                                     </div>
                                 </td>
@@ -170,6 +151,52 @@
             </footer>
         }
     </section>
+
+    @if (documentActionsFactura is not null)
+    {
+        <div class="modal-backdrop document-actions-backdrop" @onclick="CloseDocumentActions" @onkeydown="CloseDocumentActionsOnEscape">
+            <section class="modal-card document-actions-popup" role="dialog" aria-modal="true" aria-labelledby="documentActionsTitle" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <div>
+                        <h2 id="documentActionsTitle">Acciones del comprobante</h2>
+                        <p>@documentActionsFactura.NumeroComprobante · @documentActionsFactura.ClienteNombre</p>
+                    </div>
+                    <button class="icon-button" type="button" aria-label="Cerrar opciones" @onclick="CloseDocumentActions">×</button>
+                </header>
+                <div class="document-actions-popup-list">
+                    @if (documentActionsFactura.TipoDocumentoId == "01" && string.IsNullOrWhiteSpace(documentActionsFactura.NumeroAutorizacion))
+                    {
+                        <a class="table-action" href="@($"/facturacion/reprocesar/{documentActionsFactura.Id}")" @onclick="CloseDocumentActions">Reprocesar</a>
+                    }
+                    <button class="table-action" type="button"
+                            @onclick="() => DownloadXmlGeneradoFromMenuAsync(documentActionsFactura)"
+                            disabled="@IsBusyFor(documentActionsFactura.Id)">
+                        @GetXmlGeneradoLabel(documentActionsFactura.Id)
+                    </button>
+                    <button class="table-action" type="button"
+                            @onclick="() => DownloadXmlFirmadoFromMenuAsync(documentActionsFactura)"
+                            disabled="@(!documentActionsFactura.TieneXmlFirmado || IsBusyFor(documentActionsFactura.Id))">
+                        @GetXmlFirmadoLabel(documentActionsFactura.Id)
+                    </button>
+                    <button class="table-action primary" type="button"
+                            @onclick="() => DownloadRideFromMenuAsync(documentActionsFactura)"
+                            disabled="@IsBusyFor(documentActionsFactura.Id)">
+                        @GetRideLabel(documentActionsFactura.Id)
+                    </button>
+                    <button class="table-action whatsapp-row-action" type="button"
+                            @onclick="() => OpenWhatsAppFromMenu(documentActionsFactura)"
+                            disabled="@IsBusyFor(documentActionsFactura.Id)">
+                        WhatsApp
+                    </button>
+                    <button class="table-action note-action" type="button"
+                            @onclick="() => OpenNotaCreditoFromMenuAsync(documentActionsFactura)"
+                            disabled="@(!CanCreateNotaCredito(documentActionsFactura) || IsBusyFor(documentActionsFactura.Id))">
+                        Nota crédito
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
 
     @if (mensajeSeleccionado is not null)
     {

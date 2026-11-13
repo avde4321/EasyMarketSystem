@@ -21,6 +21,7 @@ public partial class ComprobantesMonitor : IAsyncDisposable
 
     private readonly List<FacturaMonitorResponse> facturas = [];
     private bool isLoading = true;
+    private FacturaMonitorResponse? documentActionsFactura;
     private FacturaMonitorResponse? mensajeSeleccionado;
     private void CerrarMensajeConTeclado(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs args)
     {
@@ -55,6 +56,48 @@ public partial class ComprobantesMonitor : IAsyncDisposable
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
     private string SelectedComprobanteRideLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/ride";
     private string SelectedComprobanteXmlLink => selectedWhatsAppFactura is null ? string.Empty : $"api/reporteria/comprobantes/{selectedWhatsAppFactura.Id}/xml-generado";
+
+    private void OpenDocumentActions(FacturaMonitorResponse factura) => documentActionsFactura = factura;
+
+    private void CloseDocumentActions() => documentActionsFactura = null;
+
+    private void CloseDocumentActionsOnEscape(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            CloseDocumentActions();
+        }
+    }
+
+    private async Task DownloadRideFromMenuAsync(FacturaMonitorResponse factura)
+    {
+        CloseDocumentActions();
+        await DownloadRideAsync(factura);
+    }
+
+    private async Task DownloadXmlGeneradoFromMenuAsync(FacturaMonitorResponse factura)
+    {
+        CloseDocumentActions();
+        await DownloadXmlGeneradoAsync(factura);
+    }
+
+    private async Task DownloadXmlFirmadoFromMenuAsync(FacturaMonitorResponse factura)
+    {
+        CloseDocumentActions();
+        await DownloadXmlFirmadoAsync(factura);
+    }
+
+    private void OpenWhatsAppFromMenu(FacturaMonitorResponse factura)
+    {
+        CloseDocumentActions();
+        OpenWhatsAppModal(factura);
+    }
+
+    private async Task OpenNotaCreditoFromMenuAsync(FacturaMonitorResponse factura)
+    {
+        CloseDocumentActions();
+        await OpenNotaCreditoAsync(factura);
+    }
 
     protected override async Task OnInitializedAsync()
     {
